@@ -183,49 +183,6 @@ class Database {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
 
-      // Auto-recombine split textbook PDFs (.part1 + .part2) and link stream duplicates
-      const booksStorageDir = path.join(process.cwd(), 'storage', 'private', 'books');
-      if (fs.existsSync(booksStorageDir)) {
-        try {
-          const files = fs.readdirSync(booksStorageDir);
-          for (const f of files) {
-            if (f.endsWith('.part1')) {
-              const fullPdfName = f.slice(0, -6);
-              const fullPdfPath = path.join(booksStorageDir, fullPdfName);
-              const part1Path = path.join(booksStorageDir, f);
-              const part2Path = path.join(booksStorageDir, fullPdfName + '.part2');
-              if (!fs.existsSync(fullPdfPath) && fs.existsSync(part2Path)) {
-                console.log(`[Storage] Reassembling ${fullPdfName} from split parts...`);
-                const b1 = fs.readFileSync(part1Path);
-                const b2 = fs.readFileSync(part2Path);
-                fs.writeFileSync(fullPdfPath, Buffer.concat([b1, b2]));
-                console.log(`[Storage] Reassembled ${fullPdfName} (${((b1.length + b2.length) / 1024 / 1024).toFixed(1)} MB)`);
-              }
-            }
-          }
-
-          // Link stream aliases if they don't exist
-          const streamAliases: [string, string][] = [
-            ['book-11-nat-eng.pdf', 'book-11-eng.pdf'],
-            ['book-11-soc-eng.pdf', 'book-11-eng.pdf'],
-            ['book-11-nat-math.pdf', 'book-11-math.pdf'],
-            ['book-11-soc-math.pdf', 'book-11-math.pdf'],
-            ['book-12-nat-bio.pdf', 'book-12-bio.pdf'],
-            ['book-12-nat-math.pdf', 'book-12-math.pdf'],
-            ['book-12-soc-math.pdf', 'book-12-math.pdf']
-          ];
-          for (const [alias, source] of streamAliases) {
-            const aliasPath = path.join(booksStorageDir, alias);
-            const sourcePath = path.join(booksStorageDir, source);
-            if (!fs.existsSync(aliasPath) && fs.existsSync(sourcePath)) {
-              fs.copyFileSync(sourcePath, aliasPath);
-            }
-          }
-        } catch (storageErr) {
-          console.warn('[Storage] Auto-repair storage error:', storageErr);
-        }
-      }
-
       if (fs.existsSync(DB_FILE)) {
         const raw = fs.readFileSync(DB_FILE, 'utf-8');
         const parsed = JSON.parse(raw);
@@ -975,10 +932,49 @@ class Database {
       if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
       }
-      fs.writeFileSync(DB_FILE, JSON.stringify(state), 'utf-8');
+
+      // If state contains book_pages, partition them out to keep database.json under 30MB
+      const pagesToSave = state.book_pages;
+      if (Array.isArray(pagesToSave) && pagesToSave.length > 0) {
+        const pagesDir = path.join(DATA_DIR, 'book_pages');
+        if (!fs.existsSync(pagesDir)) fs.mkdirSync(pagesDir, { recursive: true });
+        const byBook = new Map<string, BookPage[]>();
+        for (const p of pagesToSave) {
+          if (!byBook.has(p.book_id)) byBook.set(p.book_id, []);
+          byBook.get(p.book_id)!.push(p);
+        }
+        byBook.forEach((pages, bId) => {
+          fs.writeFileSync(path.join(pagesDir, `${bId}.json`), JSON.stringify(pages), 'utf-8');
+        });
+      }
+
+      // If state contains chapter_short_notes, partition them into data/short_notes/${bookId}.json
+      const notesToSave = state.chapter_short_notes;
+      if (notesToSave && Object.keys(notesToSave).length > 0) {
+        const notesDir = path.join(DATA_DIR, 'short_notes');
+        if (!fs.existsSync(notesDir)) fs.mkdirSync(notesDir, { recursive: true });
+        const byBook = new Map<string, Record<string, any>>();
+        for (const [k, v] of Object.entries(notesToSave)) {
+          if (!v) continue;
+          const bId = v.book_id || k.split('_ch_')[0];
+          if (!byBook.has(bId)) byBook.set(bId, {});
+          byBook.get(bId)![k] = v;
+        }
+        byBook.forEach((notes, bId) => {
+          fs.writeFileSync(path.join(notesDir, `${bId}.json`), JSON.stringify(notes), 'utf-8');
+        });
+      }
+
+      // Write lean database.json without bloated pages or raw short notes
+      const leanState = {
+        ...state,
+        book_pages: [],
+        chapter_short_notes: {}
+      };
+      fs.writeFileSync(DB_FILE, JSON.stringify(leanState), 'utf-8');
 
       // Immediately sync to both official backup locations for absolute permanence
-      this.syncOfficialBackups(state);
+      this.syncOfficialBackups(leanState);
     } catch (err) {
       console.error('Failed to write database file:', err);
     }

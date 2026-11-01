@@ -15,7 +15,7 @@ import { concurrencyLimiter } from './server/concurrencyLimiter';
 import { requestCoalescer } from './server/requestCoalescer';
 import { execSync } from 'child_process';
 import { processUploadedBook, processUploadedExam } from './server/ocrEngine';
-import { ensureAllBookPdfsExist } from './server/pdfService';
+import { ensureAllBookPdfsExist, ensurePdfFileReady } from './server/pdfService';
 import { getOrGenerateChapterShortNote, generateAllShortNotesForBook } from './server/shortNotesService';
 import { processAndDigitizeExam, regenerateExamFromPdf } from './server/examIngestionService';
 import { buildStructuredDigitalPageText, sanitizeAndFormatOcrText } from './server/textbookPageFormatter';
@@ -949,11 +949,27 @@ const handleBookPdfRequest = (req: Request, res: Response) => {
     }
 
     // Ensure file exists in storage and is valid non-empty PDF
-    const pdfPath = path.join(process.cwd(), 'storage', 'private', 'books', `${book.id}.pdf`);
-    let effectivePdfPath = pdfPath;
+    const aliasMap: Record<string, string> = {
+      'book-11-nat-eng.pdf': 'book-11-eng.pdf',
+      'book-11-soc-eng.pdf': 'book-11-eng.pdf',
+      'book-11-nat-math.pdf': 'book-11-math.pdf',
+      'book-11-soc-math.pdf': 'book-11-math.pdf',
+      'book-12-nat-bio.pdf': 'book-12-bio.pdf',
+      'book-12-nat-math.pdf': 'book-12-math.pdf',
+      'book-12-soc-math.pdf': 'book-12-math.pdf'
+    };
+
+    const requestedFilename = `${book.id}.pdf`;
+    const canonicalFilename = aliasMap[requestedFilename] || requestedFilename;
+    const booksDir = path.join(process.cwd(), 'storage', 'private', 'books');
+    let effectivePdfPath = path.join(booksDir, canonicalFilename);
+
+    // If file doesn't exist yet, lazily stream-assemble from .part1 + .part2 if available
+    effectivePdfPath = ensurePdfFileReady(effectivePdfPath);
+
     let isInvalid = !fs.existsSync(effectivePdfPath);
     if (isInvalid && book.original_pdf_path && fs.existsSync(book.original_pdf_path)) {
-      effectivePdfPath = book.original_pdf_path;
+      effectivePdfPath = ensurePdfFileReady(book.original_pdf_path);
       isInvalid = false;
     }
 
@@ -971,7 +987,8 @@ const handleBookPdfRequest = (req: Request, res: Response) => {
               return b.id !== book.id && b.subject_id === book.subject_id && bGradeMatch && bGradeMatch[1] === gradeNum;
             });
             for (const sib of siblings) {
-              const sibPath = path.join(process.cwd(), 'storage', 'private', 'books', `${sib.id}.pdf`);
+              let sibPath = path.join(process.cwd(), 'storage', 'private', 'books', `${sib.id}.pdf`);
+              sibPath = ensurePdfFileReady(sibPath);
               if (fs.existsSync(sibPath)) {
                 const sibStat = fs.statSync(sibPath);
                 if (sibStat.size > stat.size && sibStat.size > 500000) {

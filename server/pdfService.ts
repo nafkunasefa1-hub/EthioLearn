@@ -101,15 +101,60 @@ export function createValidPdfBuffer(title: string, subtitle: string, totalPages
   return Buffer.from(out, 'utf8');
 }
 
+export function ensurePdfFileReady(targetPath: string): string {
+  if (fs.existsSync(targetPath)) return targetPath;
+  const part1 = targetPath + '.part1';
+  const part2 = targetPath + '.part2';
+  if (fs.existsSync(part1) && fs.existsSync(part2)) {
+    try {
+      console.log(`[Storage] Lazy low-memory assembly of ${path.basename(targetPath)}...`);
+      const dest = fs.openSync(targetPath, 'w');
+      const buf = Buffer.alloc(64 * 1024);
+      for (const p of [part1, part2]) {
+        const src = fs.openSync(p, 'r');
+        let readBytes = 0;
+        while ((readBytes = fs.readSync(src, buf, 0, buf.length, null)) > 0) {
+          fs.writeSync(dest, buf, 0, readBytes);
+        }
+        fs.closeSync(src);
+      }
+      fs.closeSync(dest);
+      console.log(`[Storage] Reassembled ${path.basename(targetPath)} successfully.`);
+      return targetPath;
+    } catch (err) {
+      console.error(`[Storage] Failed to reassemble ${path.basename(targetPath)}:`, err);
+    }
+  }
+  return targetPath;
+}
+
 export function ensureAllBookPdfsExist(forceRegenerate = false) {
   const booksDir = path.join(process.cwd(), 'storage', 'private', 'books');
   if (!fs.existsSync(booksDir)) {
     fs.mkdirSync(booksDir, { recursive: true });
   }
 
+  const aliasMap: Record<string, string> = {
+    'book-11-nat-eng.pdf': 'book-11-eng.pdf',
+    'book-11-soc-eng.pdf': 'book-11-eng.pdf',
+    'book-11-nat-math.pdf': 'book-11-math.pdf',
+    'book-11-soc-math.pdf': 'book-11-math.pdf',
+    'book-12-nat-bio.pdf': 'book-12-bio.pdf',
+    'book-12-nat-math.pdf': 'book-12-math.pdf',
+    'book-12-soc-math.pdf': 'book-12-math.pdf'
+  };
+
   const books = db.getBooks();
   for (const book of books) {
-    const pdfPath = path.join(booksDir, `${book.id}.pdf`);
+    const filename = `${book.id}.pdf`;
+    const resolvedFilename = aliasMap[filename] || filename;
+    const pdfPath = path.join(booksDir, resolvedFilename);
+    const hasSplitParts = fs.existsSync(pdfPath + '.part1');
+
+    if (hasSplitParts) {
+      continue; // Authentic parts exist, will reassemble on-demand
+    }
+
     let isMissingOrEmpty = !fs.existsSync(pdfPath);
     if (!isMissingOrEmpty) {
       try {
