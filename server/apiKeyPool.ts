@@ -17,6 +17,26 @@ export interface KeyHealthState {
   lastUsedAt: number;
   cooldownUntil: number;
   avgLatencyMs: number;
+  invalid?: boolean;
+}
+
+/**
+ * True when Google rejected the key itself (401/403 "API key not valid", expired, revoked, wrong type),
+ * as opposed to a quota/rate-limit/transient problem. Such a key fails on EVERY model, so callers
+ * should skip straight to the next key instead of cycling through all models.
+ */
+export function isRejectedKeyError(statusCode?: number | string, errorMessage: string = ''): boolean {
+  const code = Number(statusCode);
+  const msg = (errorMessage || '').toLowerCase();
+  return (
+    code === 401 ||
+    msg.includes('api key not valid') ||
+    msg.includes('api_key_invalid') ||
+    msg.includes('access_token_type_unsupported') ||
+    msg.includes('unauthenticated') ||
+    msg.includes('api key expired') ||
+    msg.includes('permission_denied')
+  );
 }
 
 class ApiKeyPool {
@@ -195,6 +215,7 @@ class ApiKeyPool {
 
     if (success) {
       keyState.consecutiveFailures = 0;
+      keyState.invalid = false;
       keyState.status = 'HEALTHY';
       keyState.totalSuccesses++;
       keyState.avgLatencyMs = keyState.avgLatencyMs === 0 
@@ -213,7 +234,16 @@ class ApiKeyPool {
         errorMessage.includes('high demand') || 
         errorMessage.includes('UNAVAILABLE');
 
-      if (isQuotaOrRateLimit) {
+      if (isRejectedKeyError(statusCode, errorMessage)) {
+        // The key itself is rejected by Google (expired / revoked / wrong type). Retrying it on every
+        // model is pointless and slows every request, so park it for 10 minutes.
+        keyState.status = 'COOLING_DOWN';
+        keyState.cooldownUntil = now + 10 * 60 * 1000;
+        keyState.invalid = true;
+        if (keyState.consecutiveFailures === 1) {
+          console.warn(`[API Key Pool] Key #${keyState.keyIndex} (${keyState.maskedKey}) was REJECTED by Google (invalid/expired). Skipping it for 10 minutes. Add a fresh key from https://aistudio.google.com/apikey`);
+        }
+      } else if (isQuotaOrRateLimit) {
         // Apply cooldown for rate limit (45s * failures)
         const cooldown = Math.min(this.defaultCooldownMs * keyState.consecutiveFailures, 180000);
         keyState.status = 'RATE_LIMITED';

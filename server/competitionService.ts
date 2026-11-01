@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
-import { apiKeyPool } from './apiKeyPool';
+import { apiKeyPool, isRejectedKeyError } from './apiKeyPool';
+import { getRecommendedModelList } from './modelCascade';
 
 export interface CompetitionQuestion {
   id: string;
@@ -331,11 +332,7 @@ export async function explainDailyCurriculumTopic(params: {
 
   // Try real Gemini AI generation first
   try {
-    const keyObj = apiKeyPool.getNextKey();
-    const key = keyObj?.key || process.env.GEMINI_API_KEY;
-    if (key) {
-      const ai = new GoogleGenAI({ apiKey: key });
-      const prompt = `You are the Lead Ethiopian Ministry of Education Pedagogical Expert for secondary school students (${grade}, ${subject}).
+    const prompt = `You are the Lead Ethiopian Ministry of Education Pedagogical Expert for secondary school students (${grade}, ${subject}).
 The student entered today's lesson topic: "${topic}".
 
 Generate a comprehensive, curriculum-aligned study guide in strict JSON format:
@@ -378,19 +375,39 @@ Generate a comprehensive, curriculum-aligned study guide in strict JSON format:
 }
 Respond strictly with valid JSON only. No markdown formatting around the JSON if possible.`;
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json'
-        }
-      });
+    const maxKeys = Math.min(6, Math.max(1, apiKeyPool.getStats().total_keys || 1));
+    const triedKeys = new Set<string>();
+    keyLoop: for (let attempt = 0; attempt < maxKeys; attempt++) {
+      const keyObj = apiKeyPool.getNextKey();
+      const key = keyObj?.key || process.env.GEMINI_API_KEY;
+      if (!key || triedKeys.has(key)) continue;
+      triedKeys.add(key);
+      const ai = new GoogleGenAI({ apiKey: key });
 
-      const text = response.text?.trim() || '';
-      const cleanJson = text.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      const parsed = JSON.parse(cleanJson);
-      if (parsed && parsed.summary && Array.isArray(parsed.practiceQuestions)) {
-        return parsed;
+      for (const modelName of getRecommendedModelList()) {
+        const startedAt = Date.now();
+        try {
+          const response = await ai.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: { responseMimeType: 'application/json' }
+          });
+
+          const text = response.text?.trim() || '';
+          const cleanJson = text.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+          const parsed = JSON.parse(cleanJson);
+          if (parsed && parsed.summary && Array.isArray(parsed.practiceQuestions)) {
+            apiKeyPool.reportResult(key, true, 200, Date.now() - startedAt);
+            return parsed;
+          }
+        } catch (modelErr: any) {
+          const status = modelErr?.status || modelErr?.code || 500;
+          const msg = modelErr?.message || '';
+          apiKeyPool.reportResult(key, false, status, Date.now() - startedAt, msg);
+          console.warn(`[DailyTopicExplainer] ${modelName} failed (${status}): ${String(msg).slice(0, 100)}`);
+          // Rejected (invalid/expired) key fails on every model - move to the next key
+          if (isRejectedKeyError(status, msg)) continue keyLoop;
+        }
       }
     }
   } catch (err) {

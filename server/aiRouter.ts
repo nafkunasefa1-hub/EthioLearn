@@ -3,7 +3,7 @@ const aiGenSDK = { GoogleGenAI };
 import { db } from './db';
 import { retrieveRAGContext, detectSubjectDomain, extractCoreKeywords, GENERIC_STRUCTURAL_MODIFIERS } from './ragEngine';
 import { AIExplanationResult, AIResponseSource } from '../src/types';
-import { apiKeyPool } from './apiKeyPool';
+import { apiKeyPool, isRejectedKeyError } from './apiKeyPool';
 import { getRecommendedModelList } from './modelCascade';
 import { smartAICache } from './smartCache';
 import { requestCoalescer } from './requestCoalescer';
@@ -276,6 +276,8 @@ Provide an engaging, accurate, and detailed tutorial with tables and diagrams fo
             const msg = modelErr?.message || '';
             console.warn(`[AI Tutor] Model ${modelName} on key #${keyInfo.index} failed (${status}): ${msg.slice(0, 100)}`);
             apiKeyPool.reportResult(keyInfo.key, false, status, Date.now() - startTime, msg);
+            // A rejected (invalid/expired) key fails on every model - move on to the next key immediately.
+            if (isRejectedKeyError(status, msg)) continue keyLoop;
           }
         }
       }

@@ -9,7 +9,8 @@ const aiGenSDK = { GoogleGenAI };
 import { db, normalizePhoneNumber, isPhoneNumberAdmin } from './server/db';
 import { askAITutor } from './server/aiRouter';
 import { generateChatAcademicFallback } from './server/curriculumAIExpert';
-import { apiKeyPool } from './server/apiKeyPool';
+import { apiKeyPool, isRejectedKeyError } from './server/apiKeyPool';
+import { getRecommendedModelList } from './server/modelCascade';
 import { smartAICache } from './server/smartCache';
 import { concurrencyLimiter } from './server/concurrencyLimiter';
 import { requestCoalescer } from './server/requestCoalescer';
@@ -1868,16 +1869,18 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
   const quotaCheck = db.checkAndIncrementDailyAI(user.id || 'usr-student-premium');
 
   let assistantReply = '';
-  let usedModel = 'gemini-3.5-flash-lite';
-  const candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.5-flash', 'gemini-3.8-flash'];
+  let usedModel = 'gemini-2.5-flash';
+  const candidateModels = getRecommendedModelList();
 
   const systemInstruction = `You are "EthioLearn AI", an elite AI Tutor and Senior Academic Specialist for the Ethiopian Secondary School Curriculum (Grades 9–12).
 Student Grade: ${user?.grade || 'Grade 12 - Natural Science'}
 Directives:
-1. Answer the student's question directly, clearly, and in deep pedagogical detail.
-2. You MUST use standard LaTeX notation for ALL mathematical symbols, chemical formulas, and equations ($inline$ or $$block$$).
-3. Provide step-by-step breakdowns, worked examples, and practical exam tips matching Ethiopian EUEE and national syllabus standards.
-4. Maintain an encouraging, inspiring, and academically rigorous tone.`;
+1. Answer the student's question directly in the very first sentence, then explain it in deep pedagogical detail with clear sub-headings (no robotic filler).
+2. You MUST use standard LaTeX notation for ALL mathematical symbols, chemical formulas, and equations ($inline$ or $block$).
+3. Provide step-by-step breakdowns and fully worked examples. Use Markdown tables whenever you compare concepts, list formulas/units, or classify things.
+4. For processes, cycles, and structures (e.g., mitosis, carbon cycle, circuits) include a simple text flowchart or diagram (Step 1 -> Step 2 -> Step 3).
+5. End with 2-3 "Key Takeaways" and practical exam tips matching Ethiopian EUEE and national syllabus standards.
+6. Maintain an encouraging, inspiring, and academically rigorous tone.`;
 
   // Build conversational message history
   const formattedContents: any[] = [];
@@ -1928,7 +1931,7 @@ Directives:
             contents: formattedContents,
             config: {
               systemInstruction,
-              maxOutputTokens: 2500,
+              maxOutputTokens: 4000,
               temperature: 0.6
             }
           });
@@ -1947,6 +1950,8 @@ Directives:
           const status = err?.status || err?.code || 500;
           console.warn(`[AI Chat] Model ${modelName} notice (${status}):`, err?.message || err);
           apiKeyPool.reportResult(apiKey, false, status, Date.now() - startTime, err?.message);
+          // A rejected (invalid/expired) key fails on every model - skip to the next key right away.
+          if (isRejectedKeyError(status, err?.message || '')) continue keyLoop;
         }
       }
     }

@@ -67,7 +67,10 @@ export const DailyTopicPage: React.FC<DailyTopicPageProps> = ({ onNavigate }) =>
     try {
       const savedHistory = localStorage.getItem(`ethio_daily_topics_${user?.id}`);
       if (savedHistory) {
-        setPastTopics(JSON.parse(savedHistory));
+        const parsed = JSON.parse(savedHistory);
+        if (Array.isArray(parsed)) {
+          setPastTopics(parsed);
+        }
       } else {
         setPastTopics([
           { id: 'dt-1', topic_name: 'Faraday\'s Laws of Electrolysis', subject_name: 'Chemistry', date: 'Yesterday', score: 3, total_questions: 3 },
@@ -90,6 +93,70 @@ export const DailyTopicPage: React.FC<DailyTopicPageProps> = ({ onNavigate }) =>
     } catch {}
   }, [user?.id]);
 
+  // Converts the server payload ({ success, analysis: { summary, keyConcepts, ... practiceQuestions } })
+  // into the shape this page renders. Returns null if the payload is unusable so the page never crashes.
+  const normalizeTopicResponse = (data: any, topic: string, subject: string) => {
+    const a = data?.analysis ?? data;
+    if (!a || typeof a !== 'object') return null;
+
+    // Already in page shape
+    if (typeof a.explanation === 'string' && Array.isArray(a.questions) && a.questions.length > 0) {
+      return {
+        topic: a.topic || topic,
+        subject: a.subject || subject,
+        explanation: a.explanation,
+        keyPoints: Array.isArray(a.keyPoints) ? a.keyPoints : [],
+        ethiopianContext: a.ethiopianContext || '',
+        questions: a.questions
+      };
+    }
+
+    if (typeof a.summary !== 'string' || !Array.isArray(a.practiceQuestions) || a.practiceQuestions.length === 0) {
+      return null;
+    }
+
+    const list = (arr: any) => (Array.isArray(arr) ? arr.filter((x: any) => typeof x === 'string' && x.trim()) : []);
+    const concepts = list(a.keyConcepts);
+    const formulas = list(a.formulasAndRules);
+    const traps = list(a.commonExamTraps);
+
+    let explanation = `### ${topic}\n${a.summary}`;
+    if (concepts.length) explanation += `\n\n#### Key Concepts\n${concepts.map((c: string) => `- ${c}`).join('\n')}`;
+    if (traps.length) explanation += `\n\n#### Common EUEE Exam Traps\n${traps.map((c: string) => `- ${c}`).join('\n')}`;
+    if (typeof a.memoryMnemonic === 'string' && a.memoryMnemonic.trim()) {
+      explanation += `\n\n#### Memory Anchor\n${a.memoryMnemonic}`;
+    }
+
+    const letters = ['A', 'B', 'C', 'D'];
+    const stamp = Date.now();
+    const questions: ExamQuestion[] = a.practiceQuestions.slice(0, 5).map((pq: any, i: number) => {
+      const opts: string[] = Array.isArray(pq?.options) ? pq.options.map((o: any) => String(o)) : [];
+      const idx = Number.isInteger(pq?.correctIndex) && pq.correctIndex >= 0 && pq.correctIndex < 4 ? pq.correctIndex : 0;
+      return {
+        id: `dt-q${i + 1}-${stamp}`,
+        exam_id: 'daily-practice',
+        question_number: i + 1,
+        question_text: String(pq?.question || `Practice question ${i + 1}`),
+        option_a: opts[0] || '',
+        option_b: opts[1] || '',
+        option_c: opts[2] || '',
+        option_d: opts[3] || '',
+        correct_answer: letters[idx],
+        explanation: String(pq?.explanation || ''),
+        difficulty: 'Medium'
+      } as ExamQuestion;
+    });
+
+    return {
+      topic,
+      subject,
+      explanation,
+      keyPoints: formulas,
+      ethiopianContext: '',
+      questions
+    };
+  };
+
   const handleFetchTopicExplanation = async (topicQuery: string, subjectQuery: string) => {
     if (!topicQuery.trim()) return;
     setLoading(true);
@@ -104,13 +171,19 @@ export const DailyTopicPage: React.FC<DailyTopicPageProps> = ({ onNavigate }) =>
         body: JSON.stringify({
           topic: topicQuery.trim(),
           subject: subjectQuery,
+          grade: user?.grade || 'Grade 12 - Natural Science',
           grade_id: user?.grade_id || 'grade-12-natural'
         })
       });
 
       if (res.ok) {
         const data = await res.json();
-        setTopicData(data);
+        const normalized = normalizeTopicResponse(data, topicQuery.trim(), subjectQuery);
+        if (normalized) {
+          setTopicData(normalized);
+        } else {
+          synthesizeFallbackTopic(topicQuery.trim(), subjectQuery);
+        }
       } else {
         // High-yield fallback synthesis
         synthesizeFallbackTopic(topicQuery.trim(), subjectQuery);
@@ -549,12 +622,12 @@ In the Ethiopian Secondary School Curriculum (${user?.grade || 'Grade 12'}), mas
               <span>Your Daily Topic History</span>
             </h3>
             <span className="text-xs text-slate-400 font-mono">
-              {pastTopics.length} Topics Mastered
+              {(Array.isArray(pastTopics) ? pastTopics : []).length} Topics Mastered
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {pastTopics.map((pt) => (
+            {(Array.isArray(pastTopics) ? pastTopics : []).map((pt) => (
               <div
                 key={pt.id}
                 className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3"
