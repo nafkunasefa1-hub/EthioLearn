@@ -1277,19 +1277,46 @@ class Database {
       .sort((a, b) => a.chapter_number - b.chapter_number);
   }
 
+  private bookPagesCache: Map<string, BookPage[]> = new Map();
+
   public getBookPages(book_id?: string): BookPage[] {
     if (!book_id) return this.data.book_pages || [];
-    return (this.data.book_pages || [])
+    const inMem = (this.data.book_pages || [])
       .filter(p => p.book_id === book_id)
       .sort((a, b) => a.printed_page_number - b.printed_page_number);
+    if (inMem.length > 0) return inMem;
+
+    if (this.bookPagesCache.has(book_id)) {
+      return this.bookPagesCache.get(book_id)!;
+    }
+
+    try {
+      const pageFile = path.join(process.cwd(), 'data', 'book_pages', book_id + '.json');
+      if (fs.existsSync(pageFile)) {
+        const filePages: BookPage[] = JSON.parse(fs.readFileSync(pageFile, 'utf8'));
+        if (Array.isArray(filePages) && filePages.length > 0) {
+          const sorted = filePages.sort((a, b) => a.printed_page_number - b.printed_page_number);
+          this.bookPagesCache.set(book_id, sorted);
+          return sorted;
+        }
+      }
+    } catch (e) {}
+
+    return [];
   }
 
   public getBookPageByPrintedPage(book_id: string, printed_page: number): BookPage | undefined {
-    return this.data.book_pages.find(p => p.book_id === book_id && p.printed_page_number === printed_page);
+    const inMem = (this.data.book_pages || []).find(p => p.book_id === book_id && p.printed_page_number === printed_page);
+    if (inMem) return inMem;
+    const all = this.getBookPages(book_id);
+    return all.find(p => p.printed_page_number === printed_page);
   }
 
   public getBookPageByPdfIndex(book_id: string, pdf_page_index: number): BookPage | undefined {
-    return this.data.book_pages.find(p => p.book_id === book_id && p.pdf_page_index === pdf_page_index);
+    const inMem = (this.data.book_pages || []).find(p => p.book_id === book_id && p.pdf_page_index === pdf_page_index);
+    if (inMem) return inMem;
+    const all = this.getBookPages(book_id);
+    return all.find(p => p.pdf_page_index === pdf_page_index);
   }
 
   public updateBookPage(pageId: string, updates: Partial<BookPage>): BookPage | undefined {

@@ -420,6 +420,7 @@ export interface AIResponseSource {
   chapter_title?: string;
   grade_name: string;
   subject_name: string;
+  subject_id?: string;
   relevance_score: number;
   passage_snippet: string;
 }

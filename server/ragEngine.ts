@@ -123,8 +123,8 @@ export function detectSubjectDomain(query: string, preferredSubjectId?: string):
 
   // 5. Computer Science / AI / Technology
   const isAiCs = 
-    /\b(ai|artificial intelligence|machine learning|deep learning|neural network|algorithm|algorithms|software|hardware|programming|cybersecurity|data science|operating system|cloud computing|internet|robotics|large language model|llm|nlp|computer science|python|database|computing|it|ict|information technology)\b/i.test(q) ||
-    (tokens.includes('ai') && !tokens.includes('air') && !tokens.includes('aid')) ||
+    /\b(artificial intelligence|machine learning|deep learning|neural network|algorithm|algorithms|software|hardware|programming|cybersecurity|data science|operating system|cloud computing|robotics|large language model|llm|nlp|computer science|python|database|computing|ict|information technology)\b/i.test(q) ||
+    (tokens.includes('ai') && !tokens.includes('air') && !tokens.includes('aid') && !tokens.includes('aim')) ||
     (tokens.includes('ml') && tokens.length < 5);
 
   if (isAiCs) {
@@ -367,11 +367,85 @@ export function retrieveRAGContext(query: string, studentGradeId?: string, prefe
         chapter_title: resolvedChapterTitle,
         grade_name: grade?.name || 'Grade 10',
         subject_name: subject?.name || 'Secondary Curriculum',
+        subject_id: book.subject_id || chunk.subject_id,
         relevance_score: Math.min(0.99, Math.round((score / 10) * 100) / 100),
         passage_snippet: chunk.chunk_text
       });
     }
   });
+
+  // 3. Page-level fallback: Search full textbook pages across candidate books if chunks had 0 matches
+  if (sources.length === 0 && searchKeywords.length > 0 && domain !== 'cs_ai') {
+    const allBooks = db.getBooks();
+    const domainBooks = allBooks.filter(b => isChunkSubjectCompatible(b.subject_id, b.title, domain));
+    domainBooks.sort((a, b) => {
+      if (studentGradeId) {
+        if (a.grade_id === studentGradeId && b.grade_id !== studentGradeId) return -1;
+        if (b.grade_id === studentGradeId && a.grade_id !== studentGradeId) return 1;
+      }
+      return 0;
+    });
+    const pageMatches = [];
+    for (const book of domainBooks) {
+      const pages = db.getBookPages(book.id);
+      for (const p of pages) {
+        const text = (p.extracted_text || p.ocr_text || '').toLowerCase();
+        if (text.length < 40) continue;
+        if (isTableOfContentsOrIndexChunk(text, p.printed_page_number)) continue;
+        let score = computeKeywordScore(searchKeywords, text) * 3.0;
+        if (distinctiveKeywords.length > 0) score += computeKeywordScore(distinctiveKeywords, text) * 4.0;
+        if (studentGradeId && book.grade_id === studentGradeId) score *= 1.3;
+        if (normalizedSubjectId && book.subject_id === normalizedSubjectId) score *= 1.4;
+        if (score >= 2.0) pageMatches.push({ book, page: p, score });
+      }
+      if (pageMatches.length >= 6) break;
+    }
+    const topPages = pageMatches.sort((a, b) => b.score - a.score).slice(0, 3);
+    topPages.forEach(({ book, page, score }) => {
+      const chapters = db.getBookChapters(book.id);
+      const chapter = chapters.find(c => page.printed_page_number >= c.start_page && page.printed_page_number <= c.end_page) || chapters[0];
+      const grade = db.getGrades().find(g => g.id === book.grade_id);
+      const subject = db.getSubjects().find(s => s.id === book.subject_id);
+      let resolvedChapterTitle = chapter?.chapter_title;
+      const unitMatch = (page.extracted_text || '').match(/Unit\s*(\d+)\s*:\s*([^\n\r\t]+)/i);
+      if (unitMatch) {
+        resolvedChapterTitle = `Unit ${unitMatch[1]}: ${unitMatch[2].trim().split('.')[0]}`;
+      } else if (!resolvedChapterTitle) {
+        resolvedChapterTitle = `Chapter ${chapter?.chapter_number || 1}`;
+      }
+      const fullText = (page.extracted_text || page.ocr_text || '').replace(/\r/g, '').trim();
+      let snippet = fullText;
+      if (fullText.length > 900) {
+        const lower = fullText.toLowerCase();
+        let bestIdx = -1;
+        for (const kw of searchKeywords) {
+          const idx = lower.indexOf(kw);
+          if (idx !== -1) { bestIdx = idx; break; }
+        }
+        if (bestIdx !== -1) {
+          const start = Math.max(0, bestIdx - 150);
+          const end = Math.min(fullText.length, bestIdx + 750);
+          snippet = (start > 0 ? '...' : '') + fullText.slice(start, end).trim() + (end < fullText.length ? '...' : '');
+        } else {
+          snippet = fullText.slice(0, 800) + '...';
+        }
+      }
+      sources.push({
+        book_id: book.id,
+        book_title: book.title,
+        page_id: page.id || `page-${book.id}-${page.printed_page_number}`,
+        printed_page_number: page.printed_page_number,
+        pdf_page_index: page.pdf_page_index,
+        chapter_id: chapter?.id,
+        chapter_title: resolvedChapterTitle,
+        grade_name: grade?.name || 'Grade 10',
+        subject_name: subject?.name || 'Secondary Curriculum',
+        subject_id: book.subject_id,
+        relevance_score: Math.min(0.99, Math.round((score / 10) * 100) / 100),
+        passage_snippet: snippet
+      });
+    });
+  }
 
   // Retrieve related entrance-exam questions ONLY if they match the domain and topic
   const allQuestions = db.getExamQuestions();

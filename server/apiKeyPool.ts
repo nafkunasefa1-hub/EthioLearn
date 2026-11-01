@@ -170,8 +170,11 @@ class ApiKeyPool {
       }
     }
 
-    // 2. Filter available healthy keys
-    const healthyKeys = this.keys.filter(k => k.status === 'HEALTHY');
+    // 2. Filter eligible keys (excluding permanently rejected/invalid keys)
+    const eligibleKeys = this.keys.filter(k => !k.invalid);
+    if (eligibleKeys.length === 0) return null;
+
+    const healthyKeys = eligibleKeys.filter(k => k.status === 'HEALTHY');
 
     if (healthyKeys.length > 0) {
       // Rotate round robin across healthy keys
@@ -187,7 +190,7 @@ class ApiKeyPool {
     }
 
     // 3. If all are in cooldown, pick the one that expires soonest
-    const sorted = [...this.keys].sort((a, b) => a.cooldownUntil - b.cooldownUntil);
+    const sorted = [...eligibleKeys].sort((a, b) => a.cooldownUntil - b.cooldownUntil);
     const fallback = sorted[0];
     fallback.lastUsedAt = now;
     fallback.totalRequests++;
