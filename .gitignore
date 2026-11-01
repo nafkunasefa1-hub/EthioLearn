@@ -11,8 +11,7 @@ Thumbs.db
 .env.production
 !.env.example
 
-# Unpacked large database (tracked as database.json.gz, 16.5MB)
-data/database.json
+# Large unneeded backups
 data/official_textbooks_backup.json
 server/official_textbooks_backup.json
 

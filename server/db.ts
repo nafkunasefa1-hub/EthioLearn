@@ -170,6 +170,8 @@ const DB_FILE = path.join(DATA_DIR, 'database.json');
 class Database {
   private data: DatabaseSchema;
   private saveTimeout: NodeJS.Timeout | null = null;
+  private pagesCache: Map<string, BookPage[]> = new Map();
+  private notesCache: Map<string, Record<string, ChapterShortNote>> = new Map();
 
   constructor() {
     this.data = this.init();
@@ -179,20 +181,6 @@ class Database {
     try {
       if (!fs.existsSync(DATA_DIR)) {
         fs.mkdirSync(DATA_DIR, { recursive: true });
-      }
-
-      // Auto-decompress database.json.gz if database.json does not exist
-      const DB_GZ_FILE = path.join(DATA_DIR, 'database.json.gz');
-      if (!fs.existsSync(DB_FILE) && fs.existsSync(DB_GZ_FILE)) {
-        try {
-          console.log('[Database] Unpacking compressed database.json.gz on startup...');
-          const gzBuffer = fs.readFileSync(DB_GZ_FILE);
-          const decompressed = zlib.gunzipSync(gzBuffer);
-          fs.writeFileSync(DB_FILE, decompressed);
-          console.log('[Database] Successfully extracted database.json (' + (decompressed.length / 1024 / 1024).toFixed(1) + ' MB)');
-        } catch (gzErr) {
-          console.error('[Database] Failed to unpack database.json.gz:', gzErr);
-        }
       }
 
       // Auto-recombine split textbook PDFs (.part1 + .part2) and link stream duplicates
@@ -1279,21 +1267,46 @@ class Database {
 
   public getBookPages(book_id?: string): BookPage[] {
     if (!book_id) return this.data.book_pages || [];
-    return (this.data.book_pages || [])
+    if (this.pagesCache.has(book_id)) {
+      return this.pagesCache.get(book_id)!;
+    }
+    const bookPagesFile = path.join(DATA_DIR, 'book_pages', `${book_id}.json`);
+    if (fs.existsSync(bookPagesFile)) {
+      try {
+        const pages: BookPage[] = JSON.parse(fs.readFileSync(bookPagesFile, 'utf8'));
+        this.pagesCache.set(book_id, pages);
+        return pages;
+      } catch (e) {
+        console.warn(`[Database] Error reading partitioned pages for ${book_id}:`, e);
+      }
+    }
+    const filtered = (this.data.book_pages || [])
       .filter(p => p.book_id === book_id)
       .sort((a, b) => a.printed_page_number - b.printed_page_number);
+    this.pagesCache.set(book_id, filtered);
+    return filtered;
   }
 
   public getBookPageByPrintedPage(book_id: string, printed_page: number): BookPage | undefined {
-    return this.data.book_pages.find(p => p.book_id === book_id && p.printed_page_number === printed_page);
+    return this.getBookPages(book_id).find(p => p.printed_page_number === printed_page);
   }
 
   public getBookPageByPdfIndex(book_id: string, pdf_page_index: number): BookPage | undefined {
-    return this.data.book_pages.find(p => p.book_id === book_id && p.pdf_page_index === pdf_page_index);
+    return this.getBookPages(book_id).find(p => p.pdf_page_index === pdf_page_index);
   }
 
   public updateBookPage(pageId: string, updates: Partial<BookPage>): BookPage | undefined {
-    const idx = this.data.book_pages.findIndex(p => p.id === pageId);
+    // Check pagesCache first
+    for (const [bookId, pages] of this.pagesCache.entries()) {
+      const idx = pages.findIndex(p => p.id === pageId);
+      if (idx !== -1) {
+        pages[idx] = { ...pages[idx], ...updates, updated_at: new Date().toISOString() };
+        const bookPagesFile = path.join(DATA_DIR, 'book_pages', `${bookId}.json`);
+        try { fs.writeFileSync(bookPagesFile, JSON.stringify(pages)); } catch (e) {}
+        return pages[idx];
+      }
+    }
+    const idx = (this.data.book_pages || []).findIndex(p => p.id === pageId);
     if (idx === -1) return undefined;
     this.data.book_pages[idx] = {
       ...this.data.book_pages[idx],
@@ -1304,8 +1317,32 @@ class Database {
     return this.data.book_pages[idx];
   }
 
+  private loadNotesForBook(bookId: string): Record<string, ChapterShortNote> {
+    if (this.notesCache.has(bookId)) {
+      return this.notesCache.get(bookId)!;
+    }
+    const notesFile = path.join(DATA_DIR, 'short_notes', `${bookId}.json`);
+    let notes: Record<string, ChapterShortNote> = {};
+    if (fs.existsSync(notesFile)) {
+      try {
+        notes = JSON.parse(fs.readFileSync(notesFile, 'utf8'));
+      } catch (e) {
+        console.warn(`[Database] Error reading partitioned notes for ${bookId}:`, e);
+      }
+    }
+    if (this.data.chapter_short_notes) {
+      for (const [k, v] of Object.entries(this.data.chapter_short_notes)) {
+        if (v && (v.book_id === bookId || k.startsWith(bookId))) {
+          notes[k] = v;
+        }
+      }
+    }
+    this.notesCache.set(bookId, notes);
+    return notes;
+  }
+
   public getChapterShortNote(bookId: string, chapterNumber: number, topicTitle?: string): ChapterShortNote | undefined {
-    if (!this.data.chapter_short_notes) this.data.chapter_short_notes = {};
+    const bookNotes = this.loadNotesForBook(bookId);
 
     // 1. Direct unit-level detailed note
     if (topicTitle === '__detailed') {
@@ -1315,8 +1352,8 @@ class Database {
         `${bookId}_ch_${chapterNumber}__detailed`
       ];
       for (const dk of detailedKeys) {
-        if (this.data.chapter_short_notes[dk]) {
-          return this.data.chapter_short_notes[dk];
+        if (bookNotes[dk]) {
+          return bookNotes[dk];
         }
       }
     }
@@ -1338,14 +1375,14 @@ class Database {
         `${bookId}_ch_${chapterNumber}_${cleanTopic}${isDetailedQuery ? '__detailed' : ''}`
       ];
       for (const ck of candidateKeys) {
-        if (this.data.chapter_short_notes[ck]) {
-          return this.data.chapter_short_notes[ck];
+        if (bookNotes[ck]) {
+          return bookNotes[ck];
         }
       }
 
       // Check all keys for this chapter
       const prefix = `${bookId}_ch_${chapterNumber}`;
-      for (const [key, note] of Object.entries(this.data.chapter_short_notes)) {
+      for (const [key, note] of Object.entries(bookNotes)) {
         if (!key.startsWith(prefix) || key === prefix || key === `${prefix}___detailed`) continue;
 
         const isNoteDetailed = Boolean((note?.topic_title && note.topic_title.includes('__detailed')) || key.includes('__detailed'));
@@ -1377,42 +1414,42 @@ class Database {
 
     // 3. General chapter short note
     const key = `${bookId}_ch_${chapterNumber}`;
-    return this.data.chapter_short_notes[key];
+    return bookNotes[key];
   }
 
   public getAllChapterShortNotesForBook(bookId: string): ChapterShortNote[] {
-    if (!this.data.chapter_short_notes) this.data.chapter_short_notes = {};
-    const notes: ChapterShortNote[] = [];
-    const prefix = `${bookId}_ch_`;
-    for (const [key, note] of Object.entries(this.data.chapter_short_notes)) {
-      if (key.startsWith(prefix) && note) {
-        notes.push(note);
-      }
-    }
-    return notes.sort((a, b) => a.chapter_number - b.chapter_number);
+    const bookNotes = this.loadNotesForBook(bookId);
+    return Object.values(bookNotes).sort((a, b) => a.chapter_number - b.chapter_number);
   }
 
   public saveChapterShortNote(note: ChapterShortNote): void {
     if (!this.data.chapter_short_notes) this.data.chapter_short_notes = {};
+    const bookNotes = this.loadNotesForBook(note.book_id);
     if (note.topic_title && note.topic_title.trim()) {
       if (note.topic_title === '__detailed') {
         const key = `${note.book_id}_ch_${note.chapter_number}___detailed`;
         this.data.chapter_short_notes[key] = note;
+        bookNotes[key] = note;
       } else {
         const isDetailed = note.topic_title.includes('__detailed');
         const raw = note.topic_title.replace('__detailed', '').trim().toLowerCase();
         const clean = raw.replace(/[^a-z0-9]/g, '_');
         const standardKey = `${note.book_id}_ch_${note.chapter_number}_topic_${clean}${isDetailed ? '__detailed' : ''}`;
         this.data.chapter_short_notes[standardKey] = note;
+        bookNotes[standardKey] = note;
 
         // Also save raw topic title key for backward compatibility
         const directKey = `${note.book_id}_ch_${note.chapter_number}_${note.topic_title}`;
         this.data.chapter_short_notes[directKey] = note;
+        bookNotes[directKey] = note;
       }
     } else {
       const key = `${note.book_id}_ch_${note.chapter_number}`;
       this.data.chapter_short_notes[key] = note;
+      bookNotes[key] = note;
     }
+    const notesFile = path.join(DATA_DIR, 'short_notes', `${note.book_id}.json`);
+    try { fs.writeFileSync(notesFile, JSON.stringify(bookNotes)); } catch (e) {}
     this.save();
   }
 
