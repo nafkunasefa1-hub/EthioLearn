@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@layer utilities {
+  .animate-fadeIn {
+    animation: fadeIn 0.3s ease-out forwards;
+  }
+  .markdown-body p {
+    @apply mb-3 last:mb-0;
+  }
+  .markdown-body strong {
+    @apply text-emerald-400 font-bold;
+  }
+  .markdown-body em {
+    @apply text-emerald-300 italic;
+  }
+  .markdown-body ul {
+    @apply list-disc list-inside mb-3 space-y-1 ml-1;
+  }
+  .markdown-body ol {
+    @apply list-decimal list-inside mb-3 space-y-1 ml-1;
+  }
+  .markdown-body li {
+    @apply text-slate-300;
+  }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+    @apply font-bold text-white mb-2 mt-4 first:mt-0;
+  }
+  .markdown-body h1 {
+    @apply text-lg;
+  }
+  .markdown-body h2 {
+    @apply text-base text-emerald-100;
+  }
+  .markdown-body h3 {
+    @apply text-sm text-emerald-200;
+  }
+  .markdown-body code {
+    @apply bg-slate-800 text-emerald-300 px-1 py-0.5 rounded text-xs font-mono;
+  }
+  .markdown-body pre {
+    @apply bg-slate-950 border border-slate-800 p-3 rounded-xl overflow-x-auto mb-3;
+  }
+  .markdown-body pre code {
+    @apply bg-transparent text-slate-300 p-0 text-[11px];
+  }
+  .markdown-body blockquote {
+    @apply border-l-2 border-emerald-500/50 pl-3 italic text-slate-400 my-3;
+  }
+}
+
+/* KaTeX Math Styling & Clear Vertical Spacing */
+.katex-display {
+  margin: 1.25rem 0 !important;
+  padding: 0.5rem 0 !important;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.katex {
+  font-size: 1.06em;
+  text-rendering: geometricPrecision;
+  line-height: 1.5;
+}
+
+.katex .frac-line {
+  margin: 0.18em 0 !important;
+}
+
+.katex-html {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.theme-light {
+  --bg-canvas: #f1f5f9;
+  --bg-paper: #ffffff;
+  --text-main: #0f172a;
+  --text-heading: #020617;
+  --text-muted: #475569;
+  --border-light: #e2e8f0;
+  --border-medium: #cbd5e1;
+  --bg-card: #f8fafc;
+  --bg-card-hover: #f1f5f9;
+}
+
+.theme-sepia {
+  --bg-canvas: #e8e3d8;
+  --bg-paper: #fcf7ed;
+  --text-main: #433422;
+  --text-heading: #2b1f12;
+  --text-muted: #786650;
+  --border-light: #e6dcce;
+  --border-medium: #dcd0bc;
+  --bg-card: #f4ebd9;
+  --bg-card-hover: #efe3cb;
+}
+
+.theme-dark {
+  --bg-canvas: #020617;
+  --bg-paper: #0f172a;
+  --text-main: #e2e8f0;
+  --text-heading: #ffffff;
+  --text-muted: #94a3b8;
+  --border-light: #1e293b;
+  --border-medium: #334155;
+  --bg-card: #1e293b;
+  --bg-card-hover: #334155;
+}

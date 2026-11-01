@@ -1,0 +1,63 @@
+```json
+[
+  {
+    "unit_num": 1,
+    "title": "Vector Quantities",
+    "start_page": 1,
+    "end_page": null,
+    "topics": [
+      {
+        "num": "1.1",
+        "title": "Scalars and Vectors",
+        "start": 2,
+        "desc": "Discussion on the classification of physical quantities into scalars and vectors."
+      }
+    ]
+  },
+  {
+    "unit_num": 4,
+    "title": "Current Electricity (continued)",
+    "start_page": 120,
+    "end_page": 150,
+    "topics": [
+      { "num": "4.9", "title": "Combination of resistors in a circuit", "start": 120, "desc": "Combination of resistors in a circuit" },
+      { "num": "4.10", "title": "Voltmeter and ammeter connection in a circuit", "start": 128, "desc": "Voltmeter and ammeter connection in a circuit" },
+      { "num": "4.11", "title": "Electrical safety in general and local context", "start": 132, "desc": "Electrical safety in general and local context" },
+      { "num": "4.12", "title": "Electric projects", "start": 136, "desc": "Electric projects" }
+    ]
+  },
+  {
+    "unit_num": 5,
+    "title": "Magnetism",
+    "start_page": 151,
+    "end_page": 176,
+    "topics": [
+      { "num": "5.1", "title": "Magnet", "start": 152, "desc": "Magnet" },
+      { "num": "5.2", "title": "Magnetic Field", "start": 155, "desc": "Magnetic Field" },
+      { "num": "5.3", "title": "The Earth's magnetic field and the compass", "start": 159, "desc": "The Earth's magnetic field and the compass" },
+      { "num": "5.4", "title": "Magnetic field of a current-carrying conductor", "start": 162, "desc": "Magnetic field of a current-carrying conductor" },
+      { "num": "5.5", "title": "Magnetic force on a moving charge placed in a uniform magnetic field", "start": 165, "desc": "Magnetic force on a moving charge placed in a uniform magnetic field" },
+      { "num": "5.6", "title": "Magnetic force on a current-carrying wire", "start": 167, "desc": "Magnetic force on a current-carrying wire" },
+      { "num": "5.7", "title": "Magnetic force between two parallel current-carrying wires", "start": 170, "desc": "Magnetic force between two parallel current-carrying wires" },
+      { "num": "5.8", "title": "Applications of magnetism", "start": 171, "desc": "Applications of magnetism" }
+    ]
+  },
+  {
+    "unit_num": 6,
+    "title": "Electromagnetic Waves and Geometrical Optics",
+    "start_page": 177,
+    "end_page": 241,
+    "topics": [
+      { "num": "6.1", "title": "Electromagnetic (EM) waves", "start": 178, "desc": "Electromagnetic (EM) waves" },
+      { "num": "6.2", "title": "EM Spectrum", "start": 180, "desc": "EM Spectrum" },
+      { "num": "6.3", "title": "Light as a wave", "start": 186, "desc": "Light as a wave" },
+      { "num": "6.4", "title": "Laws of reflection & refraction", "start": 190, "desc": "Laws of reflection & refraction" },
+      { "num": "6.5", "title": "Mirrors and lenses", "start": 203, "desc": "Mirrors and lenses" },
+      { "num": "6.6", "title": "Human eye and optical instruments", "start": 228, "desc": "Human eye and optical instruments" },
+      { "num": "6.7", "title": "Primary colors of light and human vision", "start": 238, "desc": "Primary colors of light and human vision" },
+      { "num": "6.8", "title": "Color addition of light", "start": 240, "desc": "Color addition of light" },
+      { "num": "6.9", "title": "Color subtraction of light using filters", "start": 241, "desc": "Color subtraction of light using filters" }
+    ]
+  }
+]
+```

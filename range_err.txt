@@ -1,0 +1,29 @@
+*   Trying 127.0.0.1:3000...
+* Connected to localhost (127.0.0.1) port 3000 (#0)
+> GET /api/books/book-9-eng/pdf HTTP/1.1
+> Host: localhost:3000
+> User-Agent: curl/7.88.1
+> Accept: */*
+> Range: bytes=0-100
+> 
+< HTTP/1.1 206 Partial Content
+< X-Powered-By: Express
+< Access-Control-Allow-Origin: *
+< Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS
+< Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, x-user-id
+< Content-Type: application/pdf
+< Accept-Ranges: bytes
+< Cross-Origin-Resource-Policy: cross-origin
+< Content-Security-Policy: frame-ancestors *
+< Content-Disposition: inline; filename="Grade_9_English_Student_Textbook.pdf"
+< Cache-Control: public, max-age=0
+< Last-Modified: Wed, 16 Sep 2026 11:19:41 GMT
+< ETag: W/"4ebf6f8-1a0a9f1a52b"
+< Content-Range: bytes 0-100/82573048
+< Content-Length: 101
+< Date: Wed, 16 Sep 2026 11:23:46 GMT
+< Connection: keep-alive
+< Keep-Alive: timeout=5
+< 
+{ [101 bytes data]
+* Connection #0 to host localhost left intact

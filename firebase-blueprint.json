@@ -1,0 +1,45 @@
+{
+  "entities": {
+    "DatabaseBackup": {
+      "title": "Database Backup Chunk or Metadata",
+      "description": "Stores state chunks and metadata for the EthioLearn application database backup.",
+      "type": "object",
+      "properties": {
+        "chunksCount": {
+          "type": "number",
+          "description": "Number of chunks stored for the backup entity"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the backup update"
+        },
+        "data": {
+          "type": "string",
+          "description": "Serialized data string chunk"
+        }
+      }
+    },
+    "ConnectionTest": {
+      "title": "Connection Test Document",
+      "description": "Used to verify Firestore connectivity",
+      "type": "object",
+      "properties": {
+        "hello": {
+          "type": "string",
+          "description": "Greeting or test status message"
+        }
+      }
+    }
+  },
+  "firestore": {
+    "/database_backup/{docId}": {
+      "schema": "DatabaseBackup",
+      "description": "Collections of database backups and chunked state"
+    },
+    "/test/{testId}": {
+      "schema": "ConnectionTest",
+      "description": "Test connectivity documents"
+    }
+  }
+}

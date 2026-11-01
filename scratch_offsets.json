@@ -1,0 +1,142 @@
+{
+  "book-9-math": {
+    "title": "Grade 9 Mathematics Student Textbook",
+    "total_pages": 384,
+    "toc_page": 2,
+    "detected_unit1_physical": 3,
+    "offset": 2
+  },
+  "book-9-phys": {
+    "title": "Grade 9 Physics Student Textbook",
+    "total_pages": 179,
+    "toc_page": 5,
+    "detected_unit1_physical": 7,
+    "offset": 6
+  },
+  "book-9-chem": {
+    "title": "Grade 9 Chemistry Student Textbook",
+    "total_pages": 183,
+    "toc_page": 2,
+    "detected_unit1_physical": 3,
+    "offset": 2
+  },
+  "book-9-bio": {
+    "title": "Grade 9 Biology Student Textbook",
+    "total_pages": 171,
+    "toc_page": 2,
+    "detected_unit1_physical": 3,
+    "offset": 2
+  },
+  "book-9-eng": {
+    "title": "Grade 9 English Student Textbook",
+    "total_pages": 196,
+    "toc_page": 2,
+    "detected_unit1_physical": 3,
+    "offset": 2
+  },
+  "book-10-math": {
+    "title": "Grade 10 Mathematics Student Textbook",
+    "total_pages": 394,
+    "toc_page": 7,
+    "detected_unit1_physical": 10,
+    "offset": 9
+  },
+  "book-10-phys": {
+    "title": "Grade 10 Physics Student Textbook",
+    "total_pages": 258,
+    "toc_page": 5,
+    "detected_unit1_physical": 7,
+    "offset": 6
+  },
+  "book-10-chem": {
+    "title": "Grade 10 Chemistry Student Textbook",
+    "total_pages": 306,
+    "toc_page": 5,
+    "detected_unit1_physical": 5,
+    "offset": 4
+  },
+  "book-10-bio": {
+    "title": "Grade 10 Biology Student Textbook",
+    "total_pages": 182,
+    "toc_page": 2,
+    "detected_unit1_physical": 3,
+    "offset": 2
+  },
+  "book-10-eng": {
+    "title": "Grade 10 English Student Textbook",
+    "total_pages": 326,
+    "toc_page": 5,
+    "detected_unit1_physical": 7,
+    "offset": 6
+  },
+  "book-10-amh": {
+    "title": "Grade 10 Amharic Student Textbook",
+    "total_pages": 164,
+    "toc_page": 4,
+    "detected_unit1_physical": 6,
+    "offset": 5
+  },
+  "book-10-civ": {
+    "title": "Grade 10 Civics Student Textbook",
+    "total_pages": 202,
+    "toc_page": 5,
+    "detected_unit1_physical": 7,
+    "offset": 6
+  },
+  "book-10-geog": {
+    "title": "Grade 10 Geography Student Textbook",
+    "total_pages": 214,
+    "toc_page": 5,
+    "detected_unit1_physical": 7,
+    "offset": 6
+  },
+  "book-10-it": {
+    "title": "Grade 10 Information Technology Student Textbook",
+    "total_pages": 234,
+    "toc_page": 5,
+    "detected_unit1_physical": 9,
+    "offset": 8
+  },
+  "book-9-amh": {
+    "title": "Grade 9 Amharic Student Textbook",
+    "total_pages": 190,
+    "toc_page": 2,
+    "detected_unit1_physical": 3,
+    "offset": 2
+  },
+  "book-9-civ": {
+    "title": "Grade 9 Civics Student Textbook",
+    "total_pages": 173,
+    "toc_page": 2,
+    "detected_unit1_physical": 3,
+    "offset": 2
+  },
+  "book-9-geog": {
+    "title": "Grade 9 Geography Student Textbook",
+    "total_pages": 200,
+    "toc_page": 2,
+    "detected_unit1_physical": 3,
+    "offset": 2
+  },
+  "book-9-it": {
+    "title": "Grade 9 Information Technology Student Textbook",
+    "total_pages": 251,
+    "toc_page": 6,
+    "detected_unit1_physical": 9,
+    "offset": 8
+  },
+  "book-9-hist": {
+    "title": "Grade 9 History Student Textbook",
+    "total_pages": 219,
+    "toc_page": 6,
+    "detected_unit1_physical": 10,
+    "offset": 9
+  },
+  "book-10-hist": {
+    "title": "Grade 10 History Student Textbook",
+    "total_pages": 246,
+    "toc_page": 5,
+    "detected_unit1_physical": 9,
+    "offset": 8
+  }
+}

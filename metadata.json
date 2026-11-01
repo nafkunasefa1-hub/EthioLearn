@@ -1,0 +1,8 @@
+{
+  "name": "28EthioLearn AI - Ethiopian Secondary \u0026 Entrance Exam Platform",
+  "description": "Comprehensive Ethiopian secondary school (Grades 9-12) textbook library with page-level AI tutor, authentic entrance exam engine, and personalized learning loop.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

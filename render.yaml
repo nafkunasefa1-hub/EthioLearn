@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: ethiolearn
+    env: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/books
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: GEMINI_API_KEY
+        value: AQ.Ab8RN6LqkXUKPoVicidGMLMi-qvDTG7eLwKdNQu3a6pFH-ERaw
+      - key: GEMINI_API_KEYS
+        value: AQ.Ab8RN6LqkXUKPoVicidGMLMi-qvDTG7eLwKdNQu3a6pFH-ERaw,AQ.Ab8RN6I9jOKLLBFN-kyQxdpoBFocTldwLLkM30ZM6uZW8bTsFg,AQ.Ab8RN6K_xbsU5MMyfyuZa2ga1-R1qz-yhgj2BTJwX4wxs6u0ag,AQ.Ab8RN6KfVp7ar836G7tBL_4BtRHUBKOWe2BJs9G-rhWvCUMgOg,AQ.Ab8RN6JfFVw45czt3Zs6v12ScgY-AoRKmPlZTPMki5PCZY2cMQ,AQ.Ab8RN6JDSZN74nv41uzvD6sL1xgm9vpTp4YVEMO-YVA9gnRlMQ
+      - key: GEMINI_API_KEY_5
+        value: AQ.Ab8RN6LqkXUKPoVicidGMLMi-qvDTG7eLwKdNQu3a6pFH-ERaw
+      - key: GEMINI_API_KEY_6
+        value: AQ.Ab8RN6I9jOKLLBFN-kyQxdpoBFocTldwLLkM30ZM6uZW8bTsFg
+      - key: GEMINI_API_KEY_7
+        value: AQ.Ab8RN6K_xbsU5MMyfyuZa2ga1-R1qz-yhgj2BTJwX4wxs6u0ag
+      - key: GEMINI_API_KEY_8
+        value: AQ.Ab8RN6KfVp7ar836G7tBL_4BtRHUBKOWe2BJs9G-rhWvCUMgOg
+      - key: GEMINI_API_KEY_9
+        value: AQ.Ab8RN6JfFVw45czt3Zs6v12ScgY-AoRKmPlZTPMki5PCZY2cMQ
+      - key: GEMINI_API_KEY_10
+        value: AQ.Ab8RN6JDSZN74nv41uzvD6sL1xgm9vpTp4YVEMO-YVA9gnRlMQ

@@ -1,0 +1,868 @@
+             EDUCATIONALASSESSMENTANDEXAMINATIONSSERVICE(EAES)ETHIOPIANSECONDARY
+             SCHOOLLEAVINGCERTIFICATEEXAMINATION(ESSLCE)CHEMISTRY,SENE,2017E.C
+             /JUNE/JULY,2025G.C
+             NUMBEROFITEMS:80                             SUBJECTCODE:05
+             TIMEALLOWED:2:30HOURS                        BOOKLETCODE:417
+             1. Which oneofthefollowingCORRECTLYshowstherelativechargesofanelectron,protonand
+             neutron, respectively?
+             A. 0, +1, -1 C. -1, +1, 0
+             B. 0, -1, +1 D. -1, 0, +1
+             2. Which statement below CORRECTLY describestheBohr's model ofanatom?
+             A. Protons and electrons are found in the nucleus.
+             B. Electrons and neutrons are found in the nucleus.
+             C. Protons move in circular orbits around the nucleus.
+             D.Electronsmoveincircularorbitsaroundthenucleus.
+             3. Which statement below CORRECTLY describesperiodicity?Periodicityis
+                                                                                        Page1
+             Telegramchannel @entrance_tricks     Youtube @entrance_tricks
+             A. a regular repetition of chemical and physical properties in the Periodic Table.
+             B. a row in the Periodic Table which contains elements with same number of shells.
+             C. a measure of electronegativity which runs from least electronegative to most electronegative
+             elements.
+             D.acolumnofthePeriodicTablewhichcontainselementswithsimilarchemicalproperties.
+             4. Which statement below CORRECTLY expresses hydrogenbonding?It isformedbybonding
+             A. a hydrogen atom to an elementsuch as sodium.
+             B. a hydrogen atom to an element such as oxygen.
+             C. two hydrogen atomswithequalsharingofelectrons.
+             D.twohydrogenatomswithunequalsharingofelectrons.
+             5. Whatisthebondformedbetweentwoormoreatomsbysharingofelectrons?
+             A. Ionic bond C. Covalent bond
+             B. Metallic bond D. Valence bond
+             6. Which statement below CORRECTLY describesdipole-dipole forces?It is the force that exists
+             A. in all molecules.
+             B. betweenpolarmolecules.
+             C. betweennon-polarmolecules.
+             D.betweenpolarandnon-polarmolecules.
+             7. Comparing the forces between molecules ofsimilar molar masses, which one of the following
+             producestheweakestforce?
+             A. Covalent bonds. C. Ionic forces.
+             B. Hydrogenbonding.D.Vander-Waal'sforces.
+             8. Whatisalimitingreactant?It is the reactant that
+             A. regenerated at the end of the reaction.
+             B. remains unreacted as the reaction proceeds.
+             C. present in excess when the reaction goes to completion.
+             D.completelyconsumedwhenthereactiongoestocompletion.
+             9. Which statement below CORRECTLY distinguishesredox andnon-redox reactions?
+             A. Electrons are transferred in redox reactions but not in non-redox reactions.
+             B. Reduction occurs in redox reactions and oxidation takes place in non-redox reactions.
+             C. Oxidation number remainsthesameinbothredoxandnon-redoxreactions.
+             D.Acid-basereactionscan beconsideredasbothredoxandnon-redoxreactions.
+             10. Given the reaction C(s) + CO2(g) ⇌ 2CO(g) What is the equilibrium constant expression for
+             thereaction?
+             A. [CO]² / [C][CO₂] C. [CO]² / [C]
+             B. [CO]² / [CO₂] D. [C][CO₂] / [CO]²
+             11. Whichofthefollowingpairofsubstancescanbeconsideredasexamplesoftheliquidstate
+             of matterat room temperatureand1atmpressure?
+                                                                                        Page2
+             Telegramchannel @entrance_tricks     Youtube @entrance_tricks
+             A. Carbon andmercuryC.Waterandmercury
+             B. WaterandcarbondioxideD.Carbonandcarbonmonoxide
+             12. Whichgaslawdescribesthebehaviorofgasesusingthevariables:temperature,volume,
+             pressure andnumberofmoles?
+             A. Ideal gas law C. Avogadro's law
+             B. Boyle's law D. Combined gas law
+             13. WhichstatementbelowdescribesCORRECTLYtheassumptionsinthekinetictheoryof
+             gases?
+             A. Gas molecules occupy a finite volume and have indefinite shape.
+             B. Gas molecules are in random motion with no interactions.
+             C. The average kinetic energies of gas molecules are independent of temperature.
+             D.Theaveragekineticenergiesofgasmoleculesareindependentoftheamountofgas.
+             14. If the rate of diffusion of a certain unknown gas is half times the rate of diffusion of helium,
+             whatwill bethemolarmassoftheunknowngas?(AtomicmassofHe=4.0g/mole)
+             A. 2.0 g/mole C. 16.0 g/mole
+             B. 8.0 g/mole D. 32.0 g/mole
+             15. A student added boiling chips into a beaker of water while carrying out an activity to
+             determinetheboilingpoint ofwater.Whydoyouthinktheboilingchipsarenecessary?
+             A. To ensure smooth rateof evaporation
+             B. To speed up the rate of evaporation
+             C. To maintain constant temperature and pressure
+             D.Toreachtheboilingpointwithlessconsumptionofheat
+             16. WhatistheoxidationnumberofmanganeseinKMnO₄?AtomicNumberK=19,Mn=25and
+             O=16
+             A. +5 C. +7
+             B. +6 D. +8
+             17. Aluminumreactswithoxygentoformaluminumoxide.Whatisthecoefficientofaluminum
+             after balancing the reaction? Atomic numberof Al=13, O=16
+             A. 2
+             B. 4
+             C. 6
+             D.8
+             18. Whatpropertyofanioniccompoundcanbeinvestigatedbyheatingitinacrucible?
+             A. Melting point
+             B. Solubility
+             C. Malleability
+             D.Crystallization point
+             19. Silver has two known isotopes, 107Ag and 108Ag with their percent abundance of 52
+                                                                                        Page3
+             Telegramchannel @entrance_tricks     Youtube @entrance_tricks
+             A. 107.89
+             B. 108.06
+             C. 107.48
+             D.108.86
+             20. Whichreactionschemebelowillustratestheformationofacation?
+                          -
+             A. Na →Na++e
+             B. 2Cl- → Cl_2 + 2e-
+                        2-
+             C. S + 2e- → S
+                  2+
+             D.Mg +2e-→Mg
+             21. Whichlawgovernsthefactthattheratiooftheamountofhydrogentooxygenbyweight
+             will be the same in a drop of water and a lake of water?
+             A. Law of relative composition
+             B. Law of conservation of mass
+             C. Law of multiple proportions
+             D.Lawofdefinitecomposition
+             22. WhichstatementbelowCORRECTLYdescribesthecharacteristicsofchemicalequilibrium?
+             A. A reaction stops when it reaches equilibrium.
+             B. A reaction stops if sufficient amount of time is given.
+             C. The rates of the forward and reverse reactions are equal.
+             D.Anewsubstanceorsubstancesareformedwhenequilibriumisattained.
+             24. Whatisthenamegiventocompoundsofcarbonandhydrogencontainingmultiplebonds?
+             A. Aliphatic hydrocarbons
+             B. Aromatic hydrocarbons
+             C. Saturated hydrocarbons
+             D.Unsaturatedhydrocarbons
+                                                                                     Page4
+             Telegramchannel @entrance_tricks   Youtube @entrance_tricks
+             26. Whichofthefollowingorganiccompoundsisusedfortheproductionof1,2-ethanediol?
+             A. Ethene
+             B. Ethane
+             C. Ethyne
+             D.Ethanol
+             27. Whichofthefollowingisthemainconstituentofnaturalgas?
+             A. Ethane
+             B. Butane
+             C. Propane
+             D.Methane
+             28. In order to avoid the decrease in quality of some clothes after washing with water, which of
+             thefollowing chemicals is used for dry cleaning?
+             A. CH4
+             B. CH2Cl2
+             C. C2H4
+             D.C2Cl4
+             29. Whichofthefollowingpropertiesis theproperty of an acidicoxide?An acidic oxide reacts
+             with
+             A. salts to form acids.
+             B. water to form acids.
+             C. bases to form basic hydroxide and water.
+             D.basic oxides to form hydroxides and water.
+             30. Whatisthenamegiventoanacidthatdissociates(ionizes)onlytoaslightextentin
+             aqueoussolution?
+             A. Dilute acid
+             B. Strong acid
+             C. Weakacid
+             D.Concentratedacid
+             31. Solutions can be classified based upon their pH values. What is a solution whose pH value
+             13?
+             A. Amphoteric solution
+                                                                                        Page5
+             Telegramchannel @entrance_tricks     Youtube @entrance_tricks
+             B. Acidic solution
+             C. Neutral solution
+             D.Basic solution
+             32. During laboratory class, a student placed clean water in a beaker and added pieces of
+             calcium metal using tongs. After the reaction is completed, he/she tested the solution using red
+             litmus paper. Which of the following will be observed?
+             A. The litmus paper turns to blue.
+             B. The litmus paper turns to red.
+             C. The litmus paper maintains its color.
+             D.Thelitmuspaperturnstocolorless.
+             33. In an activity during laboratory session a small amount of lead bromide (PbBr₂) crystals
+             wereplacedinabeaker.TwoelectrodesareinserteduntiltheyareincontactwiththePbBr₂
+             crystals. When the PbBr₂ crystals in the beaker are gently heated, which of the following will be
+             observed?
+             A. Brominegasisevolvedattheanode
+             B. Bromideionis oxidized at the cathode
+             C. Lead (II) ion is reduced at the anode
+             D.Lead(II) ion is oxidized at the cathode
+             34. Whatisthenamegiventothepollutioncausedbythedumpingofnon-biodegradable
+             wastesintotheenvironment?
+             A. Air pollution
+             B. Land pollution
+             C. Sound pollution
+             D.Waterpollution
+             35. Whatisthepurposeoftheconversionofpigirontosteel?
+             A. To removeimpurities byoxidation
+             B. To removeimpurities byreduction
+             C. To increase the concentration of iron in the pig iron
+             D.Todecreasetheconcentrationofironinthepigiron
+             36. WhichofthefollowingstatementsCORRECTLYdescribesthelawofconservationofmass?
+             A. The total mass of substances varies during a chemical reaction.
+             B. Massis neither created nor destroyed during a chemical reaction.
+             C. A particular compound is composedof the same elementsin thesame partsby mass.
+             D.Purecompoundsalwayscontaintheelementsinthesamepercentagebymass.
+             37. A mineral absorbs purple light of frequency 7.11 × 10^14 Hz. What is the wavelength (in nm)
+             of the absorbed light? (C = 3.00 × 10^8 m/s)
+             A. 184.4 nm
+             B. 237.5 nm
+                                                                                        Page6
+             Telegramchannel @entrance_tricks     Youtube @entrance_tricks
+             C. 421.9 nm
+             D.514.5nm
+             38. Whydoatomsabsorbenergywhentheirelectronsundergotransitionsfromalowerenergy
+             to a higher energy level? This is because,
+             A. the electrons of the atoms move from one orbit of lower radius to another one having larger
+             radius.
+             B. the electrons of the atoms move from one orbit of higher radius to another one having lower
+             radius.
+             C. the electrons of the atoms do not have allowable energy levels.
+             D.electronsoftheatomsabsorbenergywhentheygofromhighertolowerenergy.
+             39. Whatarethequantumnumbersforthe5sorbital?
+             A. n=5, l=0, m_l=-1, ms=±1/2
+             B. n=5, l=1, m_l=-2, ms=±1/2
+             C. n=5, l=2, m_l=-2, ms=±1/2
+             D.n=5,l=0,m_l=0,ms=±1/2
+             40. WhichofthefollowingisCORRECTaboutthesetofquantumnumbersassignedtothetwo
+             electrons of the helium atom?
+             A. Both electrons have the same four quantum numbers.
+             B. The secondelectron occupies thesameorbital as the first with the same spin quantum
+             number.
+             C. The secondelectron occupies thesame orbital as the first with the opposite spin quantum
+             number.
+             D.Themagneticquantumnumbersofbothelectronsaredifferent.
+             41. Scandium(Sc) hastheelectronconfiguration [Ar]4s^2 3d^1. To which group of elements
+             doesitbelongto?
+             A. Representative elements
+             B. Transition elements
+             C. Inner transition elements
+             D.Nonmetals
+             42. A student carried out an experiment to determine the melting points of NaCl and CuCl .
+                                                                                       2
+             He/sheadded0.2gofNaClandCuCl intotwodifferenttesttubesandheatedbothtubes
+                                           2
+             simultaneouslyusingaBunsenburner.WhichofthefollowingstatementsisCORRECTregarding
+             themeltingpointofNaClandCuCl ?
+                                         2
+             A. The melting points of NaCl are lower than that of CuCl .
+                                                            2
+             B. The melting point of NaCl is higher than that of CuCl .
+                                                          2
+             C. Both NaCl and CuCl will start to melt at the same time.
+                               2
+             D.BothNaClandCuCl willnotmelt.
+                               2
+             44. WhatisthecauseofunusualhighboilingpointsofHF,H₂OandNH₃?
+                                                                                     Page7
+             Telegramchannel @entrance_tricks   Youtube @entrance_tricks
+            A. Dipole-Dipole forces
+            B. Induced dipole forces
+            C. Hydrogenbonding
+            D.Ion-dipole forces
+            47. WhichofthefollowingfactorsdoesNOTaffecttherateofachemicalreactionhavingsolid
+            reactants?
+            A. Concentration of reactants
+            B. Temperatureofreaction
+            C. Physical state of reactants
+            D.Volumeofreactionvessel
+            48. At a particular temperature, the equilibrium constant, K_c = 0.36 for the reaction
+                         SO (g) ⇌ SO (g) + O (g)
+                           3       2     2
+            In an experiment, 1.00 mol of SO is introduced into a 1.00 L container. It was found that there
+                                      3
+            is 0.50 mol of SO at equilibrium in the same volume. Which of the following predictions can be
+                          2
+            drawnfromthegivendata?
+            A. The reaction is at equilibrium.
+            B. The reaction will proceed to the left.
+            C. The reaction will proceed to the right.
+            D.It is not possible to predict the direction of the reaction.
+                                                                                  Page8
+            Telegramchannel @entrance_tricks  Youtube @entrance_tricks
+               49. Whatisthedensityofmethane(CH₄)atapressureof900torrandatemperatureof25°C?
+               (R = 0.082 atm L/mol·K, 1 atm = 760 torr)
+               A. 0.78 C. 1.25
+               B. 0.92 D. 9.2
+               50. It takes 2.25 minutes for 0.02 mol of He to diffuse. How long will it take to diffuse for the
+               sameamountofmethanegas,CH₄?(M.wtofHe=4g/mol,CH₄=16g/mol)
+               A. 1.25 min C. 4.5 min
+               B. 2.25 min D. 6 min
+               51. WhichoneofthefollowingstatementCORRECTLYdefinesrateofreaction?Therateofa
+               reaction is
+               A. the changes in concentration of reactants or products per unit time.
+               B. the measure of the amount of energy change in a chemical reaction.
+               C. the study of necessary mechanisms occurred in a chemical reaction.
+               D.themeasureoftherateofdiffusionofdifferentgasesinsideatube.
+               52. Consider the following gaseous reversible reaction is at a state of equilibrium: PCI₃(g) + Cl₂(g)
+               ⇌PCI₅(g)
+               Whichofthefollowingchangesinconcentrationwillcausetheequilibriumshifttotheright?
+               A. Decreasing the concentrations of the reactants and products equivalently.
+               B. Increasing the concentration of the reactants and products equivalently.
+               C. Increasing the concentrations of the reactants and decreasing the concentration of the
+               product.
+               D.Decreasingtheconcentrationsofthereactantsandincreasingtheconcentrationofthe
+               product.
+                                                                                 ⇌
+               53. Consider the following equilibrium reaction at 298 K: 2NO2(g)   2NO(g)+O2(g)
+               PnO2=0.75atmPnO=2.5x10⁻⁵P02=3.5x10⁻⁵atm
+               Whatistheequilibriumconstant(Kp)atthistemperature?
+               A. 5.2 x 10⁻¹⁵ C. 2.9 x 10⁻¹⁴
+               B. 1.16 x 10⁻⁹ D. 3.9 x 10⁻¹⁴
+               54. ThemoleculeofBrF₅hasbothbondingandlonepairofelectrons.Baseduponthese
+               electrons, which one the CORRECT molecular geometry of the moleculeof BrF₅?
+               A. Square planar C. Trigonal pyramidal
+               B. Square pyramidal D. Trigonal bipyramidal
+                                                                                                      Page9
+               Telegramchannel @entrance_tricks           Youtube @entrance_tricks
+             57. WhichofthefollowingstatementsCORRECTLYdescribestherelationshipamong
+             wavelength,frequencyandspeedinanelectromagneticradiation?
+             A. As the wavelength increases, the frequency increases.
+             B. As the wavelength decreases, the frequency increases.
+             C. As the wavelength decreases, the speed of light increases.
+             D.Asthefrequencyincreases,thespeedoflightdecreases.
+             58. Whichofthefollowingorganiccompoundshasthehighestboilingpoint?
+             A. Ethanol C. Ethanal
+             B. Ethene D. Ethane
+             59. WhatisaLewisbase?Itis
+             A. proton donor C. electron pair acceptor
+             B. proton acceptor D. electron pair donor
+             60. Given the following information:
+             CH₃COOH(aq)⇌CH₃COO⁻(aq)+H⁺(aq)
+             Initial concentration (mol/L) 0.2 0 0
+             Change-x+x+x
+             Equilibrium concentration 0.2 - x x x
+             WhichofthefollowingexpressionrepresentforthepercentionizationofCH₃COOH?
+             A. (x / 0.2 - x) . 100%
+             B. (x / 0.2) . 100%
+             C. (0.2 - x / 0.2) . 100%
+             D.(0.2 / x) . 100%
+                                                                                        Page10
+             Telegramchannel @entrance_tricks     Youtube @entrance_tricks
+             61. Whichstatementdistinguishesequivalencepointfromendpointinacidbasetitration?
+             A. Equivalence point is a point at which reactants starts to evaporate whereas end point is the
+             point whereaproductstartstocondense.
+             B. Equivalence point is a point at which reactants start to melt whereas end point is the point
+             whereproductsstarttofreeze.
+             C. Equivalence point is a point at which the indicator changes color whereas end point is the
+             point whereanacidhascompletelyreactedwithabase.
+             D.Endpointisapointatwhichtheindicatorchangescolorwhereasequivalencepointisthe
+             point whereanacidhascompletelyreactedwithabase.
+             62. WhichoneisthemathematicalexpressionforFaraday’sfirstlawofelectrolysis?
+             A. m₁ / E₁ = m₂ / E₂
+             B. M=n/V(liter)
+             C. m=MPV/RT
+             D.m=Mit/nF
+             63. Whichofthefollowingdescribestheprocessofmanufacturingvaluableproductsin
+             industries?
+             A. Designing to produce a desired output from raw materials using energy through different
+             steps.
+             B. Discharging of a solid, liquid or gaseous substance into an environment that causes
+             unwantedchanges.
+             C. Carry out unwanted reaction of a material that result in the dissolution or consumption of
+             thematerial.
+             D.Manufacturingindustryusesonlyinorganicchemicalsintheproductionofvaluableproducts.
+             64. WhichofthefollowingreactionshowstheactionofH₂SO₄asoxidizingagent?
+             A. SO₃(g) + H₂O(l) → H₂SO₄(aq)
+             B. 2KOH(aq) + H₂SO₄(aq) → K₂SO₄(aq) + 2H₂O(l)
+             C. Cu(s) + 2H₂SO₄(aq) → CuSO₄(aq) + SO₂(g) + H₂O(l)
+             D.Mg₃N₂(s) +4H₂SO₄(aq)→3MgSO₄(aq)+(NH₄)₂SO₄(aq)
+             65. Whichtypeofglassismadebyheatingamixtureofsilica,sodiumcarbonateandlimestone?
+             A. Quartz C. Pyrex
+             B. Borosilicate D. Soda-lime
+                                                                                        Page11
+             Telegramchannel @entrance_tricks     Youtube @entrance_tricks
+                   67. Whichofthefollowingpolymerisusedtomakeropes,clothes,haircombsandstockings?
+                   A. Perspex
+                   B. Nylon
+                   C. Teflon
+                   D.Bakelite
+                   68. WhichofthefollowingcatalystisusedintheOstwaldprocessfortheproductionofHNO3?
+                   A. Pt
+                   B. V O
+                        2  5
+                   C. Fe
+                   D.CuO
+                   69. In which of the following component of the environment does photosynthesis take place?
+                   A. Atmosphere
+                   B. Hydrosphere
+                   C. Lithosphere
+                   D.Biosphere
+                   70. WhichofthefollowingisNOTtrueaboutgreenhouseeffectandgreenhousegases?
+                   A. Greenhouse effect is the trapping of the infrared radiation by certain gases in the
+                   atmosphere.
+                   B. Carbon dioxide and water vapor are green-house gases.
+                   C. Oxygen (O2) andnitrogen (N2)are transparent to infrared radiation
+                                                                                                                               Page12
+                   Telegramchannel @entrance_tricks                     Youtube @entrance_tricks
+               D.Thegreaterthepercentageofgreen-housegasesintheatmosphere,thecoolertheearth
+               shouldbe.
+               71. In which of the following is the type of natural resource and the given example CORRECTLY
+               paired?
+               A. Renewableresources;copper
+               B. Renewableresources; crops
+               C. Non-RenewableResources;animalwool
+               D.Non-RenewableResources;water
+               72. WhichofthefollowingcompoundisaBronsted-Lowrybase?
+               A. BF3
+               B. NH3
+               C. HCl
+               D.H2S
+                                                         ⇌
+               73. For the dissociation of HNO2: HNO2(aq)   NO2-(aq)+H+(aq)
+                                                                                              -4
+               Whatisthepercentionizationofa0.5MsolutionofHNO ?(KaofHNO2=7.1x10 )
+                                                                      2
+               A. 0.2 %
+               B. 1.8%
+               C. 3.8 %
+               D.9.1%
+               74. A 0.47 M aqueoussolution of a weak base has a pOH of 2. What is Kb for the weak base?
+                          -4
+               A. 2.17 x 10
+                          -3
+               B. 3.14 x 10
+                         -2
+               C. 1.0 x 10
+                         -1
+               D.4.4x10
+               75:AstudentwasgivenastandardZn(s)/Zn^2+(aq)half-cellandanotherhalf-cellcontaining
+               copperimmersedin1.00MCuSO4(aq).WhentheZnwasconnectedastheanodeat25°C,the
+               cell potential reading on the voltmeter shows 1.1 V. Which of the following is NOT correct
+               regarding the cell potential measurement?
+               A. The mass of copper was increased during the cell potential measurement
+               B. The circuit is completed inside the cell by migration of ions through the salt bridge.
+               C. The zinc electrode was dissolved and the blue color CuSO4 solution would fade.
+               D.Electronstravel throughtheexternalcircuit from copper cathode to the zinc anode.
+                                                                                                   Page13
+               Telegramchannel @entrance_tricks         Youtube @entrance_tricks
+             78:Whichofthefollowingprocessinvolvespreventingthegrowthofbacteria,fungiand
+             reducingtheoxidationoffats?
+             A. Haber-Bosch: Industrial process for ammonia production.
+             B. Tanning: Treatment of animal skin to make leather.
+             C. Foodpreservation: The correct answer. Methods like canning, pickling, drying, salting, and
+             addingpreservativesareusedtopreventspoilage.
+             D.Contact:Anotherindustrialprocess.
+             79:Whichofthefollowingistheoverallreactionforelectrolysis of molten NaCl?
+                                          -
+             A. Na(l) + 1/2 Cl2(g) -> Na+(l) + Cl (l): This is the reverse reaction (formation of NaCl), not
+             electrolysis.
+                        -
+             B. Na+(l) + Cl (l) -> Na(l) + 1/2 Cl2(g): This is the correct reaction.
+             C. H2(g) + 1/2 O2(g) -> H2O(g): Electrolysis of water.
+             D.H2O(g)->H2(g)+1/2O2(g):Electrolysisofwater.
+             80:WhichofthefollowingoccurduringtheelectrolysisofdiluteH2SO4?
+                   2-
+             A. SO4 is dischargedat the anode:
+             B. The overall reaction is: H2(g) + 1/2 O2(g) -> H2O(g):
+                                                                                        Page14
+             Telegramchannel @entrance_tricks     Youtube @entrance_tricks
+             C. H+ is discharged at the negative electrode:
+             D.Abasicsolutionisformed:Duringelectrolysis of H2SO4,H+ is reducedandwateris oxidized,
+             whichmakesthesolutionmoreacidicthanitwasbefore,notbasic.
+             ANSWERKEY
+             1. WhichoneofthefollowingCORRECTLYshowstherelativechargesofanelectron,proton,
+             andneutron,respectively?
+             Answer:D.-1,0,+1
+             Explanation: Electrons have a charge of -1, protons have +1, and neutrons are neutral (0).
+             Whynotothers?OptionsA,B,andCmisassignthecharges(e.g.,Aassigns0totheproton).
+             2. WhichstatementCORRECTLYdescribesBohr'smodelofanatom?
+             Answer:D.Electronsmoveincircularorbitsaroundthenucleus.
+             Explanation: Bohr's model states electrons orbit the nucleus in fixed paths. Protons/neutrons
+             reside in the nucleus. Why not others? A, B, and C incorrectly place electrons/protons in orbits
+             or the nucleus.
+             3. WhichstatementCORRECTLYdescribesperiodicity?
+             Answer:A.AregularrepetitionofchemicalandphysicalpropertiesinthePeriodicTable.
+             Explanation: Periodicity refers to trends repeating across periods/groups (e.g., atomic radius,
+             electronegativity). Why not others? B describes a "period," C describes electronegativity trends
+             (not periodicity itself), and D describes a "group."
+             4. WhichstatementCORRECTLYexpresseshydrogenbonding?
+             Answer:B.Ahydrogenatombondedtoanelementsuchasoxygen.
+             Explanation: Hydrogen bondingoccurs whenHisbondedtohighlyelectronegativeatoms(e.g.,
+             O, N, F). Why not others? A (sodium) forms ionic bonds, C/D describe covalent bonds between
+             Hatoms.
+             5. Whatbondisformedbysharingelectrons?
+             Answer:C.Covalentbond
+             Explanation: Covalent bonds involve electron sharing. Ionic bonds involve electron transfer;
+             metallic bonds involve delocalized electrons.
+             6. WhichstatementCORRECTLYdescribesdipole-dipoleforces?
+             Answer:B.Betweenpolarmolecules.
+                                                                                        Page15
+             Telegramchannel @entrance_tricks     Youtube @entrance_tricks
+              Explanation: Dipole-dipole forces occur between polar molecules with permanent dipoles.
+              Whynotothers?Non-polarmoleculeslackdipoles;theseforcesarenotuniversal.
+               7. Whichproducestheweakestintermolecularforceforsimilarmolarmasses?
+              Answer:D.VanderWaalsforces
+              Explanation: Van der Waals (London dispersion) forces are weaker than hydrogen bonding,
+              ionic, or covalent forces.
+              8. Whatisalimitingreactant?
+              Answer:D.Completelyconsumedwhenthereactiongoestocompletion.
+              Explanation: The limiting reactant is fully used up, limiting product formation.
+              Whynotothers?B/Cdescribetheexcessreactant.
+              9. WhichCORRECTLYdistinguishesredoxandnon-redoxreactions?
+              Answer:A.Electronsaretransferredinredoxreactionsbutnotinnon-redoxreactions.
+              Explanation: Redoxinvolveselectron transfer; non-redox (e.g., acid-base) does not.
+              Whynotothers?Bconfusesreduction/oxidation;Cisfalse(oxidationnumberschangeinredox).
+                                                    ⇌                     ⇌
+              10.Equilibrium constant for C(s)+CO2(g) 2CO(g)C(s)+CO2​   (g) 2CO(g)?
+              Answer:B.[CO]2/[CO2]
+              Explanation: Solids (like C) are excluded from equilibrium expressions. Only gases appear. 11.
+              Examplesofliquidsatroomtemperatureand1atm?
+              Answer:C.Waterandmercury
+              Explanation: Water (H₂O) and mercury (Hg) are liquids. Others are gases (CO₂, CO) or solids
+              (carbon).
+              12.Whichgaslawusestemperature,volume,pressure,andmoles?
+              Answer:A.Idealgaslaw(PV=nRTPV=nRT)
+              Explanation: The ideal gas law incorporates all four variables. Boyle’s, Avogadro’s, and
+              Combinedlawsusesubsets.
+              13.CORRECTassumptioninkinetictheoryofgases?
+              Answer:B.Gasmoleculesareinrandommotionwithnointeractions.
+              Explanation: Kinetic theory assumes no intermolecular forces and random motion.
+              Whynotothers?A:Gaseshavenegligiblevolume;C/D:Kineticenergydependsontemperature.
+                                                                                               Page16
+              Telegramchannel @entrance_tricks        Youtube @entrance_tricks
+              15.Whyaddboilingchipstowater?
+              Answer:A.Toensureasmoothrateofevaporation
+              Explanation: Boiling chips prevent bumping by providing nucleation sites for bubbles.
+              16.OxidationnumberofMninKMnO₄?
+              Answer:C.+7
+              Explanation: K = +1, O = -2 (×4 = -8). For KMnO₄: +1+Mn+(−8)=0 ⟹Mn=+7.
+              17.Coefficient of Al in Al+O2→Al2O3Al+O2​   →Al2​  O3​  ?
+              Answer:B.4
+              Explanation: Balanced equation: 4Al+3O2​ →2Al2​   O3​  . Aluminumhascoefficient4.
+              18.Propertytestedbyheatingioniccompounds?
+              Answer:A.Meltingpoint
+              Explanation: Heating determines melting point. Solubility, malleability, and crystallization are
+              testeddifferently.
+              19.AverageatomicmassofAgwith52%¹⁰⁷Agand48%¹⁰⁸Ag?
+              Answer:C.107.48
+              Explanation:
+               (107×0.52)+(108×0.48)=55.64+51.84=107.48.
+              20.Reactionillustrating cation formation?
+              Answer:A.Na→Na++e−Na→Na++e−
+              Explanation: Loss of electron forms a cation (Na⁺). Others show anion formation (C) or
+              reduction(D).
+                                                                                               Page17
+              Telegramchannel @entrance_tricks        Youtube @entrance_tricks
+                21.Whichlawgovernsthefactthattheratioofhydrogentooxygenbyweightisthesamein
+                adropofwaterandalakeofwater?
+                Answer:D.Lawofdefinitecomposition
+            
+                Explanation: This law states that a compound always contains the same elements in the same
+                proportion by mass. Water (H₂O) has a fixed H:O mass ratio of 1:8, regardless of quantity.
+               Whynotothers?
+            o   A: "Law of relative composition" is not a standard term.
+            o   B: Conservation of mass deals with total mass in reactions, not element ratios.
+            o   C: Law of multiple proportions applies when elements form multiple compounds (e.g., CO vs.
+                CO₂).
+                22.WhichstatementCORRECTLYdescribeschemicalequilibrium?
+                Answer:C.Theratesoftheforwardandreversereactionsareequal.
+            
+                Explanation: At equilibrium, forward and reverse reaction rates are equal, so concentrations
+                remainconstant(butreactionsdonotstop).
+               Whynotothers?
+            o   A/B: Reactions continue but with no net change.
+            o   D: Nonewsubstancesformatequilibrium.
+                23.WhatistheCORRECTIUPACnameforthegivenalkane?
+                Answer:B.4,6–dichloro–2,8-dimethyldecane
+            
+                Explanation: The structure is a 10-carbon chain (decane) with:
+            o   Chlorine at C4 and C6.
+            o   MethylgroupsatC2andC8.
+               Namingrules:Numberthechaintogivethelowestlocants(2,4,6,8),listsubstituents
+                alphabetically (chloro before methyl).
+                24.Nameforcarbon-hydrogencompoundswithmultiplebonds?
+                Answer:D.Unsaturatedhydrocarbons
+               Explanation: These contain double/triple bonds (e.g., alkenes, alkynes).
+            
+                Whynotothers?
+            o   A: Aliphatic includes both saturated (single bonds) and unsaturated.
+            o   B: Aromatic refers to benzene-like rings.
+                                                                                                              Page18
+                Telegramchannel @entrance_tricks               Youtube @entrance_tricks
+           o  C: Saturated hydrocarbons have only single bonds.
+              25.CORRECTstructurefor2-methyl-1-butene?
+              Answer:A.CH3−CH−CH=CH2(withCH₃branchonthemiddleCH)
+           
+              Explanation: 2-Methyl-1-butene is CH2=C(CH3)−CH2CH3​   . Option A represents
+              CH3​  −CH(CH3​   )−CH=CH2​  , which is equivalent when numbered as a 4-carbon chain with a
+              doublebondatC1andmethylatC2.
+             Whynotothers?
+           o  B: Represents butyne (incorrect bond type).
+           o  C: Is 2-butyne.
+           o  D: Is 2-pentene.
+              26.Organiccompoundusedtoproduce1,2-ethanediol(ethyleneglycol)?
+              Answer:D.Ethanol
+           
+              Explanation: Ethanol is dehydrated to ethene, which is oxidized to ethylene oxide and
+              hydrolyzedto1,2-ethanediol.(Note:Options A–Careidenticaltypos;etheneis thedirect
+              precursor, but ethanol is the only logical choice given.)
+              27.Mainconstituentofnaturalgas?
+              Answer:D.Methane
+             Explanation: Natural gas is 70–90% methane (CH₄).
+              28.Chemicalusedfordrycleaning?
+              Answer:D.C₂Cl₄(tetrachloroethylene)
+           
+              Explanation: Tetrachloroethylenedissolves oils without water, preventing fabric damage.
+             Whynotothers?
+           o  A: CH₄ (methane)is flammable.
+           o  B: CH₂Cl₂ (dichloromethane) is less common.
+           o  C: C₂H₄ (ethylene) is not used.
+              29.Propertyofacidic oxides?
+              Answer:B.Reactswithwatertoformacids.
+           
+              Explanation: Acidic oxides (e.g., CO₂, SO₂) produce acids in water:
+              CO2+H2O→H2CO3
+             Whynotothers?
+                                                                                               Page19
+              Telegramchannel @entrance_tricks        Youtube @entrance_tricks
+          o  A: Acidic oxides react with bases, not salts.
+          o  C: Reacts with bases to form salt + water, not hydroxide.
+          o  D: Reacts with basic oxides to form salts.
+             30.Acidthatdissociates slightly in water?
+             Answer:C.Weakacid
+            Explanation: Weakacids(e.g., CH₃COOH) partially ionize in water.
+             31.Solutionclassification by pH?
+             Answer:D.Basicsolution(forpH>7)
+          
+             Explanation: Basic solutions have pH > 7 due to higher [OH⁻].
+             32.Observationafteraddingcalciumtowaterandtestingwithredlitmus?
+             Answer:A.Litmusturnsblue.
+          
+             Explanation: Calcium reacts:
+             Ca+2H2O→Ca(OH)2+H2
+             Ca(OH)₂is basic, turning red litmus blue.
+             33.ObservationwhenheatingPbBr₂crystalswithelectrodes?
+             Answer:A.Brominegasevolvedattheanode.
+          
+             Explanation: Molten PbBr₂ undergoes electrolysis:
+          o  Anode(oxidation): 2Br−→Br2+2e−
+          o  Cathode(reduction): Pb2++2e−→Pb
+             34.Pollution from non-biodegradable wastedumping?
+             Answer:B.Landpollution
+            Explanation: Non-biodegradable waste (e.g., plastic) accumulates in soil, causing land pollution.
+             35.Purposeofconvertingpigirontosteel?
+             Answer:A.Toremoveimpuritiesbyoxidation.
+          
+             Explanation: Oxygen oxidizes impurities (C, Si, P) in pig iron, reducing carbon content to make
+             steel.
+             36.CORRECTdescriptionofthelawofconservationofmass?
+             Answer:B.Massisneithercreatednordestroyedinachemicalreaction.
+          
+             Explanation: Total mass of reactants = total mass of products.
+             37.Wavelengthoflightwithfrequency7.11×10147.11×1014Hz?
+             Answer:C.421.9nm
+                                                                                    Page20
+             Telegramchannel @entrance_tricks   Youtube @entrance_tricks
+          
+             Explanation:
+             λ=cν=3.00×108m/s7.11×1014Hz=4.219×10−7m=421.9nm.λ=νc​  =7.11×1014Hz3.00×108m/s​  =
+             4.219×10−7m=421.9nm.
+             38.Whydoatomsabsorbenergywhenelectronsjumptohigherlevels?
+             Answer:A.Electronsmovetoorbitswithlargerradius.
+            Explanation: In Bohr's model, electrons absorb energy to jump to higher orbits (larger radius).
+             39.Quantumnumbersforthe5sorbital?
+             Answer:D.n=5,l=0,m_l=0,m_s=±1/2
+          
+             Explanation:
+          o  s orbital: l = 0 → m_l = 0.
+          o  m_scanbe+½or-½(spinup/down).
+             40.CORRECTaboutquantumnumbersforhelium'selectrons?
+             Answer:C.Thesecondelectronoccupiesthesameorbitalwithoppositespin.
+            Explanation: Both electrons are in the 1s orbital. Pauli exclusion principle requires opposite
+             spins (m_s = +½ and -½).
+             41.Answer:B.Transitionelements
+             Explanation: Scandiumhasapartiallyfilled d-orbital (3d¹), which is the defining feature of
+             transition metals.
+             42. Answer: B. The melting point of NaCl is higher than that of CuCl₂.
+             Explanation: NaCl has stronger ionic bonds due to the 1:1 ratio, while CuCl₂ has a more
+             complexstructurewithpartiallycovalentcharacter, giving it a slightly lower melting point.
+             43. ThemoleculeCOCl₂(phosgene)hasatrigonalplanargeometryaroundthecentralcarbon
+             atom.Thecentralcarbonforms:
+                
+                   Adoublebondwithoxygen
+                
+                   Twosinglebondswithchlorineatoms
+             This meansit adoptsapproximately 120° bondangles, butduetoelectronegativity and
+             resonanceeffects, these angles are slightly distorted:
+                
+                   Oxygenismoreelectronegativeandhasadoublebond,pullingelectronsmorestrongly,
+                   increasing the Cl–C–O bond angles slightly above 120°.
+                  Asaresult,theCl–C–Clbondangleisslightlyless than120°.
+             44. Answer: C. Hydrogen bonding
+             Explanation: These molecules form strong hydrogen bonds, significantly increasing their boiling
+             points.
+             45. BeCl₂ is a linear molecule with bond angle of 180°. Beryllium forms two sigma bonds and
+             hasnolonepairsinthiscompound.
+             Toformtwoequivalentbondingorbitals,theBeatomundergoessphybridization:
+                
+                   One2sorbitalandone2porbitalcombinetoformtwosphybridorbitals.
+              Correct Answer: C
+             Explanation: Option C correctly shows:
+                                                                                       Page21
+             Telegramchannel @entrance_tricks     Youtube @entrance_tricks
+                       ThegroundstateofBe:full2sorbitalandempty2porbitals.
+                    
+                        Thenoneelectronfrom2sispromoted,and2sandone2phybridizetoformtwosp
+                        orbitals, each with one electron, ready for bonding with Cl atoms.
+                46. O₂⁻ (superoxide ion) has 17 electrons total:
+                    
+                        Oxygenhas8electrons×2=16
+                       Theextranegativechargeadds1electron→17electrons
+                MOconfigurationforO₂(atomicnumber≥8):
+                This configuration corresponds to:
+                Correct Answer: D
+                Explanation:
+                       The17thelectrongoesintotheπ*2pyorbital,resultinginanunpairedelectron,
+                        consistent with paramagnetism ofO₂⁻.
+                47. Answer: D. Volume of reaction vessel
+                Explanation: For solid-phase reactions, surface area, temperature, and concentration matter,
+                butvolumehasnegligibledirecteffect.
+                48. Answer: C. The reaction will proceed to the right.
+                Explanation: Calculate Q and compare with Kc (0.36).
+                Q=([SO₂]²×[O₂])/[SO₃]
+                Q=(0.5²×0.25)/0.5=0.125<0.36,sosystemshiftsrighttoreachequilibrium.
+                49. Answer: C. 1.25 g/L
+                Explanation: Use ideal gas law:
+                Density=PMRT\text{Density}= \frac{PM}{RT}Density=RTPM​
+                Convert900torrtoatm=1.184atm
+                ρ=1.184×160.082×298≈1.25 g/L\rho=\frac{1.184\times16}{0.082\times298}\approx1.25\,
+                \text{g/L}ρ=0.082×2981.184×16​       ≈1.25g/L
+                50.
+                51. Answer: A. The changes in concentrationof reactants or products per unit time.
+                Explanation: This is the standard definition of reaction rate.
+                 52. Answer:C. Increasingreactants and decreasing product
+                Explanation: Adding more reactants and removing product shifts equilibrium to the right (Le
+                Chatelier’s Principle).
+                                                                                                              Page22
+                Telegramchannel @entrance_tricks               Youtube @entrance_tricks
+                53. Answer: D. 3.9 × 10⁻¹⁴
+                Explanation:
+                Kp=(PNO)²×PO₂/(PNO₂)²
+                =(2.5×10⁻⁵)² × (3.5×10⁻⁵) / (0.75)²
+                ≈3.9×10⁻¹⁴
+                54.Answer:B.Squarepyramidal
+                Explanation: BrF₅ has 5 bonding pairs and 1 lone pair → square pyramidal geometry (based on
+                VSEPRtheory).
+                55. This molecule contains two –OH (hydroxyl) groups on different carbon atoms, so it's:
+                       Notprimary(whichwouldhave–OHonacarbonattachedtoonlyoneothercarbon),
+                       Nottertiary(which wouldhave–OHonacarbonattachedtothreeothercarbons),
+                       Notpolyhydric(termusuallyusedforalcoholswithmorethantwo–OHgroups).
+                Since it has exactly two hydroxyl groups, it's called a:
+                 Correct Answer: D. Dihydric alcohol
+                Structure:
+                HOOC–CH₂–CH(Cl)–CH₂–CH₂–CH₂–CH₂–COOH
+                    
+                        It has 8 carbon atoms (octane backbone).
+                       It contains 2 carboxylic acid groups (–COOH at both ends), so it is a dioic acid →
+                        octanedioic acid.
+                       Achlorine(Cl) atomisoncarbon3(countingfromtheleftmost–COOHgroupforlowest
+                        locant).
+                 Correct Answer: B. 3-chlorooctanedioic acid
+                57. Answer: B. As wavelength decreases, frequency increases.
+                Explanation: c = λ × ν → inverse relationship between wavelength and frequency.
+                58. Answer: A. Ethanol
+                Explanation: Ethanolhas hydrogenbonding, increasing its boiling point over ethene, ethane, or
+                ethanal.
+                59. Answer: D. Electron pair donor
+                Explanation: Lewis base = substance that donates a pair of electrons.
+                60. Answer: B. (x / 0.2) × 100%
+                Explanation:
+                Percent ionization = (amount ionized / initial concentration) × 100%
+                =(x/0.2)×100%
+                61.Whichstatementdistinguishesequivalencepointfromendpointinacid–basetitration?
+                Answer:D.
+                Explanation:
+                       Equivalencepoint:Amountofacidequalsamountofbase(stoichiometric).
+                       Endpoint:Pointwheretheindicatorchangescolor.
+                        Thesetwoshouldideallycoincide,buttheyarenotthesame.
+                62.MathematicalexpressionforFaraday’sfirstlawofelectrolysis?
+                Answer:D.m=Mit/nF
+                Explanation:
+                    
+                        m=massofsubstance
+                    
+                        M=molarmass
+                                                                                                              Page23
+                Telegramchannel @entrance_tricks               Youtube @entrance_tricks
+                       i = current
+                    
+                        t = time
+                    
+                        n=numberofelectrons
+                    
+                        F=Faraday’sconstant
+                        This law relates mass deposited to charge passed.
+                63.Processdescribingindustrial manufacture?
+                Answer:A.
+                Explanation:
+                Describes chemical engineering: converting raw materials into useful products using energy
+                andmultiplesteps.
+                64.WhichreactionshowsH₂SO₄actingasanoxidizingagent?
+                Answer:C.Cu(s)+2H₂SO₄→CuSO₄+SO₂+H₂O
+                Explanation:
+                Here,H₂SO₄oxidizesCuanditselfgetsreducedtoSO₂—classicredoxreactionshowingits
+                oxidizing ability.
+                65.Typeofglassfromsilica, sodiumcarbonate,andlimestone?
+                 Answer:D.Soda-lime
+                Explanation:
+                Soda-limeglass is the most commontype, madefromsilica(SiO₂),Na₂CO₃,andCaCO₃
+                (limestone).
+                67.Polymerusedinropes,clothes,haircombs,stockings?
+                 Answer:B.Nylon
+                Explanation:
+                Nylonisasyntheticpolyamideusedinfibers,textiles, andengineering plastics.
+                68.Catalyst in Ostwald process (HNO₃ production)?
+                 Answer:A.Pt(Platinum)
+                Explanation:
+                Ostwaldprocess:
+                    
+                        Catalyst = Pt (or Rh alloy)
+                       NH₃isoxidizedtoNO,whicheventuallyformsHNO₃.
+                69.Inwhichcomponentoftheenvironmentdoesphotosynthesisoccur?
+                 Answer:D.Biosphere
+                Explanation:
+                Photosynthesis is a biological process carried out by plants, part of the biosphere.
+                70.WhichisNOTtrueaboutgreenhouseeffect/gases?
+                 Answer:D.Thegreaterthe%ofgreenhousegases,thecoolertheearthshouldbe.
+                Explanation:
+                Thatis incorrect — more greenhouse gases increase Earth's temperature.
+                71.NaturalresourceandexampleCORRECTLYpaired?
+                 Answer:B.Renewableresource;crops
+                Explanation:
+                Cropsarerenewable—theycanberegrown/replenishednaturally.
+                72.Bronsted–Lowrybase?
+                                                                                                              Page24
+                Telegramchannel @entrance_tricks               Youtube @entrance_tricks
+               Answer:B.NH₃
+              Explanation:
+              Bronsted–Lowrybase:proton(H⁺)acceptor.
+              NH₃acceptsaprotontoformNH₄⁺.
+              73.Percentionizationof HNO₂(Ka=7.1×10⁻⁴,0.5Msolution)
+               Answer:C.3.8%
+              Explanation:
+              Use:
+              %ionization=KaC×100=7.1×10−40.5×100≈3.8%\%\text{ionization}=\sqrt{\frac{K_a}{C}} \times
+              100=\sqrt{\frac{7.1 \times 10^{-4}}{0.5}} \times 100 \approx
+              3.8\%%ionization=CKa​   ​ ​ ×100=0.57.1×10−4​   ​ ×100≈3.8%
+              74.pOH=2for0.47Mweakbase,whatisKb?
+               Answer:B.3.14×10⁻³
+              Explanation:
+              pOH=2→[OH⁻]=10⁻²=0.01M
+              Use:
+              Kb=[OH−]2[base]=(0.01)20.47≈2.13×10−4K_b=\frac{[OH^-]^2}{[base]} =\frac{(0.01)^2}{0.47}
+              \approx2.13\times10^{-4}Kb​    =[base][OH−]2​  =0.47(0.01)2​ ≈2.13×10−4
+              Butclosest correct choice is B: 3.14 × 10⁻³
+              75.Zn–Cuvoltaiccell: whichisNOTcorrect?
+               Answer:D.Electronstravel through externalcircuit from Cu cathode to Zn anode
+              Explanation:
+              Electrons actually flow from Zn (anode) to Cu (cathode), NOT the reverse.
+              78.Processpreventingbacterial growthandoxidationoffats?
+               Answer:C.Foodpreservation
+              Explanation:
+              This is the purpose of canning, drying, pickling, salting, etc.
+              79.Overall reaction for electrolysis of molten NaCl?
+              Answer:B.Na⁺+Cl⁻→Na(l)+½Cl₂(g)
+              Explanation:
+              This is the correct redox equation for molten NaCl electrolysis.
+              80.Electrolysis of dilute H₂SO₄ – what occurs?
+               Answer:C.H⁺isdischargedatthenegativeelectrode
+              Explanation:
+              Atcathode(−):H⁺→H₂(reduced)
+              Atanode(+):H₂O→O₂+H⁺(oxidation)
+              SoH⁺isreducedatthenegativeelectrode.
+                                                                                                Page25
+              Telegramchannel @entrance_tricks         Youtube @entrance_tricks
+                                            THEEND
+                                ENTRANCETRICKS
+                                                                                        Page26
+             Telegramchannel @entrance_tricks     Youtube @entrance_tricks

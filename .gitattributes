@@ -1,0 +1,15 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Binary files - preserve exact byte structure without line ending conversion
+*.pdf binary
+*.part* binary
+*.gz binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.svg text
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary

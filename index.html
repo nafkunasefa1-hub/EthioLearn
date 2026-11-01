@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EthioLearn AI - Ethiopian Secondary & Entrance Exam Platform</title>
+    <meta name="description" content="Comprehensive Ethiopian secondary school (Grades 9-12) textbook library with page-level AI tutor, authentic entrance exam engine, and personalized learning loop." />
+    
+    <meta name="theme-color" content="#0f172a" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="EthioLearn" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    
+    <meta property="og:title" content="EthioLearn AI - Ethiopian Secondary & Entrance Exam Platform" />
+    <meta property="og:description" content="Comprehensive Ethiopian secondary school (Grades 9-12) textbook library with page-level AI tutor, authentic entrance exam engine, and personalized learning loop." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      // Clear stale service worker caches on page load to ensure fresh live code updates
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (let registration of registrations) {
+            registration.unregister();
+          }
+        });
+      }
+      if ('caches' in window) {
+        caches.keys().then(function(names) {
+          for (let name of names) {
+            caches.delete(name);
+          }
+        });
+      }
+    </script>
+    <script>
+      (function() {
+        // 1. Completely neutralize Vite HMR WebSocket in iframe preview to prevent error 0
+        if (typeof window !== 'undefined') {
+          const OrigWebSocket = window.WebSocket;
+          if (OrigWebSocket) {
+            window.WebSocket = function(url, protocols) {
+              if (typeof url === 'string' && (url.includes('vite') || url.includes('24678') || url.includes('/@vite') || url.includes('token='))) {
+                return {
+                  url: url,
+                  readyState: 3, // CLOSED
+                  bufferedAmount: 0,
+                  extensions: '',
+                  protocol: '',
+                  binaryType: 'blob',
+                  send: function() {},
+                  close: function() {},
+                  addEventListener: function() {},
+                  removeEventListener: function() {},
+                  dispatchEvent: function() { return true; },
+                  onopen: null,
+                  onmessage: null,
+                  onerror: null,
+                  onclose: null,
+                };
+              }
+              return new OrigWebSocket(url, protocols);
+            };
+            window.WebSocket.prototype = OrigWebSocket.prototype;
+            window.WebSocket.CONNECTING = 0;
+            window.WebSocket.OPEN = 1;
+            window.WebSocket.CLOSING = 2;
+            window.WebSocket.CLOSED = 3;
+          }
+
+          // 2. Intercept console warnings & errors for WebSocket and standardFontDataUrl
+          const _origWarn = console.warn;
+          console.warn = function(...args) {
+            const str = args.map(a => (a && a.message) || String(a)).join(' ');
+            if (str.includes('standardFontDataUrl') || str.includes('WebSocket') || str.includes('@vite/client')) {
+              return;
+            }
+            _origWarn.apply(console, args);
+          };
+
+          const _origErr = console.error;
+          console.error = function(...args) {
+            const str = args.map(a => (a && a.message) || String(a)).join(' ');
+            if (str.includes('WebSocket') || str.includes('@vite/client') || str.includes('standardFontDataUrl')) {
+              return;
+            }
+            _origErr.apply(console, args);
+          };
+
+          window.addEventListener('error', function(event) {
+            const msg = String(event?.message || event?.error?.message || '');
+            const filename = String(event?.filename || '');
+            if (msg.includes('WebSocket') || msg.includes('standardFontDataUrl') || filename.includes('@vite/client')) {
+              event.stopImmediatePropagation?.();
+              event.preventDefault?.();
+            }
+          }, true);
+
+          window.addEventListener('unhandledrejection', function(event) {
+            const reason = String(event?.reason?.message || event?.reason || '');
+            if (reason.includes('WebSocket') || reason.includes('standardFontDataUrl')) {
+              event.stopImmediatePropagation?.();
+              event.preventDefault?.();
+            }
+          }, true);
+
+          // 3. Initialize and wrap PDF.js to guarantee standardFontDataUrl is ALWAYS provided
+          function configurePdfJs() {
+            if (window['pdfjsLib']) {
+              const origin = window.location.origin;
+              window['pdfjsLib'].GlobalWorkerOptions.workerSrc = origin + '/vendor/pdfjs/pdf.worker.min.js';
+              window['pdfjsLib'].GlobalWorkerOptions.standardFontDataUrl = origin + '/vendor/pdfjs/standard_fonts/';
+              window['pdfjsLib'].GlobalWorkerOptions.cMapUrl = origin + '/vendor/pdfjs/cmaps/';
+              window['pdfjsLib'].GlobalWorkerOptions.cMapPacked = true;
+
+              if (!window['pdfjsLib'].__wrappedGetDoc && typeof window['pdfjsLib'].getDocument === 'function') {
+                const origGetDocument = window['pdfjsLib'].getDocument;
+                window['pdfjsLib'].getDocument = function(src) {
+                  if (typeof src === 'string') {
+                    src = { url: src };
+                  }
+                  if (src && typeof src === 'object') {
+                    if (!src.standardFontDataUrl) {
+                      src.standardFontDataUrl = origin + '/vendor/pdfjs/standard_fonts/';
+                    }
+                    if (!src.cMapUrl) {
+                      src.cMapUrl = origin + '/vendor/pdfjs/cmaps/';
+                    }
+                    if (src.cMapPacked === undefined) {
+                      src.cMapPacked = true;
+                    }
+                  }
+                  return origGetDocument.call(this, src);
+                };
+                window['pdfjsLib'].__wrappedGetDoc = true;
+              }
+            }
+          }
+          window.__initPdfJs = configurePdfJs;
+        }
+      })();
+    </script>
+    <!-- Local same-origin PDF.js for canvas textbook preview without CDN dependency -->
+    <script src="/vendor/pdfjs/pdf.min.js" onload="window.__initPdfJs && window.__initPdfJs()"></script>
+    <script>window.__initPdfJs && window.__initPdfJs();</script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

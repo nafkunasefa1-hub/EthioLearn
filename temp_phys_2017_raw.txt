@@ -1,0 +1,367 @@
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	1
+
+-- 1 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	2
+
+-- 2 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	3
+
+-- 3 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	4
+
+-- 4 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	5
+
+-- 5 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	6
+
+-- 6 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	7
+
+-- 7 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	8
+
+-- 8 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	9
+
+-- 9 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	10
+
+-- 10 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	11
+
+-- 11 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	12
+
+-- 12 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	13
+
+-- 13 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	14
+
+-- 14 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	15
+
+-- 15 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	16
+
+-- 16 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	17
+
+-- 17 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	18
+
+-- 18 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	19
+
+-- 19 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	20
+
+-- 20 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	21
+
+-- 21 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	22
+ANSWER 	KEY
+1. 	Answer: 	A. 	magnitude 	and 	direction.
+Explanation: 	Vector 	quantities 	(e.g., 	force, 	velocity) 	require 	both 	magnitude 	(size) 	and 	direction
+for 	complete 	description. 	Scalars 	(e.g., 	mass, 	time) 	use 	magnitude 	only.
+2. 	Answer: 	D. 	constant 	velocity 	if 	the 	resultant 	force 	exerted 	on 	it 	is 	zero.
+Explanation: 	Newton's 	first 	law 	states 	that 	an 	object 	maintains 	constant 	velocity 	(including 	zero)
+if 	the 	net 	force 	is 	zero. 	Acceleration 	occurs 	only 	if 	net 	force 	is 	non-zero.
+3. 	Answer: 	C. 	Distance 	is 	always 	greater 	than 	or 	equal 	to 	the 	magnitude 	of 	displacement,
+while 	the 	magnitude 	of 	the 	displacement 	is 	always 	less 	than 	or 	equal 	to 	distance.
+Explanation: 	Distance 	(scalar, 	path 	length) 	≥ 	displacement 	(vector, 	straight-line 	change 	in
+position). 	Displacement 	magnitude 	is 	shortest 	path.
+
+-- 22 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	23
+4. 	Answer: 	B. 	The 	acceleration 	is 	constant.
+Explanation: 	Uniform 	acceleration 	implies 	constant 	rate 	of 	change 	of 	velocity. 	Velocity 	may
+change, 	but 	acceleration 	remains 	steady.
+5. 	Answer: 	D. 	12 	m
+Explanation: 	The 	resultant 	magnitude 	of 	two 	vectors 	(4 	m, 	3 	m) 	ranges 	from 	|4-3| 	= 	1 	m 	to 	4+3
+= 	7 	m. 	12 	m 	is 	impossible.
+6. 	Answer: 	C. 	240 	m
+Explanation:
+Initial 	velocity 	u=v−at=30−(5×4)=10 	m/s
+Distance 	after 	8 	s: 	s=ut+12at2=(10×8)+12(5)(64)=80+160=240 	m
+7. 	Answer: 	B. 	The 	linear 	acceleration 	of 	the 	object 	is 	zero.
+Explanation: 	Linear 	equilibrium 	requires 	net 	force 	= 	0, 	so 	acceleration 	= 	0 	(Newton's 	second
+law).
+8. 	Answer: 	D. 	frictional 	force.
+Explanation: 	Surface 	irregularities 	interlocking 	cause 	friction, 	opposing 	relative 	motion.
+9. 	Answer: 	C. 	On 	its 	way 	down, 	work 	done 	by 	gravity 	is 	positive.
+Explanation: 	Gravity 	does 	positive 	work 	when 	displacement 	aligns 	with 	force 	(downward
+motion). 	Kinetic 	energy 	increases 	downward, 	potential 	energy 	decreases.
+10. 	Answer: 	A. 	the 	sum 	of 	its 	kinetic 	and 	potential 	energies.
+Explanation: 	Mechanical 	energy 	(conserved 	in 	ideal 	oscillations) 	is 	E=KE+PE
+11. 	Answer: 	D. 	4 	N
+Explanation:
+Fnet 	=ma=2×1.5=3N 	(right).
+Assuming 	F2 	=1N 	opposes 	F1 	: 	F1−F2=3⇒F1−1=3⇒F1=4 	N
+12. 	Answer: 	C. 	7.0 	kg 	m/s
+Explanation:
+Initial 	momentum: 	(→).
+Final 	momentum: 	(←).
+Impulse 	(magnitude 	7.0 	kg·m/s).
+
+-- 23 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	24
+13. 	Answer: 	C. 	effort.
+Explanation: 	Effort 	is 	the 	applied 	force 	to 	overcome 	a 	load 	in 	simple 	machines.
+14. 	Answer: 	C. 	The 	directions 	of 	wave 	motion 	and 	vibration 	of 	particles 	are 	parallel 	for
+longitudinal 	waves 	but 	perpendicular 	for 	transverse 	waves.
+Explanation: 	Transverse 	waves 	(e.g., 	light): 	particles 	vibrate 	perpendicular 	to 	wave 	direction.
+Longitudinal 	waves 	(e.g., 	sound): 	particles 	vibrate 	parallel.
+15. 	Answer: 	B. 	object 	in 	air 	minus 	the 	buoyant 	force.
+Explanation: 	Apparent 	weight 	= 	true 	weight 	(in 	air) 	- 	buoyant 	force 	(upward 	force 	by 	fluid).
+16. 	Answer: 	B. 	1/(sinθ+μcosθ)
+Explanation:
+AMA 	= 	Load 	/ 	Effort.
+Load 	along 	incline: 	mgsinθ.
+Friction: 	μmgcosθ.
+Effort 	F=mgsinθ+μmgcosθ.
+AMA 	= 	mg/F=1/(sinθ+μcosθ1 	)
+17. 	Answer: 	A. 	60%
+Explanation:
+IMA 	= 	Radius(wheel) 	/ 	Radius(axle) 	= 	40 	cm 	/ 	8 	cm 	= 	5.
+AMA 	= 	Load 	/ 	Effort 	= 	(6×10)/20=60/20=3
+Efficiency 	= 	AMA/IMA×100%=35×100%=60%
+18. 	Answer: 	D. 	4.33 	m/s 	to 	the 	positive 	x-axis
+Before:m1u1 	+ 	m2u2 	= 	86 	+ 	123 	= 	48 	+ 	36 	= 	84 	kg 	m/s
+After:m1v1 	+ 	m2v2 	= 	84 	+ 	12v2 	= 	32 	+ 	12v2
+Set 	equal:
+32 	+ 	12v2 	= 	84
+12v2 	= 	84 	- 	32 	= 	52
+v2 	= 	52 	/ 	12 	≈ 	4.333 	m/s 	in 	the 	positive 	x-direction 	(since 	positive)
+Answer: 	D. 	4.33 	m/s 	to 	the 	positive 	x-axis
+19. 	Heat 	capacity 	is 	defined 	as 	the 	amount 	of 	heat 	required 	to 	raise 	the 	temperature 	of 	a 	given
+substance 	(of 	a 	given 	mass) 	by 	1°C.
+Latent 	heat 	is 	for 	phase 	change 	without 	temperature 	change.
+Quantity 	of 	heat 	is 	general.
+Specific 	heat 	capacity 	is 	per 	unit 	mass.
+
+-- 24 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	25
+Answer: 	B. 	heat 	capacity.
+20. 	- 	Reflection: 	speed 	and 	wavelength 	remain 	the 	same 	(in 	the 	same 	medium) 	but 	direction
+changes. 	So 	A 	is 	false.
+- 	Refraction: 	speed 	and 	wavelength 	change 	(as 	the 	wave 	enters 	a 	different 	medium). 	So 	B 	is
+false.
+- 	Destructive 	interference: 	the 	amplitude 	of 	the 	resultant 	wave 	is 	less 	than 	the 	amplitude 	of
+each 	wave 	(or 	could 	be 	zero). 	So 	C 	is 	false.
+- 	Diffraction: 	is 	more 	pronounced 	when 	the 	gap 	is 	narrow 	compared 	to 	the 	wavelength. 	So 	D 	is
+true.
+Answer: 	D.
+21. 	For 	a 	square 	plate, 	the 	area 	expansion 	coefficient 	is 	twice 	the 	linear 	expansion 	coefficient.
+So 	the 	formula 	for 	area 	expansion 	is:
+A=A0 	(1+βΔT) 	where 	β=2α.
+Therefore, 	A=A0 	(1+2αΔT).
+Answer: 	C.
+22. 	The 	pressure 	due 	to 	a 	column 	of 	mercury 	is 	P=ρgh
+Given 	P 	= 	103.36 	kPa 	= 	103360 	Pa
+So, 	h=P/ρg=10103360 	/13.6×103=
+Calculate:
+103360 	/ 	136000 	= 	0.76 	m 	= 	76 	cm
+23. 	Gauge 	pressure 	Pgauge 	=ρgh=1030×10×100=1.03×106 	Pa.
+Absolute 	Pabs 	=Patm 	+Pgauge 	=1.00×105+1.03×106=1.13×106 	Pa.
+Answer: 	A
+24. 	Explanation:
+1. 	Heat 	ice 	from 	-20°C 	to 	0°C: 	Q1 	=mcice 	ΔT=5×2100×20=210,000J.
+2. 	Melt 	ice 	at 	0°C: 	Q2 	=mLf 	=5×336,000=1,680,000J.
+3. 	Heat 	water 	from 	0°C 	to 	10°C: 	Q3 	=mcwater 	ΔT=5×4200×10=210,000J.
+4. 	Total 	Q= 	Q=Q1 	+Q2 	+Q3 	=2,100,000J=2.10×106J.
+Answer: 	A
+25. 	An 	electric 	field 	is 	a 	region 	where 	a 	charged 	particle 	experiences 	an 	electric 	force.
+Answer: 	B
+26. 	Speed 	of 	sound 	stiffness/density
+Option 	C 	is 	contextually 	correct 	when 	comparing 	different 	media 	(e.g., 	cold 	helium 	vs. 	hot 	air).
+Answer: 	C
+
+-- 25 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	26
+27. 	Based 	on 	typical 	configurations, 	R2 	is 	in 	parallel 	with 	the 	series 	combination
+of 	R3 	and 	R4 	(effective 	combination 	is 	R3 	+R4 	).
+Thus, 	R2 	is 	parallel 	to 	R3 	+R4 	.
+Answer: 	B
+28. 	E=kQ/r2=(9×109)×4.0/(2.0)2=36×109/4=9.0×109 	N/C
+Answer: 	C
+29. 	Resistance 	R∝length/areaR∝length/area.
+New 	length 	= 	2L, 	new 	area 	= 	A/2.
+Rnew 	=R×(2L/L)×(A/(A/2))=6×2×2=24Ω.
+Answer: 	B
+30.
+31. 	The 	projection 	of 	a⃗ 	on 	b⃗ 	is 	acosα, 	not 	abcosα. 	So, 	A 	is 	correct.
+Answer: 	A
+32. 	A. 	Real 	images 	can 	be 	magnified 	but 	virtual 	images 	cannot. 	(Both 	can 	be 	magnified, 	so 	false)
+B. 	Virtual 	images 	can 	be 	magnified 	but 	real 	images 	cannot. 	(False, 	both 	can 	be)
+C. 	Virtual 	images 	can 	be 	displayed 	on 	a 	screen 	unlike 	the 	real 	ones. 	(False, 	real 	images 	can 	be
+displayed, 	virtual 	cannot)
+D. 	Real 	images 	can 	be 	displayed 	on 	a 	screen 	unlike 	the 	virtual 	ones. 	(Correct)
+Answer: 	D
+33. 	Explanation:
+This 	equation 	is 	derived 	from 	kinematics. 	Starting 	with 	vf 	=vi 	+at, 	solve 	for 	vi 	=vf 	−at.
+Substitute 	into 	s=vi 	t+1/2 	at2:
+s=(vf 	−at)t+1/2 	at2=vf 	t−1/2 	at2.
+
+-- 26 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	27
+Option 	D 	is 	valid. 	Other 	options 	are 	incorrect 	due 	to 	missing 	terms 	or 	factors.
+34.
+35.
+36.
+
+-- 27 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	28
+37. 	Component 	providing 	centripetal 	force 	for 	a 	mass 	whirled 	in 	a 	horizontal 	circle:
+A. 	Tsinθ
+Explanation:
+The 	tension 	T 	has 	a 	vertical 	component 	(Tcosθ) 	balancing 	gravity 	and 	a 	horizontal 	component
+(Tsinθ) 	providing 	the 	centripetal 	force 	for 	circular 	motion.
+38. 	B. 	Gravitational 	force 	makes 	planets 	revolve 	around 	the 	Sun.
+Explanation:
+Gravitation 	governs 	orbital 	motion. 	Option 	A 	incorrectly 	attributes 	nuclear 	stability 	to 	the 	weak
+force 	(it's 	the 	strong 	force). 	Option 	C 	confuses 	weak 	and 	strong 	forces 	in 	radioactive 	processes.
+Option 	D 	misassigns 	nucleon 	binding 	to 	electromagnetism 	(it's 	the 	strong 	force).
+39.
+
+-- 28 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	29
+40.
+41.
+42.
+
+-- 29 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	30
+43. 	Primary 	focus 	in 	mechanical 	engineering:
+A. 	Dynamics, 	Thermodynamics, 	Force, 	and 	Stress
+Explanation:
+Mechanical 	engineering 	emphasizes 	mechanics 	(dynamics, 	force, 	stress) 	and 	energy
+(thermodynamics). 	Other 	options 	include 	irrelevant 	topics 	like 	nuclear 	physics 	or 	optics.
+44. 	Correctly 	matched 	defense 	technology:
+D. 	Infrared 	device 	uses 	heat 	emission 	to 	identify 	objects.
+Explanation:
+Infrared 	devices 	detect 	thermal 	radiation. 	Option 	A 	misdescribes 	radar 	(it 	detects 	echoes, 	not
+propulsion). 	Options 	B 	and 	C 	misassign 	radar 	functionality 	to 	missiles 	and 	drones.
+45. 	Correct 	statement 	about 	phase 	changes:
+C. 	During 	liquid 	to 	gas, 	heat 	energy 	is 	absorbed 	while 	temperature 	remains 	constant.
+Explanation:
+Phase 	changes 	occur 	at 	constant 	temperature. 	Vaporization 	(liquid 	to 	gas) 	absorbs 	heat. 	Option
+A 	describes 	freezing 	(heat 	released), 	B 	describes 	condensation 	(heat 	released), 	and 	D
+incorrectly 	states 	temperature 	change 	during 	freezing.
+46. 	Question 	46
+A 	ball 	is 	thrown 	horizontally 	from 	a 	building 	of 	height 	hh 	with 	initial 	speed 	vovo 	. 	Which
+statement 	is 	correct?
+B. 	Its 	horizontal 	component 	acceleration 	is 	zero.
+
+-- 30 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	31
+Explanation:
+Horizontal 	motion 	has 	no 	acceleration 	(assuming 	no 	air 	resistance), 	so 	velocity 	is 	constant.
+Vertical 	motion 	has 	acceleration 	due 	to 	gravity 	(gg), 	so 	velocity 	changes.
+47.
+48.
+49. 	The 	flow 	rate 	of 	a 	fluid 	is 	defined 	as:
+B. 	the 	volume 	of 	the 	fluid 	crossing 	an 	area 	per 	unit 	time 	taken.
+Explanation:
+Flow 	rate 	is 	typically 	defined 	as 	volume 	per 	unit 	time 	(e.g., 	m³/s).
+50. 	Solids 	are 	incompressible 	compared 	to 	liquids 	and 	gases 	because:
+A. 	their 	atoms 	are 	relatively 	fixed 	distance 	apart 	and 	held 	together.
+Explanation:
+
+-- 31 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	32
+In 	solids, 	atoms/molecules 	are 	tightly 	packed 	in 	a 	rigid 	structure, 	allowing 	minimal 	compression.
+51. 	Correct 	statement 	about 	magnets:
+C. 	If 	you 	cut 	a 	bar 	magnet 	into 	two, 	each 	piece 	has 	both 	north 	and 	south 	poles.
+Explanation:
+Magnetic 	poles 	always 	occur 	in 	pairs; 	cutting 	a 	magnet 	creates 	two 	smaller 	dipoles.
+52.
+53.
+54.
+55. 	Magnetic 	field 	created 	by 	a 	long 	straight 	current-carrying 	wire:
+D. 	forms 	circular 	pattern 	around 	the 	wire.
+Explanation:
+
+-- 32 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	33
+Magnetic 	field 	lines 	form 	concentric 	circles 	around 	a 	straight 	current-carrying 	wire.
+56. 	Doping 	a 	pure 	semiconductor 	with 	a 	group 	III 	element 	results 	in:
+B. 	P-type 	semiconductor.
+Explanation:
+Group 	III 	elements 	(e.g., 	Boron) 	have 	three 	valence 	electrons, 	creating 	"holes" 	(positive 	charge
+carriers).
+57. 	Plastic 	is 	used 	to 	cover 	wires 	because:
+D. 	Since 	every 	electron 	in 	plastic 	is 	tightly 	bound 	to 	the 	parent 	atom, 	it 	becomes 	poor
+conductor.
+Explanation:
+Insulators 	like 	plastic 	have 	tightly 	bound 	electrons, 	preventing 	current 	flow 	and 	providing 	safety.
+58. 	Correct 	Answer: 	C
+Explanation:
+The 	I-V 	curve 	of 	a 	semiconductor 	diode 	shows 	distinct 	regions:
+Forward 	Bias 	Region: 	Once 	the 	applied 	voltage 	exceeds 	the 	cut-in 	voltage 	(typically 	~0.7V 	for
+silicon), 	current 	rises 	rapidly 	due 	to 	majority 	charge 	carriers.
+Reverse 	Bias 	Region: 	A 	small 	leakage 	current 	(due 	to 	minority 	carriers) 	flows 	until
+the 	breakdown 	voltage 	is 	reached, 	where 	current 	surges.
+Option 	C 	is 	correct: 	The 	rapid 	rise 	after 	the 	cut-in 	voltage 	occurs 	in 	the 	forward 	bias 	region.
+Why 	others 	are 	incorrect:
+A: 	Forward 	bias 	current 	is 	due 	to 	majority 	carriers, 	not 	minority 	carriers.
+B: 	Reverse 	bias 	current 	is 	due 	to 	minority 	carriers, 	not 	majority 	carriers.
+D: 	The 	rapid 	increase 	after 	breakdown 	voltage 	occurs 	in 	the 	reverse 	bias 	region, 	not 	forward
+bias.
+59. 	Correct 	Answer: 	A
+Explanation:
+The 	circuit 	described 	is 	a 	half-wave 	rectifier 	(common 	diode-resistor 	setup 	for 	AC).
+Initial 	condition: 	Terminal 	"a" 	is 	positive, 	"b" 	is 	negative.
+First 	half-cycle 	(positive 	at 	"a"): 	Diode 	is 	forward-biased, 	allowing 	current 	to 	flow 	through 	the
+load 	resistor 	RLRL 	, 	developing 	voltage 	across 	it.
+
+-- 33 of 34 --
+
+Telegram 	channel 	@entrance_tricks 	Youtube 	@entrance_tricks 	Page 	34
+Second 	half-cycle 	(negative 	at 	"a"): 	Diode 	is 	reverse-biased, 	blocking 	current 	flow.
+Option 	A 	is 	correct: 	It 	accurately 	describes 	the 	first 	half-cycle.
+Why 	others 	are 	incorrect:
+B: 	Incorrectly 	implies 	no 	current 	flows 	in 	the 	second 	half-cycle 	(true), 	but 	the 	option 	is 	not 	the
+best 	match 	for 	the 	initial 	condition.
+C: 	Incorrectly 	states 	the 	diode 	is 	forward-biased 	in 	the 	second 	half-cycle.
+D: 	Incorrectly 	states 	the 	diode 	is 	reverse-biased 	in 	the 	first 	half-cycle.
+60.
+THE 	END
+ENTRANCE 	TRICKS
+
+-- 34 of 34 --
+

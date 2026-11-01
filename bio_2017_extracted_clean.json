@@ -1,0 +1,101 @@
+[
+  {
+    "question_number": 75,
+    "question_text": "What are the end products of an aerobic respiration when glucose molecule is completely oxidized?",
+    "option_a": "Energy rich hydrogen ion",
+    "option_b": "Oxygen molecule and water",
+    "option_c": "Energy, water and carbon dioxide",
+    "option_d": "Carbon dioxide and pyruvate",
+    "correct_answer": "C",
+    "explanation": "During complete aerobic respiration, a glucose molecule undergoes glycolysis, the link reaction, the Krebs cycle, and oxidative phosphorylation. The complete chemical equation is C6H12O6 + 6O2 -> 6CO2 + 6H2O + Energy (ATP). Thus, the end products are carbon dioxide, water, and energy.",
+    "topic_name": "Cellular Respiration"
+  },
+  {
+    "question_number": 76,
+    "question_text": "Which of the following is correct about energy harvesting in aerobic respiration? Energy is harvested by",
+    "option_a": "oxidative catalysis of glucose to release energy.",
+    "option_b": "converting ATP to ADP to release its energy.",
+    "option_c": "phosphorylation of glucose molecules using ATP.",
+    "option_d": "reducing glucose molecules inside the cell.",
+    "correct_answer": "A",
+    "explanation": "Energy harvesting in aerobic respiration occurs via the oxidative breakdown (catalysis) of organic molecules like glucose, transferring electrons to energy carriers and ultimately synthesizing ATP. Options B and C describe energy utilization and investment, not harvesting.",
+    "topic_name": "Cellular Respiration"
+  },
+  {
+    "question_number": 77,
+    "question_text": "Suppose three glucose molecules are totally oxidized to release energy during cellular respiration to produce 36 net ATP per glucose molecule. Then, the total net ATP produced from NADH in the electron transport chain is",
+    "option_a": "54 ATP",
+    "option_b": "72 ATP",
+    "option_c": "36 ATP",
+    "option_d": "84 ATP",
+    "correct_answer": "D",
+    "explanation": "For 1 glucose molecule producing 36 net ATP:\n- Substrate-level phosphorylation yields 4 ATP (2 from glycolysis + 2 from Krebs cycle).\n- Oxidative phosphorylation in the ETC yields 32 ATP total (28 ATP from 10 NADH molecules and 4 ATP from 2 FADH2 molecules).\nSince each glucose yields 28 ATP from NADH, for 3 glucose molecules: 3 x 28 ATP = 84 ATP.",
+    "topic_name": "Cellular Respiration"
+  },
+  {
+    "question_number": 78,
+    "question_text": "Ethiopian mothers traditionally prepare yogurt by collecting fresh milk and covering it for a days. Thus, how do you value the role of fermentation in this process? It",
+    "option_a": "changes the taste and smell of the yogurt of the milk.",
+    "option_b": "reduces the amount of water in yogurt from the fresh milk.",
+    "option_c": "produces more milk sugar in yogurt than fresh milk.",
+    "option_d": "reduces the amount of acid in yogurt than fresh milk.",
+    "correct_answer": "A",
+    "explanation": "Lactic acid fermentation converts lactose (milk sugar) into lactic acid, increasing acidity (lowering pH) and imparting characteristic flavor, aroma, and texture (taste and smell) to yogurt while helping preserve it.",
+    "topic_name": "Fermentation and Biotechnology"
+  },
+  {
+    "question_number": 83,
+    "question_text": "Which of the following is correct about the causes of induced mutation? It is caused by",
+    "option_a": "known agents that bring change in the chromosomes of the organism.",
+    "option_b": "random changes in the sequence of chromosome spontaneously.",
+    "option_c": "unidentified sources that bring changes phenotype of the organisms.",
+    "option_d": "the breeding of phenotypically different offspring in the population.",
+    "correct_answer": "A",
+    "explanation": "Induced mutations are structural or chemical changes in genetic material brought about by exposure to known environmental physical or chemical mutagens (e.g., UV light, radiation, mustard gas), unlike spontaneous mutations which occur naturally without deliberate exposure.",
+    "topic_name": "Genetics and Mutation"
+  },
+  {
+    "question_number": 84,
+    "question_text": "Some scientist reported that the population of cheetah is declining in the world. They suspect that this is due to the gradual change in their allelic frequency in their gene pool by chance. These scientists are discussing about",
+    "option_a": "genetic code.",
+    "option_b": "genetic drift.",
+    "option_c": "gene modification.",
+    "option_d": "gene flow.",
+    "correct_answer": "B",
+    "explanation": "Genetic drift refers to random fluctuations in allele frequencies within a gene pool due to chance events, which heavily impacts small, endangered populations like cheetahs.",
+    "topic_name": "Evolution and Population Genetics"
+  },
+  {
+    "question_number": 85,
+    "question_text": "Suppose a locus on chromosomes has two alleles, X (dominant) and Z (recessive), with genotype frequency of f(XX) = 0.16, f(XZ) = 0.48 and f(ZZ) = 0.36 in a population at Hardy-Weinberg equilibrium. Then, what is the allelic proportion of allele Z in the population?",
+    "option_a": "0.6",
+    "option_b": "0.3",
+    "option_c": "0.4",
+    "option_d": "0.75",
+    "correct_answer": "A",
+    "explanation": "In Hardy-Weinberg equilibrium, the frequency of the homozygous recessive genotype f(ZZ) = q^2 = 0.36. Taking the square root gives q = √0.36 = 0.6. Alternatively, allele frequency f(Z) = f(ZZ) + 1/2 f(XZ) = 0.36 + 0.5(0.48) = 0.36 + 0.24 = 0.6.",
+    "topic_name": "Population Genetics and Hardy-Weinberg Equilibrium"
+  },
+  {
+    "question_number": 86,
+    "question_text": "Your teacher discuss about the movement of individuals and their genetic material between different populations of the same species. During the movement, individuals or new genes were added to the receiving population that causes genetic variation. He was discussed about",
+    "option_a": "genetic drift.",
+    "option_b": "gene flow.",
+    "option_c": "founder effect.",
+    "option_d": "bottle neck effect.",
+    "correct_answer": "B",
+    "explanation": "Gene flow (gene migration) is the transfer of genetic material between separate populations of the same species caused by the immigration and emigration of individuals or gametes.",
+    "topic_name": "Evolution and Population Genetics"
+  },
+  {
+    "question_number": 87,
+    "question_text": "The nervous system that consists of the brain and spinal cord is",
+    "option_a": "somatic nervous system.",
+    "option_b": "autonomic nervous system.",
+    "option_c": "central nervous system.",
+    "option_d": "peripheral nervous system.",
+    "correct_answer": "C",
+    "explanation": "The Central Nervous System (CNS) consists of the brain and spinal cord. It integrates received information and coordinates body activities.",
+    "topic_name": "Human Nervous System"
+  }
+]

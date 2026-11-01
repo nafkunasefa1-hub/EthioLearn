@@ -1,0 +1,35 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.local
+.env.development
+.env.production
+!.env.example
+
+# Unpacked large database (tracked as database.json.gz, 16.5MB)
+data/database.json
+data/official_textbooks_backup.json
+server/official_textbooks_backup.json
+
+# Legacy duplicate storage directory
+storage/books/
+
+# Large 100MB+ PDFs (tracked as .part1 and .part2 and auto-recombined on startup)
+storage/private/books/book-11-eng.pdf
+storage/private/books/book-11-math.pdf
+storage/private/books/book-12-bio.pdf
+storage/private/books/book-12-math.pdf
+
+# Duplicate stream PDFs (auto-linked from sources on boot)
+storage/private/books/book-11-nat-eng.pdf
+storage/private/books/book-11-soc-eng.pdf
+storage/private/books/book-11-nat-math.pdf
+storage/private/books/book-11-soc-math.pdf
+storage/private/books/book-12-nat-bio.pdf
+storage/private/books/book-12-nat-math.pdf
+storage/private/books/book-12-soc-math.pdf
