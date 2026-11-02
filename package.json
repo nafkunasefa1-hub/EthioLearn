@@ -11,9 +11,11 @@
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
     "check-keys": "node scripts/check-gemini-keys.cjs",
+    "icons": "node scripts/generate-el-icons.cjs",
     "cap:sync": "cap sync android",
     "cap:open": "cap open android",
-    "cap:build": "vite build && cap sync android"
+    "cap:build": "vite build && cap sync android",
+    "build:apk": "scripts\\build-apk.bat"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
