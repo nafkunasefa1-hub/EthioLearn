@@ -111,3 +111,42 @@
   --bg-card: #1e293b;
   --bg-card-hover: #334155;
 }
+
+/* AMOLED True Pure Black Theme (#000000 / #030712) for Mobile Battery Saving */
+.theme-amoled, [data-theme="amoled"] {
+  --bg-canvas: #000000;
+  --bg-paper: #000000;
+  --text-main: #f1f5f9;
+  --text-heading: #ffffff;
+  --text-muted: #94a3b8;
+  --border-light: #111827;
+  --border-medium: #1f2937;
+  --bg-card: #050505;
+  --bg-card-hover: #0d0d0d;
+  background-color: #000000 !important;
+}
+
+[data-theme="amoled"] body {
+  background-color: #000000 !important;
+}
+
+[data-theme="amoled"] .bg-slate-950 {
+  background-color: #000000 !important;
+}
+
+[data-theme="amoled"] .bg-slate-900 {
+  background-color: #030712 !important;
+  border-color: #111827 !important;
+}
+
+[data-theme="amoled"] .bg-slate-800 {
+  background-color: #080808 !important;
+  border-color: #1f2937 !important;
+}
+
+/* Low-Battery Mobile Optimization: Disable GPU-heavy filters and shadows */
+[data-battery-saver="true"] * {
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  transition-duration: 0.05s !important;
+}

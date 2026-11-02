@@ -561,6 +561,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
                       Display Theme Mode
                     </div>
                     {[
+                      { id: 'amoled', label: '⚡ AMOLED True Black', desc: '0% Battery Drain (#000000)' },
                       { id: 'dark', label: '🌙 Night Dark', desc: 'Deep Slate' },
                       { id: 'light', label: '☀️ Day Light', desc: 'Clean White' },
                       { id: 'sepia', label: '📜 Sepia Study', desc: 'Warm Amber' },

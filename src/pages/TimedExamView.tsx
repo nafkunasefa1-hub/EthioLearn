@@ -24,6 +24,7 @@ import {
   getOfflineExamQuestions,
   saveOfflineExamAttempt
 } from '../utils/offlineStorage';
+import { recordMissedQuestion } from '../utils/errorNotebookStore';
 
 interface TimedExamViewProps {
   examId: string;
@@ -251,8 +252,12 @@ export const TimedExamView: React.FC<TimedExamViewProps> = ({ examId, onNavigate
     let correctCount = 0;
     questions.forEach(q => {
       const userSelected = answers[q.id]?.selected;
-      if (userSelected && userSelected.toUpperCase() === (q.correct_answer || '').toUpperCase()) {
+      const isCorrect = userSelected && userSelected.toUpperCase() === (q.correct_answer || '').toUpperCase();
+      if (isCorrect) {
         correctCount++;
+      } else if (userSelected) {
+        // Auto-save incorrect answer to local Error Notebook for spaced repetition
+        recordMissedQuestion(q, userSelected, exam?.id, exam?.title);
       }
     });
 

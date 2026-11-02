@@ -30,6 +30,7 @@ import { RetentionLockModal } from './components/RetentionLockModal';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { LockedFeaturePaywall } from './components/LockedFeaturePaywall';
 import { getStoredTheme, getThemeClasses, ThemeMode } from './utils/theme';
+import { initCapacitorApp } from './utils/capacitorApp';
 import { ShieldCheck, BookOpen, Award, Loader2, Brain, ArrowLeft } from 'lucide-react';
 
 function AppContent() {
@@ -64,6 +65,14 @@ function AppContent() {
     window.addEventListener('theme-change', handleThemeChange);
     return () => window.removeEventListener('theme-change', handleThemeChange);
   }, []);
+
+  useEffect(() => {
+    initCapacitorApp(() => {
+      if (currentRoute !== 'dashboard' && currentRoute !== 'landing') {
+        handleNavigate('dashboard');
+      }
+    });
+  }, [currentRoute]);
 
   useEffect(() => {
     if (user && !hasInitializedRoute) {

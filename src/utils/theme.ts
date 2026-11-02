@@ -1,4 +1,4 @@
-export type ThemeMode = 'dark' | 'light' | 'sepia' | 'emerald';
+export type ThemeMode = 'dark' | 'light' | 'sepia' | 'emerald' | 'amoled';
 
 export function getStoredTheme(): ThemeMode {
   try {
@@ -11,6 +11,14 @@ export function getStoredTheme(): ThemeMode {
 export function setStoredTheme(theme: ThemeMode) {
   try {
     localStorage.setItem('ethiolearn_theme', theme);
+    if (typeof document !== 'undefined') {
+      document.documentElement.setAttribute('data-theme', theme);
+      if (theme === 'amoled') {
+        document.documentElement.classList.add('theme-amoled');
+      } else {
+        document.documentElement.classList.remove('theme-amoled');
+      }
+    }
     window.dispatchEvent(new Event('theme-change'));
   } catch {}
 }
@@ -23,6 +31,8 @@ export function getThemeClasses(theme: ThemeMode) {
       return 'bg-[#fbf0d9] text-[#5f4b32]';
     case 'emerald':
       return 'bg-[#062318] text-[#e2f8ec]';
+    case 'amoled':
+      return 'bg-black text-white';
     case 'dark':
     default:
       return 'bg-slate-950 text-slate-100';

@@ -21,6 +21,7 @@ import { QuestionDiagramViewer } from '../components/QuestionDiagramViewer';
 import { FormattedQuestionText, renderRichInline } from '../components/FormattedQuestionText';
 import { QuestionFeedbackModal } from '../components/QuestionFeedbackModal';
 import { getOfflineExamQuestions } from '../utils/offlineStorage';
+import { recordMissedQuestion } from '../utils/errorNotebookStore';
 
 interface PracticeModeViewProps {
   examId?: string;
@@ -190,9 +191,28 @@ export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
         const feedback: PracticeAnswerFeedback = await res.json();
         setFeedbackMap(prev => ({ ...prev, [q.id]: feedback }));
         setShowExplanation(true);
+        if (!feedback.is_correct) {
+          recordMissedQuestion(q, option, examId, topicTitle || categoryName);
+        }
+      } else {
+        throw new Error('Fallback to local calculation');
       }
     } catch (err) {
-      console.error(err);
+      // Offline fallback: calculate feedback locally from prebundled question
+      const isCorrect = option === (q.correct_answer || '').toUpperCase();
+      if (!isCorrect) {
+        recordMissedQuestion(q, option, examId, topicTitle || categoryName);
+      }
+      const localFeedback: PracticeAnswerFeedback = {
+        question_id: q.id,
+        is_correct: isCorrect,
+        selected_answer: option,
+        correct_answer: q.correct_answer || 'A',
+        explanation: q.explanation || 'Step-by-step verification provided in student textbook.',
+        confidence: 100
+      };
+      setFeedbackMap(prev => ({ ...prev, [q.id]: localFeedback }));
+      setShowExplanation(true);
     }
   };
 
