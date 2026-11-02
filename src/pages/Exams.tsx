@@ -56,13 +56,13 @@ const cleanExamTitle = (title: string): string => {
 };
 
 interface ExamsProps {
-  initialCategory?: 'ALL' | 'ENTRANCE' | 'MODEL' | 'COLLECTION' | 'BY_CATEGORY' | 'GRADE_9' | 'GRADE_10' | 'GRADE_11_NATURAL' | 'AI_GENERATED';
+  initialCategory?: 'ALL' | 'ENTRANCE' | 'MODEL' | 'COLLECTION' | 'BY_CATEGORY' | 'GRADE_9' | 'GRADE_10' | 'GRADE_11_NATURAL' | 'AI_GENERATED' | 'WORKSHEET';
   onNavigate: (route: string, params?: Record<string, any>) => void;
 }
 
 export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigate }) => {
   const { user, hasGradeAccess } = useAuth();
-  const [activeCategory, setActiveCategory] = useState<'ALL' | 'ENTRANCE' | 'MODEL' | 'COLLECTION' | 'BY_CATEGORY' | 'GRADE_9' | 'GRADE_10' | 'GRADE_11_NATURAL' | 'AI_GENERATED'>('ALL');
+  const [activeCategory, setActiveCategory] = useState<'ALL' | 'ENTRANCE' | 'MODEL' | 'COLLECTION' | 'BY_CATEGORY' | 'GRADE_9' | 'GRADE_10' | 'GRADE_11_NATURAL' | 'AI_GENERATED' | 'WORKSHEET'>('ALL');
   const [selectedSeries, setSelectedSeries] = useState<string>('all');
   const [exams, setExams] = useState<Exam[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -79,7 +79,7 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
   const [uploadText, setUploadText] = useState<string>('');
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadLatexFile, setUploadLatexFile] = useState<File | null>(null);
-  const [uploadCategory, setUploadCategory] = useState<'ENTRANCE' | 'MODEL'>('ENTRANCE');
+  const [uploadCategory, setUploadCategory] = useState<'ENTRANCE' | 'MODEL' | 'WORKSHEET'>('ENTRANCE');
   const [uploadSeriesChoice, setUploadSeriesChoice] = useState<string>('2018 E.C. EUEE Exams');
   const [customSeriesName, setCustomSeriesName] = useState<string>('');
   const [uploadSubjectId, setUploadSubjectId] = useState<string>('subj-math');
@@ -276,7 +276,7 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
     fetchExams();
   }, [user]);
 
-  const handleOpenUploadModal = (category: 'ENTRANCE' | 'MODEL' = 'ENTRANCE') => {
+  const handleOpenUploadModal = (category: 'ENTRANCE' | 'MODEL' | 'WORKSHEET' = 'ENTRANCE') => {
     setUploadCategory(category);
     setUploadMode('dual');
     setUploadFile(null);
@@ -285,9 +285,21 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
     setUploadError(null);
     setUploadResult(null);
     setUploadProgressStep('');
-    setUploadSeriesChoice(category === 'MODEL' ? 'Regional Model Examinations' : '2018 E.C. EUEE Exams');
+    setUploadSeriesChoice(
+      category === 'MODEL'
+        ? 'Regional Model Examinations'
+        : category === 'WORKSHEET'
+        ? 'Worksheets & Special Boarding Papers'
+        : '2018 E.C. EUEE Exams'
+    );
     setCustomSeriesName('');
-    setUploadTitle(category === 'MODEL' ? '2018 E.C. Regional Model Examination' : '2018 E.C. National EUEE Paper');
+    setUploadTitle(
+      category === 'MODEL'
+        ? '2018 E.C. Regional Model Examination'
+        : category === 'WORKSHEET'
+        ? '2016 E.C. Special Boarding Worksheet'
+        : '2018 E.C. National EUEE Paper'
+    );
     setUploadYear('2018');
     setIsUploadOpen(true);
   };
@@ -662,6 +674,8 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
         if (e.category !== 'GRADE_11_NATURAL' && e.exam_series !== 'Grade 11 Natural Science Exams' && e.grade_id !== 'grade-11-natural') return false;
       } else if (activeCategory === 'COLLECTION') {
         if (e.category !== 'COLLECTION' && e.exam_series !== 'Exam Collection') return false;
+      } else if (activeCategory === 'WORKSHEET') {
+        if (e.category !== 'WORKSHEET' && !e.exam_series?.toLowerCase().includes('worksheet')) return false;
       } else if (activeCategory === 'AI_GENERATED') {
         if (e.category !== 'AI_GENERATED' && e.exam_series !== 'AI Generated Questions' && !e.title.includes('AI Generated')) return false;
       } else if (activeCategory === 'ENTRANCE') {
@@ -706,6 +720,8 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
         if (e.category === 'GRADE_9' || e.category === 'GRADE_10' || e.category === 'GRADE_11_NATURAL') return false;
       } else if (selectedSeries === 'Exam Collection') {
         if (e.category !== 'COLLECTION' && e.exam_series !== 'Exam Collection') return false;
+      } else if (selectedSeries === 'Worksheets & Special Boarding Papers') {
+        if (e.category !== 'WORKSHEET' && !e.exam_series?.toLowerCase().includes('worksheet')) return false;
       } else {
         const series = e.exam_series || (e.category === 'MODEL' ? 'Regional Model Examinations' : 'National EUEE Exams');
         if (series.toLowerCase() !== selectedSeries.toLowerCase()) return false;
@@ -952,6 +968,25 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
             <span>Exam Collection</span>
             <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-violet-900/60 text-violet-200">
               {exams.filter(e => e.category === 'COLLECTION' || e.exam_series === 'Exam Collection').length}
+            </span>
+          </button>
+
+          {/* Worksheets & Special Boarding Papers Series Button */}
+          <button
+            onClick={() => {
+              setSelectedSeries('Worksheets & Special Boarding Papers');
+              setActiveCategory('WORKSHEET');
+            }}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap flex items-center gap-1.5 border ${
+              selectedSeries === 'Worksheets & Special Boarding Papers' || activeCategory === 'WORKSHEET'
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-slate-950 border-amber-400 shadow-md font-bold'
+                : 'bg-amber-950/40 text-amber-300 border-amber-600/40 hover:bg-amber-900/50'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+            <span>Worksheets & Special Boarding Papers</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded-md bg-amber-900/60 text-amber-200">
+              {exams.filter(e => e.category === 'WORKSHEET' || e.exam_series?.toLowerCase().includes('worksheet')).length}
             </span>
           </button>
 
@@ -1216,6 +1251,28 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
           <span>Exams/Entrance Exam (EUEE)</span>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono font-bold">
             {exams.filter(e => (e.category || 'ENTRANCE') === 'ENTRANCE').length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveCategory('WORKSHEET');
+            setSelectedSeries('all');
+            setSelectedGrade('all');
+            setSelectedSubject('all');
+            setSelectedYear('all');
+            setSelectedRegion('all');
+          }}
+          className={`pb-3 font-bold flex items-center gap-2 transition relative shrink-0 whitespace-nowrap ${
+            activeCategory === 'WORKSHEET'
+              ? 'text-amber-400 border-b-2 border-amber-400'
+              : 'text-slate-400 hover:text-slate-200'
+          }`}
+        >
+          <BookOpen className="w-4 h-4 text-amber-400" />
+          <span>Worksheets</span>
+          <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 font-mono font-bold border border-amber-800/60">
+            {exams.filter(e => e.category === 'WORKSHEET' || e.exam_series?.toLowerCase().includes('worksheet')).length}
           </span>
         </button>
 
@@ -2385,7 +2442,7 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
                       <span className="text-[10px] text-slate-400">Step 1 of 3</span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-3 gap-2">
                       <button
                         type="button"
                         onClick={() => {
@@ -2400,7 +2457,7 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
                         }`}
                       >
                         <Award className="w-4 h-4 text-amber-400" />
-                        <span>Entrance Exam (EUEE)</span>
+                        <span>Entrance Exam</span>
                       </button>
                       <button
                         type="button"
@@ -2417,6 +2474,22 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
                       >
                         <FileCheck className="w-4 h-4 text-emerald-400" />
                         <span>Model Exam</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadCategory('WORKSHEET');
+                          setUploadSeriesChoice('Worksheets & Special Boarding Papers');
+                          setUploadTitle('2016 E.C. Special Boarding Worksheet');
+                        }}
+                        className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
+                          uploadCategory === 'WORKSHEET'
+                            ? 'bg-orange-500/20 text-orange-300 border-orange-500 shadow-sm'
+                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white hover:border-slate-700'
+                        }`}
+                      >
+                        <BookOpen className="w-4 h-4 text-orange-400" />
+                        <span>Worksheets</span>
                       </button>
                     </div>
 

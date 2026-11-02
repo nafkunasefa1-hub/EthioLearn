@@ -36,6 +36,7 @@ import {
   generateQuestionsForExam
 } from './dbHelpers';
 import { AUTHORITATIVE_59_EXAMS } from './authoritativeExamsCatalog';
+import { WORKSHEET_EXAMS, WORKSHEET_QUESTIONS } from './worksheetsCatalog';
 
 export function normalizePhoneNumber(phone: string): string {
   if (!phone) return '';
@@ -427,8 +428,9 @@ class Database {
           }
         }
 
-        // All 59 authoritative national entrance, model, curriculum & AI practice examinations permanently protected
-        const OFFICIAL_NATIONAL_EXAM_IDS = new Set(AUTHORITATIVE_59_EXAMS.map(e => e.id));
+        // All authoritative national entrance, model, curriculum, worksheet & AI practice examinations permanently protected
+        const ALL_AUTHORITATIVE_EXAMS = [...AUTHORITATIVE_59_EXAMS, ...WORKSHEET_EXAMS];
+        const OFFICIAL_NATIONAL_EXAM_IDS = new Set(ALL_AUTHORITATIVE_EXAMS.map(e => e.id));
 
         const deletedExamIds = new Set(Array.isArray(parsed.deleted_exam_ids) ? parsed.deleted_exam_ids : []);
         // Never allow official national exams to be deleted
@@ -439,11 +441,11 @@ class Database {
           (e: Exam) => e && e.id && e.id !== '1789748451703-x9kkzu'
         );
 
-        // Gather all 59 authoritative exams with guaranteed persistence
+        // Gather all authoritative exams with guaranteed persistence
         const officialExamsMap = new Map<string, Exam>();
         
-        // 1. Authoritative 59 exams as the master ground truth
-        AUTHORITATIVE_59_EXAMS.forEach(ae => {
+        // 1. Authoritative exams master ground truth
+        ALL_AUTHORITATIVE_EXAMS.forEach(ae => {
           officialExamsMap.set(ae.id, { ...ae });
         });
 
@@ -602,6 +604,13 @@ class Database {
             questionsMap.set(pq.id, sanitizeQuestionFields({ ...pq, ...current }));
           } else {
             questionsMap.set(pq.id, sanitizeQuestionFields(current ? { ...current, ...pq } : { ...pq }));
+          }
+        });
+
+        // 4. Guarantee all 299 Special Boarding & University Program worksheet questions
+        WORKSHEET_QUESTIONS.forEach(wq => {
+          if (wq && wq.id) {
+            questionsMap.set(wq.id, sanitizeQuestionFields({ ...wq }));
           }
         });
 
@@ -1271,9 +1280,18 @@ class Database {
   }
 
   public getBookChapters(book_id?: string): BookChapter[] {
-    if (!book_id) return this.data.book_chapters || [];
-    return (this.data.book_chapters || [])
-      .filter(c => c.book_id === book_id)
+    const list = book_id
+      ? (this.data.book_chapters || []).filter(c => c.book_id === book_id)
+      : (this.data.book_chapters || []);
+    return list
+      .map(c => {
+        const titleStr = c.chapter_title || (c as any).title || ('Unit ' + c.chapter_number + ': Chapter ' + c.chapter_number);
+        return {
+          ...c,
+          chapter_title: titleStr,
+          title: titleStr
+        };
+      })
       .sort((a, b) => a.chapter_number - b.chapter_number);
   }
 
@@ -1491,7 +1509,7 @@ class Database {
     return this.data.book_chunks;
   }
 
-  public getExams(filters?: { grade_id?: string; subject_id?: string; year?: number; status?: string; category?: 'ENTRANCE' | 'MODEL'; exam_series?: string; ethiopian_year?: string }): Exam[] {
+  public getExams(filters?: { grade_id?: string; subject_id?: string; year?: number; status?: string; category?: 'ENTRANCE' | 'MODEL' | 'WORKSHEET' | 'GRADE_9' | 'GRADE_10' | 'GRADE_11_NATURAL' | 'COLLECTION' | 'AI_GENERATED'; exam_series?: string; ethiopian_year?: string }): Exam[] {
     let list = this.data.exams;
     if (filters?.grade_id && filters.grade_id !== 'all') {
       const gid = filters.grade_id;

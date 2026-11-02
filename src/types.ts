@@ -249,7 +249,7 @@ export interface Exam {
   ethiopian_year?: string; // e.g. "2018 E.C."
   exam_series?: string; // e.g. "2018 E.C. EUEE Exams", "2017 E.C. EUEE Exams", "Regional Model Examinations"
   exam_type: string; // "University Entrance Examination" | "Model Examination"
-  category?: 'ENTRANCE' | 'MODEL' | 'GRADE_9' | 'GRADE_10' | 'GRADE_11_NATURAL' | 'COLLECTION' | 'AI_GENERATED';
+  category?: 'ENTRANCE' | 'MODEL' | 'GRADE_9' | 'GRADE_10' | 'GRADE_11_NATURAL' | 'COLLECTION' | 'AI_GENERATED' | 'WORKSHEET';
   model_region?: string; // e.g. "Addis Ababa", "Oromia", "Amhara", "National Directorate"
   source_type?: 'OFFICIAL' | 'REGIONAL_MODEL' | 'USER_UPLOADED' | 'OFFICIAL_NATIONAL_ARCHIVE';
   grade_id: string;
@@ -435,6 +435,7 @@ export interface AIExplanationResult {
   sources: AIResponseSource[];
   related_exam_questions: ExamQuestion[];
   ai_generated_questions?: ExamQuestion[];
+  ai_practice_questions?: ExamQuestion[];
   study_recommendation?: {
     topic_name: string;
     grade_name: string;

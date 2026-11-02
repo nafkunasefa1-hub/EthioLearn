@@ -80,23 +80,76 @@ export function isTableOfContentsOrIndexChunk(chunkText: string, printedPage: nu
   return false;
 }
 
-export type SubjectDomain = 'cs_ai' | 'math' | 'phys' | 'chem' | 'bio' | 'eng' | 'social' | 'general';
+export type SubjectDomain =
+  | 'cs_ai'
+  | 'it'
+  | 'math'
+  | 'phys'
+  | 'chem'
+  | 'bio'
+  | 'eng'
+  | 'geog'
+  | 'hist'
+  | 'econ'
+  | 'civ'
+  | 'sat'
+  | 'agri'
+  | 'amh'
+  | 'general';
 
 /**
  * Accurately detects the subject domain of a student question so we NEVER
- * mix unrelated subjects (e.g. matching Biology when asked about AI or Technology).
+ * mix unrelated subjects (e.g. matching Biology when asked about AI or Technology,
+ * or Economics when asked about Geography).
  */
 export function detectSubjectDomain(query: string, preferredSubjectId?: string): SubjectDomain {
   const q = query.toLowerCase();
   const tokens = tokenize(query);
 
-  // 1. Explicit Scientific Laws and Scientists (STRICT PRECEDENCE over Civics/Social)
+  // 0. Explicit subject preference from UI filter
+  if (preferredSubjectId) {
+    if (preferredSubjectId === 'subj-math') return 'math';
+    if (preferredSubjectId === 'subj-phys' || preferredSubjectId === 'subj-physics') return 'phys';
+    if (preferredSubjectId === 'subj-chem') return 'chem';
+    if (preferredSubjectId === 'subj-bio') return 'bio';
+    if (preferredSubjectId === 'subj-eng') return 'eng';
+    if (preferredSubjectId === 'subj-geog') return 'geog';
+    if (preferredSubjectId === 'subj-hist') return 'hist';
+    if (preferredSubjectId === 'subj-econ') return 'econ';
+    if (preferredSubjectId === 'subj-civ' || preferredSubjectId === 'subj-civics') return 'civ';
+    if (preferredSubjectId === 'subj-sat' || preferredSubjectId === 'subj-apt') return 'sat';
+    if (preferredSubjectId === 'subj-it' || preferredSubjectId === 'subj-cs') return 'it';
+    if (preferredSubjectId === 'subj-agri') return 'agri';
+    if (preferredSubjectId === 'subj-amh') return 'amh';
+  }
+
+  // 1. Geography
+  const isGeog = /\b(geography|topography|physiography|physiographic|landform|landforms|rift valley|afar depression|denakil|plateau|plateaus|highland|highlands|lowland|lowlands|ras dashen|bale mountains|simien|climate|weather|temperature|rainfall|precipitation|agro-climatic|kolla|woyna dega|dega|bereha|wurch|soil erosion|soil degradation|soil types|drainage system|river basin|blue nile|abbay|awash|baro|genale|wabeshebelle|lake tana|lake abaya|demography|population growth|urbanization|settlement|map reading|contour|contours|contour interval|map scale|representative fraction|grid reference|eastings|northings|latitude|longitude|meridian|equator|spatial distribution|cartography)\b/i.test(q);
+  if (isGeog) return 'geog';
+
+  // 2. History
+  const isHist = /\b(history|historical|emperor|empress|king of kings|monarch|dynasty|battle of adwa|adwa|menelik|menilik|tewodros|yohannes|haile selassie|zemen mesafint|era of princes|axum|aksum|axumite|zagwe|lalibela|gondar|yeha|daamat|treaty of wuchale|colonialism|scramble for africa|battle of metemma|gragn|ahmad ibn ibrahim|fasiledes|oromo population movement|oromo migration|gadaa|gada|solomonic dynasty|yodit|gudit|ancient civilization|tripartite treaty|italian invasion|walwal)\b/i.test(q);
+  if (isHist) return 'hist';
+
+  // 3. Economics
+  const isEcon = /\b(economics|economy|economic|microeconomics|macroeconomics|gdp|gross domestic product|gnp|inflation|deflation|consumer price index|cpi|law of demand|law of supply|elasticity|price elasticity|market equilibrium|equilibrium price|shortage|surplus|monopoly|monopolistic|oligopoly|perfect competition|factors of production|opportunity cost|production possibility|ppf|consumption|consumer behavior|utility|marginal utility|indifference curve|fiscal policy|monetary policy|taxation|taxes|national income|circular flow|budget deficit|balance of payments|central bank|national bank of ethiopia)\b/i.test(q);
+  if (isEcon) return 'econ';
+
+  // 4. Civics
+  const isCiv = /\b(civics|ethical|ethics|constitution|constitutional|fdre constitution|human rights|democratic rights|democracy|democratic|rule of law|judiciary|judicial|legislative|executive|house of peoples representatives|house of federation|citizenship|citizen|citizens|sovereignty|federalism|federation|electoral|election|nebe|good governance|transparency|accountability|anti-corruption|patriotism|civic participation|tolerance|conflict resolution|african union|au charter|un charter|universal declaration of human rights|international relations|foreign policy of ethiopia)\b/i.test(q);
+  if (isCiv) return 'civ';
+
+  // 5. SAT / Scholastic Aptitude
+  const isSat = /\b(scholastic aptitude|aptitude|sat|verbal reasoning|quantitative reasoning|analytical reasoning|reading comprehension test|sentence completion|analogies|analogy|syllogism|deductive reasoning|inductive reasoning|spatial reasoning|data sufficiency|logical reasoning|abstract reasoning)\b/i.test(q);
+  if (isSat) return 'sat';
+
+  // 6. Explicit Scientific Laws and Scientists (STRICT PRECEDENCE over general)
   const isPhysLaw = /\b(gauss|gauss's|gaussian|coulomb|coulomb's|newton|newton's|faraday|faraday's|ampere|ampere's|lenz|lenz's|maxwell|maxwell's|lorentz|biot savart|biot-savart|kirchhoff|kirchhoff's|ohm|ohm's|kepler|kepler's|pascal|pascal's|archimedes|bernoulli|snell|snell's|planck|bohr|carnot|stefan|doppler|compton|hubble)\b/i.test(q);
   if (isPhysLaw && !/\b(mendel|mendelian|darwin)\b/i.test(q)) {
     return 'phys';
   }
 
-  // 2. Physics Core Concepts & Terminology
+  // 7. Physics Core Concepts & Terminology
   const isPhys =
     isPhysLaw ||
     /\b(physics|force|forces|acceleration|velocity|kinematics|dynamics|gravity|gravitation|thermodynamics|f=ma|f = ma|joule|joules|watt|watts|volt|volts|tesla|henry|weber|kinetic energy|potential energy|momentum|optics|refraction|reflection|lens|lenses|electric current|voltage|resistance|resistor|resistors|magnetic field|electromagnetism|scalar|vector quantity|heat capacity|electric flux|magnetic flux|flux|electrostatic|electrostatics|electric field|electric potential|capacitance|capacitor|capacitors|dielectric|electromagnetic induction|induced emf|emf|alternating current|transformer|photoelectric effect|work function|radioactivity|half-life|alpha decay|beta decay|gamma ray|wave optics|diffraction|interference|polarization|sound wave|sound waves|simple harmonic motion|shm|pendulum|torque|angular momentum|moment of inertia|center of mass|centripetal|projectile|projectile motion|friction|viscosity|buoyancy|buoyant|thermal expansion|ideal gas|carnot cycle|blackbody)\b/i.test(q);
@@ -105,7 +158,7 @@ export function detectSubjectDomain(query: string, preferredSubjectId?: string):
     return 'phys';
   }
 
-  // 3. Chemistry Core Concepts & Terminology
+  // 8. Chemistry Core Concepts & Terminology
   const isChem =
     /\b(chemistry|acid|acids|base|bases|ph scale|atom|atoms|atomic structure|electron|electrons|proton|protons|neutron|neutrons|periodic table|mole|molar|molarity|stoichiometry|covalent|ionic bonding|metallic bonding|organic chemistry|alkane|alkene|alkyne|hydrocarbon|hydrocarbons|titration|neutralization|redox|oxidation|reduction|enthalpy|entropy|gibbs|equilibrium|le chatelier|galvanic cell|voltaic cell|electrolysis|electrolytic|anode|cathode|electrolyte|electrolytes|half-cell|nernst|hybridization|sp3|sp2|sp|isomerism|functional group|alcohol|aldehyde|ketone|carboxylic acid|ester|polymer|polymerization|rate of reaction|activation energy|catalyst)\b/i.test(q);
 
@@ -113,7 +166,7 @@ export function detectSubjectDomain(query: string, preferredSubjectId?: string):
     return 'chem';
   }
 
-  // 4. Biology Core Concepts & Terminology
+  // 9. Biology Core Concepts & Terminology
   const isBio =
     /\b(biology|cell|cells|cellular|photosynthesis|chloroplast|chloroplasts|chlorophyll|respiration|mitochondria|mitochondrion|mitosis|meiosis|dna|rna|gene|genes|genetics|genetic|chromosome|chromosomes|allele|alleles|ecology|ecosystem|species|evolution|natural selection|enzyme|enzymes|reproduction|gamete|gametes|circulatory system|digestive system|respiratory system|heart|kidney|nephron|mendel|mendelian|heredity|monohybrid|dihybrid|punnett|biomolecule|biomolecules|carbohydrate|lipid|protein|amino acid|nucleic acid|xylem|phloem|transpiration|hormone|neuron|synapse|homeostasis|pathogen|bacteria|virus|fungi|parasite|immunity|antibody|antigen|vaccine)\b/i.test(q);
 
@@ -121,17 +174,17 @@ export function detectSubjectDomain(query: string, preferredSubjectId?: string):
     return 'bio';
   }
 
-  // 5. Computer Science / AI / Technology
+  // 10. Information Technology / Computer Science / AI
   const isAiCs = 
-    /\b(artificial intelligence|machine learning|deep learning|neural network|algorithm|algorithms|software|hardware|programming|cybersecurity|data science|operating system|cloud computing|robotics|large language model|llm|nlp|computer science|python|database|computing|ict|information technology)\b/i.test(q) ||
+    /\b(artificial intelligence|machine learning|deep learning|neural network|algorithm|algorithms|software|hardware|programming|cybersecurity|data science|operating system|cloud computing|robotics|large language model|llm|nlp|computer science|python|database|computing|ict|information technology|binary|logic gate|boolean algebra)\b/i.test(q) ||
     (tokens.includes('ai') && !tokens.includes('air') && !tokens.includes('aid') && !tokens.includes('aim')) ||
     (tokens.includes('ml') && tokens.length < 5);
 
   if (isAiCs) {
-    return 'cs_ai';
+    return 'it';
   }
 
-  // 6. Mathematics
+  // 11. Mathematics
   const isMath =
     /\b(math|mathematics|algebra|quadratic|discriminant|polynomial|polynomials|logarithm|logarithms|derivative|derivatives|integral|integrals|calculus|trigonometry|sine|cosine|tangent|matrix|matrices|vector|vectors|pythagorean|geometry|fraction|fractions|equation|equations|roots of|formula for roots|b2-4ac|b\^2-4ac|probability|statistics|mean|median|mode|sequence|series|arithmetic progression|geometric progression|permutation|combination|binomial theorem|relation|relations|function|functions|limit|limits|continuity|dot product|cross product)\b/i.test(q);
 
@@ -139,36 +192,26 @@ export function detectSubjectDomain(query: string, preferredSubjectId?: string):
     return 'math';
   }
 
-  // 7. English
+  // 12. English
   const isEng =
-    /\b(grammar|tense|tenses|passive voice|active voice|preposition|prepositions|adjective|adverb|noun|pronoun|synonym|synonyms|antonym|antonyms|comprehension|idiom|idioms|vocabulary|phrasal verb|clause|conditional)\b/i.test(q);
+    /\b(english|grammar|tense|tenses|passive voice|active voice|preposition|prepositions|adjective|adverbs?|noun|nouns|pronoun|pronouns|verb|verbs|synonym|synonyms|antonym|antonyms|comprehension|idiom|idioms|vocabulary|phrasal verb|clause|clauses|conditional|conditionals|lowercase|lower case|uppercase|upper case|capital letter|capital letters|capitalization|letter|letters|alphabet|spelling|phonics|punctuation|direct speech|indirect speech|reported speech|conjunction|conjunctions|interjection|sentence|paragraph|essay|modal verbs?)\b/i.test(q);
 
   if (isEng) {
     return 'eng';
   }
 
-  // 8. Social Sciences (History, Geography, Economics, Civics) - Strictly Political, Historical, or Civic
-  const isSocial =
-    /\b(history|geography|economics|civics|adwa|battle of adwa|ethiopian history|climate|topography|map reading|inflation|gdp|demand and supply|market equilibrium|constitution|human rights|democracy|citizenship|rule of law|judiciary|parliament|governance|federalism|sovereignty|electoral|patriotism|pan-africanism|colonialism|scramble for africa|axum|zagwe|gondar|yeha|lalibela)\b/i.test(q);
+  // 13. Agriculture
+  const isAgri = /\b(agriculture|agricultural|agronomy|crop production|cereal crops|pulses|oilseeds|coffee production|teff|soil fertility|fertilizer|compost|irrigation|livestock|cattle|dairy|poultry|apiculture|beekeeping|pest management|horticulture|forestry|agroforestry)\b/i.test(q);
+  if (isAgri) return 'agri';
 
-  if (isSocial) {
-    return 'social';
-  }
-
-  // If student explicitly filtered by subject in the UI
-  if (preferredSubjectId) {
-    if (preferredSubjectId === 'subj-math') return 'math';
-    if (preferredSubjectId === 'subj-phys' || preferredSubjectId === 'subj-physics') return 'phys';
-    if (preferredSubjectId === 'subj-chem') return 'chem';
-    if (preferredSubjectId === 'subj-bio') return 'bio';
-    if (preferredSubjectId === 'subj-eng') return 'eng';
-    if (['subj-geog', 'subj-hist', 'subj-econ', 'subj-civics', 'subj-civ'].includes(preferredSubjectId)) return 'social';
-  }
+  // 14. Amharic
+  const isAmh = /\b(amharic|አማርኛ|ሰዋሰው|ስነ-ጽሁፍ|ቅኔ|ግጥም|ልቦለድ|ድርሰት|ተረት|ምሳሌያዊ አነጋገር)\b/i.test(q);
+  if (isAmh) return 'amh';
 
   return 'general';
 }
 
-// Compute term overlap score (BM25 approximation)
+// Compute term overlap score (BM25 approximation with co-occurrence boost)
 function computeKeywordScore(queryTokens: string[], docText: string): number {
   const docTokens = tokenize(docText);
   if (docTokens.length === 0) return 0;
@@ -179,28 +222,38 @@ function computeKeywordScore(queryTokens: string[], docText: string): number {
   });
 
   let score = 0;
+  let uniqueMatched = 0;
   queryTokens.forEach(token => {
     if (docFreq[token]) {
       const isStop = STOPWORDS.has(token);
       const weight = isStop ? 0.05 : 1.5;
       const tf = docFreq[token];
       score += weight * (tf * 2.2) / (tf + 1.2);
+      if (!isStop) uniqueMatched++;
     }
   });
+
+  // High-yield topic co-occurrence boost: prevent single-word false matches
+  if (uniqueMatched >= 3) {
+    score += 6.0;
+  } else if (uniqueMatched >= 2) {
+    score += 3.0;
+  }
 
   return score;
 }
 
 /**
- * Checks if a textbook chunk belongs to the detected domain.
- * This guarantees we NEVER match Biology chunks for AI or Mathematics questions!
+ * Checks if a textbook chunk or book belongs to the detected domain.
+ * This guarantees we NEVER match Biology chunks for AI or Mathematics questions,
+ * and NEVER match Economics or Civics when asked about Geography!
  */
-function isChunkSubjectCompatible(chunkSubjectId: string, bookTitle: string, domain: SubjectDomain): boolean {
+export function isChunkSubjectCompatible(chunkSubjectId: string, bookTitle: string, domain: SubjectDomain): boolean {
   const normBook = bookTitle.toLowerCase();
 
   switch (domain) {
     case 'cs_ai':
-      // Currently, if no IT/CS textbook is uploaded, do NOT force-match any other subject!
+    case 'it':
       return chunkSubjectId === 'subj-it' || chunkSubjectId === 'subj-cs' || normBook.includes('information technology') || normBook.includes('computer');
 
     case 'math':
@@ -218,18 +271,32 @@ function isChunkSubjectCompatible(chunkSubjectId: string, bookTitle: string, dom
     case 'eng':
       return chunkSubjectId === 'subj-eng' || normBook.includes('english');
 
-    case 'social':
-      return ['subj-geog', 'subj-hist', 'subj-econ', 'subj-civics'].includes(chunkSubjectId) ||
-        normBook.includes('geography') || normBook.includes('history') || normBook.includes('economics') || normBook.includes('civics');
+    case 'geog':
+      return chunkSubjectId === 'subj-geog' || normBook.includes('geography');
+
+    case 'hist':
+      return chunkSubjectId === 'subj-hist' || normBook.includes('history');
+
+    case 'econ':
+      return chunkSubjectId === 'subj-econ' || normBook.includes('economics');
+
+    case 'civ':
+      return chunkSubjectId === 'subj-civ' || chunkSubjectId === 'subj-civics' || normBook.includes('civic') || normBook.includes('ethical') || normBook.includes('citizenship');
+
+    case 'sat':
+      return chunkSubjectId === 'subj-sat' || chunkSubjectId === 'subj-apt' || normBook.includes('scholastic aptitude') || normBook.includes('sat');
+
+    case 'agri':
+      return chunkSubjectId === 'subj-agri' || normBook.includes('agriculture');
+
+    case 'amh':
+      return chunkSubjectId === 'subj-amh' || normBook.includes('amharic') || normBook.includes('አማርኛ');
 
     case 'general':
     default:
-      // In general domain, strictly exclude Civics/History/Social studies unless the query explicitly contains social/civic terms
-      const isCivicsOrSocial = ['subj-geog', 'subj-hist', 'subj-econ', 'subj-civics', 'subj-civ'].includes(chunkSubjectId) ||
-        normBook.includes('civic') || normBook.includes('citizenship') || normBook.includes('history') || normBook.includes('geography');
-      if (isCivicsOrSocial) {
-        return false;
-      }
+      // In general domain, exclude Civics/Citizenship unless explicitly civic
+      const isCivics = chunkSubjectId === 'subj-civ' || chunkSubjectId === 'subj-civics' || normBook.includes('civic') || normBook.includes('citizenship');
+      if (isCivics) return false;
       return true;
   }
 }
@@ -282,16 +349,21 @@ export function retrieveRAGContext(query: string, studentGradeId?: string, prefe
       const chapter = chunk.chapter_id ? db.getBookChapters(chunk.book_id).find(c => c.id === chunk.chapter_id) : undefined;
       const chapterLower = (chapter?.chapter_title || '').toLowerCase();
 
-      const hasDirectKeywordMatch = searchKeywords.some(kw => {
-        // Full word boundary check for short terms like 'ai' or 'ph'
+      let matchedCount = 0;
+      for (const kw of searchKeywords) {
         if (kw.length <= 3) {
           const regex = new RegExp(`\\b${kw}\\b`, 'i');
-          return regex.test(chunkTextLower) || regex.test(chapterLower);
+          if (regex.test(chunkTextLower) || regex.test(chapterLower)) matchedCount++;
+        } else {
+          if (chunkTextLower.includes(kw) || chapterLower.includes(kw)) matchedCount++;
         }
-        return chunkTextLower.includes(kw) || chapterLower.includes(kw);
-      });
+      }
 
-      if (!hasDirectKeywordMatch) {
+      // Strict multi-keyword grounding: reject accidental single-word matches
+      if (searchKeywords.length >= 2 && matchedCount < 2) {
+        return false;
+      }
+      if (searchKeywords.length === 1 && matchedCount < 1) {
         return false;
       }
     }
@@ -320,7 +392,7 @@ export function retrieveRAGContext(query: string, studentGradeId?: string, prefe
 
   // Strict threshold to prevent false-positive textbook references
   const topChunks = scoredChunks
-    .filter(item => item.score >= 2.0)
+    .filter(item => item.score >= 4.0)
     .sort((a, b) => b.score - a.score)
     .slice(0, 3);
 
@@ -374,8 +446,8 @@ export function retrieveRAGContext(query: string, studentGradeId?: string, prefe
     }
   });
 
-  // 3. Page-level fallback: Search full textbook pages across candidate books if chunks had 0 matches
-  if (sources.length === 0 && searchKeywords.length > 0 && domain !== 'cs_ai') {
+  // 3. Page-level search: Search full authentic textbook pages across candidate domain books
+  if (sources.length < 3 && searchKeywords.length > 0 && domain !== 'cs_ai') {
     const allBooks = db.getBooks();
     const domainBooks = allBooks.filter(b => isChunkSubjectCompatible(b.subject_id, b.title, domain));
     domainBooks.sort((a, b) => {
@@ -385,34 +457,66 @@ export function retrieveRAGContext(query: string, studentGradeId?: string, prefe
       }
       return 0;
     });
-    const pageMatches = [];
+
+    const existingKeys = new Set(sources.map(s => `${s.book_id}_${s.printed_page_number}`));
+    const pageMatches: Array<{ book: any; page: any; score: number }> = [];
+
     for (const book of domainBooks) {
       const pages = db.getBookPages(book.id);
       for (const p of pages) {
+        if (existingKeys.has(`${book.id}_${p.printed_page_number}`)) continue;
         const text = (p.extracted_text || p.ocr_text || '').toLowerCase();
         if (text.length < 40) continue;
         if (isTableOfContentsOrIndexChunk(text, p.printed_page_number)) continue;
+
+        let matchedCount = 0;
+        for (const kw of searchKeywords) {
+          if (kw.length <= 3) {
+            if (new RegExp(`\\b${kw}\\b`, 'i').test(text)) matchedCount++;
+          } else {
+            if (text.includes(kw)) matchedCount++;
+          }
+        }
+        if (searchKeywords.length >= 2 && matchedCount < 2) continue;
+        if (searchKeywords.length === 1 && matchedCount < 1) continue;
+
         let score = computeKeywordScore(searchKeywords, text) * 3.0;
         if (distinctiveKeywords.length > 0) score += computeKeywordScore(distinctiveKeywords, text) * 4.0;
         if (studentGradeId && book.grade_id === studentGradeId) score *= 1.3;
         if (normalizedSubjectId && book.subject_id === normalizedSubjectId) score *= 1.4;
-        if (score >= 2.0) pageMatches.push({ book, page: p, score });
+
+        if (score >= 4.0) {
+          pageMatches.push({ book, page: p, score });
+        }
       }
-      if (pageMatches.length >= 6) break;
     }
-    const topPages = pageMatches.sort((a, b) => b.score - a.score).slice(0, 3);
+
+    const needed = 3 - sources.length;
+    const topPages = pageMatches.sort((a, b) => b.score - a.score).slice(0, needed);
+
     topPages.forEach(({ book, page, score }) => {
       const chapters = db.getBookChapters(book.id);
       const chapter = chapters.find(c => page.printed_page_number >= c.start_page && page.printed_page_number <= c.end_page) || chapters[0];
       const grade = db.getGrades().find(g => g.id === book.grade_id);
       const subject = db.getSubjects().find(s => s.id === book.subject_id);
+
       let resolvedChapterTitle = chapter?.chapter_title;
-      const unitMatch = (page.extracted_text || '').match(/Unit\s*(\d+)\s*:\s*([^\n\r\t]+)/i);
-      if (unitMatch) {
-        resolvedChapterTitle = `Unit ${unitMatch[1]}: ${unitMatch[2].trim().split('.')[0]}`;
-      } else if (!resolvedChapterTitle) {
-        resolvedChapterTitle = `Chapter ${chapter?.chapter_number || 1}`;
+      const unitHeadingMatch = (page.extracted_text || '').match(/^#\s*(Unit\s*\d+[^#\n\r]+)/m);
+      const sectionHeadingMatch = (page.extracted_text || '').match(/^##\s*(\d+\.\d+[^#\n\r]+)/m);
+
+      if (unitHeadingMatch && sectionHeadingMatch) {
+        resolvedChapterTitle = `${unitHeadingMatch[1].trim()} — ${sectionHeadingMatch[1].trim()}`;
+      } else if (unitHeadingMatch) {
+        resolvedChapterTitle = unitHeadingMatch[1].trim();
+      } else {
+        const unitMatch = (page.extracted_text || '').match(/Unit\s*(\d+)\s*:\s*([^\n\r\t]+)/i);
+        if (unitMatch) {
+          resolvedChapterTitle = `Unit ${unitMatch[1]}: ${unitMatch[2].trim().split('.')[0]}`;
+        } else if (!resolvedChapterTitle) {
+          resolvedChapterTitle = `Chapter ${chapter?.chapter_number || 1}`;
+        }
       }
+
       const fullText = (page.extracted_text || page.ocr_text || '').replace(/\r/g, '').trim();
       let snippet = fullText;
       if (fullText.length > 900) {
@@ -430,6 +534,8 @@ export function retrieveRAGContext(query: string, studentGradeId?: string, prefe
           snippet = fullText.slice(0, 800) + '...';
         }
       }
+      snippet = snippet.replace(/^#+\s+/gm, '').replace(/\s+/g, ' ').trim();
+
       sources.push({
         book_id: book.id,
         book_title: book.title,
@@ -438,46 +544,59 @@ export function retrieveRAGContext(query: string, studentGradeId?: string, prefe
         pdf_page_index: page.pdf_page_index,
         chapter_id: chapter?.id,
         chapter_title: resolvedChapterTitle,
-        grade_name: grade?.name || 'Grade 10',
+        grade_name: grade?.name || (book.title.match(/Grade\s*\d+/i) ? book.title.match(/Grade\s*\d+/i)![0] : 'Grade 10'),
         subject_name: subject?.name || 'Secondary Curriculum',
         subject_id: book.subject_id,
         relevance_score: Math.min(0.99, Math.round((score / 10) * 100) / 100),
         passage_snippet: snippet
       });
+      existingKeys.add(`${book.id}_${page.printed_page_number}`);
     });
   }
 
   // Retrieve related entrance-exam questions ONLY if they match the domain and topic
   const allQuestions = db.getExamQuestions();
   const scoredQuestions = allQuestions
-    .filter(q => {
-      // Must match domain
-      if (domain === 'cs_ai') return false; // No EUEE entrance exams exist for AI yet
-      if (domain === 'math' && q.subject_id !== 'subj-math') return false;
-      if (domain === 'phys' && q.subject_id !== 'subj-phys') return false;
-      if (domain === 'chem' && q.subject_id !== 'subj-chem') return false;
-      if (domain === 'bio' && q.subject_id !== 'subj-bio') return false;
-      if (domain === 'eng' && q.subject_id !== 'subj-eng') return false;
-      return true;
-    })
-    .map(q => {
-      let qScore = computeKeywordScore(coreKeywords, `${q.question_text} ${q.explanation} ${q.topic_name || ''}`) * 2.0;
+  // 4. Strict Subject Isolation for EUEE Entrance Exam Questions:
+  // Non-EUEE subjects (IT, Agriculture, Civics, Amharic, AI) NEVER have entrance exams!
+  const NON_EUEE_DOMAINS = new Set(['civ', 'it', 'agri', 'amh', 'cs_ai']);
+  let related_exam_questions: ExamQuestion[] = [];
+  if (!NON_EUEE_DOMAINS.has(domain)) {
+    const scoredQuestions = db
+      .getExamQuestions()
+      .filter(q => {
+        if (!q.question_text || q.question_text.length < 15) return false;
+        // Strictly match the current domain
+        if (domain === 'math' && q.subject_id !== 'subj-math') return false;
+        if (domain === 'phys' && q.subject_id !== 'subj-phys') return false;
+        if (domain === 'chem' && q.subject_id !== 'subj-chem') return false;
+        if (domain === 'bio' && q.subject_id !== 'subj-bio') return false;
+        if (domain === 'eng' && q.subject_id !== 'subj-eng') return false;
+        if (domain === 'geog' && q.subject_id !== 'subj-geog') return false;
+        if (domain === 'hist' && q.subject_id !== 'subj-hist') return false;
+        if (domain === 'econ' && q.subject_id !== 'subj-econ') return false;
+        if (domain === 'sat' && q.subject_id !== 'subj-sat' && q.subject_id !== 'subj-apt') return false;
+        return true;
+      })
+      .map(q => {
+        let qScore = computeKeywordScore(coreKeywords, `${q.question_text} ${q.explanation} ${q.topic_name || ''}`) * 2.0;
 
-      if (sources.length > 0) {
-        if (q.book_id && sources.some(s => s.book_id === q.book_id)) qScore += 2.0;
-        if (q.printed_page_number && sources.some(s => Math.abs((s.printed_page_number || 0) - (q.printed_page_number || 0)) <= 10)) {
-          qScore += 2.0;
+        if (sources.length > 0) {
+          if (q.book_id && sources.some(s => s.book_id === q.book_id)) qScore += 2.0;
+          if (q.printed_page_number && sources.some(s => Math.abs((s.printed_page_number || 0) - (q.printed_page_number || 0)) <= 10)) {
+            qScore += 2.0;
+          }
         }
-      }
 
-      return { question: q, score: qScore };
-    });
+        return { question: q, score: qScore };
+      });
 
-  const related_exam_questions = scoredQuestions
-    .filter(item => item.score >= 2.0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
-    .map(item => item.question);
+    related_exam_questions = scoredQuestions
+      .filter(item => item.score >= 4.0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map(item => item.question);
+  }
 
   // Study recommendation: ONLY if a verified textbook source exists
   let study_recommendation: RAGRetrievalResult['study_recommendation'] = undefined;

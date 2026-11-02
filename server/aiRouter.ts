@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 const aiGenSDK = { GoogleGenAI };
 import { db } from './db';
-import { retrieveRAGContext, detectSubjectDomain, extractCoreKeywords, GENERIC_STRUCTURAL_MODIFIERS } from './ragEngine';
+import { retrieveRAGContext, detectSubjectDomain, extractCoreKeywords, isChunkSubjectCompatible, GENERIC_STRUCTURAL_MODIFIERS } from './ragEngine';
 import { AIExplanationResult, AIResponseSource } from '../src/types';
 import { apiKeyPool, isRejectedKeyError } from './apiKeyPool';
 import { getRecommendedModelList } from './modelCascade';
@@ -55,43 +55,9 @@ function validateAndForceContext(
   const coreKeywords = extractCoreKeywords(rawQuestion);
   const rag = retrieveRAGContext(rawQuestion, gradeId, subjectId);
 
-  // 1. Filter sources for strict subject alignment (No Civics for Physics, No Math for Biology)
+  // 1. Filter sources for strict subject alignment (guarantees subject fidelity)
   let verifiedSources: AIResponseSource[] = rag.sources.filter(s => {
-    const bookLower = s.book_title.toLowerCase();
-    const subjLower = (s.subject_name || '').toLowerCase();
-    const isCivics = s.subject_id === 'subj-civics' || s.subject_id === 'subj-civ' || bookLower.includes('civic') || bookLower.includes('citizenship');
-
-    if (domain === 'phys') {
-      if (isCivics) return false;
-      return subjLower.includes('phys') || bookLower.includes('physics');
-    }
-    if (domain === 'chem') {
-      if (isCivics) return false;
-      return subjLower.includes('chem') || bookLower.includes('chemistry');
-    }
-    if (domain === 'bio') {
-      if (isCivics) return false;
-      return subjLower.includes('bio') || bookLower.includes('biology');
-    }
-    if (domain === 'math') {
-      if (isCivics) return false;
-      return subjLower.includes('math') || bookLower.includes('math');
-    }
-    if (domain === 'cs_ai') {
-      if (isCivics) return false;
-      return subjLower.includes('information') || bookLower.includes('information technology') || bookLower.includes('computer');
-    }
-    if (domain === 'eng') {
-      if (isCivics) return false;
-      return subjLower.includes('eng') || bookLower.includes('english');
-    }
-    if (domain === 'social') {
-      return ['subj-geog', 'subj-hist', 'subj-econ', 'subj-civics', 'subj-civ'].includes(s.subject_id) ||
-        bookLower.includes('geography') || bookLower.includes('history') || bookLower.includes('economics') || bookLower.includes('civic');
-    }
-    // In general domain, never attach Civics unless query is explicitly civic
-    if (isCivics) return false;
-    return true;
+    return isChunkSubjectCompatible(s.subject_id, s.book_title, domain);
   });
 
   // 2. Distinctive Keyword relevance check:
@@ -243,7 +209,7 @@ Provide an engaging, accurate, and detailed tutorial with tables and diagrams fo
     // 4. ATTEMPT MULTI-KEY & MULTI-MODEL CASCADE (Identical robust logic to Chatbot)
     const totalKeysAvailable = apiKeyPool.getStats().total_keys || 1;
     const maxKeyAttempts = Math.min(6, Math.max(1, totalKeysAvailable));
-    const candidateModels = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash'];
+    const candidateModels = getRecommendedModelList();
 
     let releaseTicket: (() => void) | null = null;
     try {
@@ -295,17 +261,40 @@ Provide an engaging, accurate, and detailed tutorial with tables and diagrams fo
       usedProvider = 'ethiopian_curriculum_expert_engine';
     }
 
+    // 5b. Grounding Reference Block: Append authoritative curriculum reference to the explanation
+    if (contextInfo.verifiedSources.length > 0 && !finalExplanation.includes('Verified Curriculum Textbook Reference')) {
+      const topRef = contextInfo.verifiedSources[0];
+      const snippetExcerpt = topRef.passage_snippet
+        .replace(/^#+\s+/gm, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 320);
+
+      finalExplanation += `\n\n### Verified Curriculum Textbook References
+- **Textbook**: ${topRef.book_title}
+- **Unit / Section**: ${topRef.chapter_title}
+- **Printed Page**: Page ${topRef.printed_page_number}
+- **Direct Curriculum Excerpt**: "${snippetExcerpt}..."`;
+    }
+
     // 6. DIAGRAM FETCHING HELPER: Fetch/render relevant diagrams based on AI keywords + question
     const resolvedDiagram = fetchDiagramForKeywords(parsedKeywords, rawQuestion) || getScientificIllustrationForQuestion(rawQuestion);
 
     // 7. RELATED 2018 EUEE ENTRANCE EXAM QUESTIONS & AI GENERATED PRACTICE PROBLEMS
-    const related2018ExamQuestions = findRelated2018ExamQuestions(rawQuestion, subjectId);
+    const NON_EUEE_SUBJECTS = new Set(['subj-it', 'subj-agri', 'subj-civ', 'subj-civics', 'subj-amh']);
+    const isNonEuee = (subjectId && NON_EUEE_SUBJECTS.has(subjectId)) || /^(subj-it|subj-agri|subj-civ|subj-civics|subj-amh)$/.test(subjectId || '');
+
+    const related2018ExamQuestions = isNonEuee ? [] : findRelated2018ExamQuestions(rawQuestion, subjectId);
     let aiPracticeQuestions: any[] = [];
     try {
       aiPracticeQuestions = await generateAIPracticeQuestions(rawQuestion, user.grade, subjectId);
     } catch (qErr) {
       console.warn('[AI Tutor] AI questions generation warning:', qErr);
     }
+
+    const finalRelatedExamQuestions = isNonEuee
+      ? []
+      : (related2018ExamQuestions.length > 0 ? related2018ExamQuestions : (contextInfo.rag?.related_exam_questions || []));
 
     const result: AIExplanationResult = {
       id: `ai-resp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -315,8 +304,9 @@ Provide an engaging, accurate, and detailed tutorial with tables and diagrams fo
       source_level: contextInfo.hasTextbook ? 'textbook' : 'general_ai',
       has_textbook_reference: contextInfo.hasTextbook,
       sources: contextInfo.verifiedSources,
-      related_exam_questions: related2018ExamQuestions.length > 0 ? related2018ExamQuestions : (contextInfo.rag?.related_exam_questions || []),
+      related_exam_questions: finalRelatedExamQuestions,
       ai_generated_questions: aiPracticeQuestions,
+      ai_practice_questions: aiPracticeQuestions as any,
       study_recommendation: contextInfo.hasTextbook ? contextInfo.rag.study_recommendation : undefined,
       cached: false,
       created_at: new Date().toISOString(),

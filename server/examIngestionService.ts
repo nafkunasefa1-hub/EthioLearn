@@ -15,10 +15,11 @@ import { PDFParse } from 'pdf-parse';
 import { digitizeScannedExamPages } from './batchVisionExtractor';
 import { parseEnglishEueeExam } from './englishExamParser';
 import { extractAndAttachPdfDiagrams } from './pdfDiagramCropper';
+import { apiKeyPool } from './apiKeyPool';
 
 export interface ExamUploadPayload {
   title: string;
-  category: 'ENTRANCE' | 'MODEL';
+  category: 'ENTRANCE' | 'MODEL' | 'WORKSHEET';
   subject_id: string;
   grade_id: string;
   year: number;
@@ -827,10 +828,14 @@ export async function processAndDigitizeExam(
   const examId = `exam-${payload.category.toLowerCase()}-${Date.now()}`;
   const examSeries = payload.exam_series?.trim() || (payload.category === 'MODEL'
     ? (payload.model_region ? `${payload.model_region} Model Examinations` : 'Regional Model Examinations')
+    : payload.category === 'WORKSHEET'
+    ? 'Worksheets & Special Boarding Papers'
     : `${payload.ethiopian_year || `${payload.year || 2018} E.C.`} EUEE Exams`);
 
   const examTitle = payload.title.trim() || (payload.category === 'MODEL'
     ? `${payload.year} ${payload.model_region || 'National'} Model Examination - ${subj.name}`
+    : payload.category === 'WORKSHEET'
+    ? `${payload.year || 2016} Special Boarding Worksheet - ${subj.name}`
     : `${payload.ethiopian_year || `${payload.year || 2018} E.C.`} Ethiopian University Entrance Examination - ${subj.name}`);
 
   let parsedQuestions: ExtractedQuestionData[] = [];
@@ -863,7 +868,7 @@ export async function processAndDigitizeExam(
   }
 
   // 3. If text parser yielded zero questions and we have raw text or images, call Gemini
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = apiKeyPool.getNextKey()?.key || process.env.GEMINI_API_KEY;
   if (parsedQuestions.length === 0 && apiKey && (extractedRawText.length > 50 || imageParts.length > 0)) {
     try {
       const ai = new aiGenSDK.GoogleGenAI({
@@ -913,7 +918,7 @@ ${extractedRawText.slice(0, 30000)}`;
           try {
             let timer: NodeJS.Timeout | null = null;
             const timeoutPromise = new Promise<never>((_, reject) => {
-              timer = setTimeout(() => reject(new Error(`Timeout calling model ${modelName}`)), 15000);
+              timer = setTimeout(() => reject(new Error(`Timeout calling model ${modelName}`)), 45000);
             });
             const response = await Promise.race([
               ai.models.generateContent({
@@ -1379,7 +1384,7 @@ export async function regenerateExamFromPdf(
  * Uses batched requests (5 questions per request) with gemini-2.5-flash to stay within rate limits.
  */
 async function enrichUploadedExamQuestions(examId: string, questions: ExamQuestion[]) {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = apiKeyPool.getNextKey()?.key || process.env.GEMINI_API_KEY;
   if (!apiKey) return;
 
   const ai = new aiGenSDK.GoogleGenAI({ apiKey });

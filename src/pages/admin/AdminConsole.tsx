@@ -754,7 +754,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
   // Upload Exam Modal States (Admin)
   const [isUploadExamOpen, setIsUploadExamOpen] = useState(false);
   const [uploadExamTitle, setUploadExamTitle] = useState('2018 E.C. National EUEE Paper');
-  const [uploadExamCategory, setUploadExamCategory] = useState<'ENTRANCE' | 'MODEL'>('ENTRANCE');
+  const [uploadExamCategory, setUploadExamCategory] = useState<'ENTRANCE' | 'MODEL' | 'WORKSHEET'>('ENTRANCE');
   const [uploadExamSubjectId, setUploadExamSubjectId] = useState('subj-english');
   const [uploadExamGradeId, setUploadExamGradeId] = useState('grade-12');
   const [uploadExamYear, setUploadExamYear] = useState('2018');
@@ -770,14 +770,20 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
   const [uploadExamError, setUploadExamError] = useState<string | null>(null);
   const [uploadExamSuccess, setUploadExamSuccess] = useState<string | null>(null);
 
-  const handleOpenAdminUploadModal = (category: 'ENTRANCE' | 'MODEL' = 'ENTRANCE') => {
+  const handleOpenAdminUploadModal = (category: 'ENTRANCE' | 'MODEL' | 'WORKSHEET' = 'ENTRANCE') => {
     setUploadExamCategory(category);
     setUploadExamFile(null);
     setUploadExamText('');
     setUploadExamError(null);
     setUploadExamSuccess(null);
     setUploadExamProgressStep('');
-    setUploadExamSeriesChoice(category === 'MODEL' ? 'Regional Model Examinations' : '2018 E.C. EUEE Exams');
+    setUploadExamSeriesChoice(
+      category === 'MODEL'
+        ? 'Regional Model Examinations'
+        : category === 'WORKSHEET'
+        ? 'Worksheets & Special Boarding Papers'
+        : '2018 E.C. EUEE Exams'
+    );
     setCustomExamSeriesName('');
     setUploadExamTitle(category === 'MODEL' ? '2018 E.C. Regional Model Examination' : '2018 E.C. National EUEE Paper');
     setUploadExamYear('2018');
@@ -3250,10 +3256,12 @@ If Δ < 0: no real roots.`}
                   <select
                     value={uploadExamCategory}
                     onChange={e => {
-                      const cat = e.target.value as 'ENTRANCE' | 'MODEL';
+                      const cat = e.target.value as 'ENTRANCE' | 'MODEL' | 'WORKSHEET';
                       setUploadExamCategory(cat);
                       if (cat === 'MODEL') {
                         setUploadExamSeriesChoice('Regional Model Examinations');
+                      } else if (cat === 'WORKSHEET') {
+                        setUploadExamSeriesChoice('Worksheets & Special Boarding Papers');
                       } else {
                         setUploadExamSeriesChoice('2018 E.C. EUEE Exams');
                       }
@@ -3262,6 +3270,7 @@ If Δ < 0: no real roots.`}
                   >
                     <option value="ENTRANCE">National Entrance Exam (EUEE)</option>
                     <option value="MODEL">Official Model Examination</option>
+                    <option value="WORKSHEET">Special Boarding Worksheet / Practice Paper</option>
                   </select>
                 </div>
 

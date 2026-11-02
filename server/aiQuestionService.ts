@@ -84,52 +84,100 @@ function inferSubjectFromQuery(text: string): string {
 }
 
 /**
+ * Official Authoritative Ethiopian University Entrance Examination (EUEE) Subjects:
+ * Natural Science Stream: Math, English, Chemistry, Physics, Biology, SAT (Aptitude).
+ * Social Science Stream: Math, English, Economics, Geography, History, SAT (Aptitude).
+ * Non-EUEE Subjects (IT, Agriculture, Civics, Amharic) NEVER have entrance exam papers or EUEE questions!
+ */
+export const AUTHORITATIVE_EUEE_SUBJECTS = new Set([
+  'subj-math',
+  'subj-eng',
+  'subj-chem',
+  'subj-phys',
+  'subj-bio',
+  'subj-econ',
+  'subj-geog',
+  'subj-hist',
+  'subj-sat',
+  'subj-apt'
+]);
+
+export const NON_EUEE_SUBJECTS = new Set([
+  'subj-it',
+  'subj-agri',
+  'subj-civ',
+  'subj-amh'
+]);
+
+/**
  * Finds 2-3 authentic 2018 E.C. EUEE entrance exam questions related to the student's question.
- * Strictly guarantees that cross-subject interference (e.g. math questions appearing for biology) is eliminated.
+ * Strictly guarantees that cross-subject interference is eliminated and non-EUEE subjects NEVER return entrance questions.
  */
 export function findRelated2018ExamQuestions(rawQuestion: string, subjectId?: string): ExamQuestion[] {
   // 1. Strictly detect and isolate the academic subject domain first
   const inferredSubject = subjectId || inferSubjectFromQuery(rawQuestion);
+  
+  // Non-EUEE subjects (IT, Agriculture, Civics, Amharic) do NOT have EUEE entrance examination papers!
+  if (inferredSubject && (NON_EUEE_SUBJECTS.has(inferredSubject) || !AUTHORITATIVE_EUEE_SUBJECTS.has(inferredSubject))) {
+    return [];
+  }
+
   const keywords = extractKeywords(rawQuestion);
+  if (keywords.length === 0) {
+    return [];
+  }
 
   let candidateQuestions: ExamQuestion[] = [];
   if (inferredSubject && inferredSubject !== 'all') {
     const cleanSubj = inferredSubject.replace('subj-', '').toLowerCase();
     // Strictly isolate candidate pool to this subject domain only
     candidateQuestions = db.getExamQuestions().filter(q =>
-      q.subject_id === inferredSubject ||
-      (q.exam_id && q.exam_id.toLowerCase().includes(cleanSubj))
+      (q.subject_id === inferredSubject || (q.exam_id && q.exam_id.toLowerCase().includes(cleanSubj))) &&
+      (q.exam_title?.includes('Entrance') || q.exam_title?.includes('EUEE') || q.exam_id?.includes('entrance') || q.exam_id?.includes('euee') || (q.exam_year === 2018 && !q.exam_title?.includes('Model')))
     );
     if (candidateQuestions.length === 0) {
       return []; // Absolute domain isolation: NEVER return cross-subject questions!
     }
   } else {
-    candidateQuestions = db.getExamQuestions();
+    // Only search official entrance exams
+    candidateQuestions = db.getExamQuestions().filter(q =>
+      AUTHORITATIVE_EUEE_SUBJECTS.has(q.subject_id) &&
+      (q.exam_title?.includes('Entrance') || q.exam_title?.includes('EUEE') || q.exam_id?.includes('entrance') || q.exam_id?.includes('euee'))
+    );
   }
 
-  // 2. Score candidate questions, boosting 2018 national entrance exam questions and keyword matches
-  const scored = candidateQuestions.map(q => {
-    let score = 0;
+  // 2. Score candidate questions based strictly on actual topic keyword relevance
+  const scored: Array<{ question: ExamQuestion; score: number }> = [];
+  for (const q of candidateQuestions) {
     const textLower = (q.question_text || '').toLowerCase();
     const explanationLower = (q.explanation || '').toLowerCase();
     const topicLower = (q.topic_name || '').toLowerCase();
     const optionsText = `${q.option_a || ''} ${q.option_b || ''} ${q.option_c || ''} ${q.option_d || ''}`.toLowerCase();
 
-    // Prioritize official 2018 E.C. national entrance exam items
-    if (q.exam_title?.includes('2018') || q.exam_id?.includes('2018') || q.exam_year === 2018) {
-      score += 25.0;
-    }
-
-    // Keyword matches in question text, options, and explanations
+    let keywordScore = 0;
+    let matchedKeywords = 0;
     for (const kw of keywords) {
-      if (textLower.includes(kw)) score += 6.0;
-      if (topicLower.includes(kw)) score += 5.0;
-      if (explanationLower.includes(kw)) score += 3.0;
-      if (optionsText.includes(kw)) score += 2.0;
+      let matched = false;
+      if (textLower.includes(kw)) { keywordScore += 6.0; matched = true; }
+      if (topicLower.includes(kw)) { keywordScore += 5.0; matched = true; }
+      if (explanationLower.includes(kw)) { keywordScore += 3.0; matched = true; }
+      if (optionsText.includes(kw)) { keywordScore += 2.0; matched = true; }
+      if (matched) matchedKeywords++;
     }
 
-    return { question: q, score };
-  });
+    // Require actual semantic topic grounding (at least 1 solid keyword hit with score >= 5)
+    if (keywordScore < 5.0 || matchedKeywords === 0) {
+      continue;
+    }
+
+    let score = keywordScore;
+    // Boost official 2018 national entrance items if they actually matched the topic
+    if (q.exam_title?.includes('2018') || q.exam_id?.includes('2018') || q.exam_year === 2018) {
+      score += 15.0;
+    }
+
+    scored.push({ question: q, score });
+  }
 
   scored.sort((a, b) => b.score - a.score);
 
@@ -152,9 +200,9 @@ The student asked the following academic question:
 Grade: ${userGrade}
 Context: Ethiopian National Curriculum (MoE / EUEE standards)
 
-Generate exactly 2 high-yield, interactive multiple-choice practice questions directly testing the core concept/topic of the student's question.
+Generate between 3 and 5 high-yield, interactive multiple-choice practice questions directly testing the core concept/topic of the student's question.
 
-Respond ONLY with valid JSON in the following format:
+Respond ONLY with valid JSON array of 3 to 5 question objects in the following format:
 [
   {
     "question_text": "Clear, precise problem statement testing the concept",
@@ -164,17 +212,6 @@ Respond ONLY with valid JSON in the following format:
     "option_d": "Fourth alternative",
     "correct_answer": "A",
     "explanation": "Comprehensive step-by-step pedagogical explanation showing why the correct answer is right and why others are incorrect.",
-    "topic_name": "Specific curriculum topic name",
-    "difficulty": "Medium"
-  },
-  {
-    "question_text": "Second distinct question applying the concept",
-    "option_a": "First alternative",
-    "option_b": "Second alternative",
-    "option_c": "Third alternative",
-    "option_d": "Fourth alternative",
-    "correct_answer": "B",
-    "explanation": "Step-by-step explanation with mathematical formulas or scientific principles.",
     "topic_name": "Specific curriculum topic name",
     "difficulty": "Medium"
   }
@@ -193,7 +230,7 @@ Respond ONLY with valid JSON in the following format:
             contents: prompt,
             config: {
               temperature: 0.3,
-              maxOutputTokens: 1200,
+              maxOutputTokens: 2500,
               responseMimeType: 'application/json'
             }
           });
@@ -224,7 +261,7 @@ Respond ONLY with valid JSON in the following format:
       }
 
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.slice(0, 2).map((item, idx) => ({
+        return parsed.slice(0, 5).map((item, idx) => ({
           id: `ai-gen-${Date.now()}-${idx + 1}`,
           exam_id: 'ai-generated-practice',
           question_number: idx + 1,
