@@ -35,9 +35,26 @@ if %errorlevel% neq 0 (
     exit /b %errorlevel%
 )
 
-REM 4. Check for Java / Gradle
+REM 4. Check for Java / Gradle & Auto-Detect Android Studio
 echo.
 echo [4/4] Checking Android build environment...
+
+if "%JAVA_HOME%"=="" (
+    if exist "C:\Program Files\Android\Android Studio\jbr\bin\java.exe" (
+        echo [INFO] Detected Android Studio bundled JDK!
+        set "JAVA_HOME=C:\Program Files\Android\Android Studio\jbr"
+        set "PATH=!JAVA_HOME!\bin;!PATH!"
+    )
+)
+
+if "%ANDROID_HOME%"=="" (
+    if exist "%LOCALAPPDATA%\Android\Sdk" (
+        echo [INFO] Detected Android SDK at %LOCALAPPDATA%\Android\Sdk!
+        set "ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk"
+        set "PATH=!ANDROID_HOME!\platform-tools;!PATH!"
+    )
+)
+
 where java >nul 2>nul
 if %errorlevel% neq 0 (
     if "%JAVA_HOME%"=="" (
