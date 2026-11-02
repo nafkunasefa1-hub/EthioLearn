@@ -47,22 +47,207 @@ What subject or topic would you like to master today?`,
     };
   }
 
-  // 1. Mitosis vs. Meiosis / Cell Division
-  if ((q.includes('mitosis') && q.includes('meiosis')) || (q.includes('difference') && (q.includes('mitosis') || q.includes('meiosis'))) || q.includes('cell division')) {
+  // ==========================================
+  // ENGLISH LANGUAGE, GRAMMAR & COMPOSITION
+  // ==========================================
+
+  // 1. Lowercase vs. Uppercase Letters & Capitalization Rules
+  if (q.includes('lower case') || q.includes('lowercase') || q.includes('upper case') || q.includes('uppercase') || (q.includes('capital') && q.includes('letter')) || q.includes('capitalization')) {
     return {
-      answer: `**Direct Core Answer**: Mitosis is an equational division process where a single parent cell divides into two genetically identical diploid ($2n$) daughter cells for growth and tissue repair, whereas meiosis is a reductional division comprising two successive nuclear divisions that produce four genetically unique haploid ($n$) gametes for sexual reproduction.`,
+      answer: `**Direct Core Answer**: A lowercase letter (also termed a *minuscule* or small letter) is a typographical glyph written in smaller dimensions (such as 'a', 'b', 'c', 'x', 'y', 'z'), representing the default letterform used in written English text, in contrast to capital or uppercase letters ('A', 'B', 'C') which are reserved for beginning sentences, proper nouns, and specific grammatical rules.`,
+      explanation: `### Detailed Conceptual Breakdown
+
+In English orthography and secondary curriculum writing mechanics:
+
+1. **Orthographic Functions of Letter Cases**:
+   - **Lowercase Letters (Minuscules)**: Form the vast majority ($>95\\%$) of running text in books, essays, and sentences. Their varied ascenders (e.g., 'b', 'd', 'h') and descenders (e.g., 'p', 'q', 'y') facilitate rapid reading comprehension.
+   - **Uppercase Letters (Majuscules / Capitals)**: Serve syntactic and semantic marker functions to designate boundaries and specific identities.
+
+2. **The 5 Core Rules of Capitalization in English (EUEE Grammar Syllabus)**:
+   - **Rule 1: Sentence Openings**: The first word of every sentence must begin with an uppercase letter (*e.g., "Education transforms society."*).
+   - **Rule 2: Proper Nouns**: Specific names of people, cities, countries, rivers, and institutions (*e.g., "Abebe", "Addis Ababa", "Ethiopia", "Abay River"*).
+   - **Rule 3: The First-Person Singular Pronoun**: The pronoun **"I"** is *always* capitalized (*e.g., "She and I completed the biology assignment."*).
+   - **Rule 4: Days, Months, and Holidays**: Names of temporal periods (*e.g., "Monday", "September", "Meskel"*), though seasons (*"spring", "summer"*) remain lowercase unless personified.
+   - **Rule 5: Titles and Acronyms**: Official titles preceding names (*"President Taye", "Dr. Workineh"*) and abbreviations (*"EUEE", "MoE", "UNESCO"*).
+
+### Structured Comparison: Lowercase vs. Uppercase
+
+| Feature / Criterion | Lowercase Letters (Minuscules) | Uppercase Letters (Majuscules / Capitals) |
+| :--- | :--- | :--- |
+| **Typographical Form** | Compact size with ascenders ($b, d, t$) and descenders ($g, j, p, q, y$) | Uniform full-height glyphs ($A, B, C, D, E, F$) |
+| **Standard Usage** | Default body text, common nouns, verbs, prepositions | Sentence initial, proper nouns, acronyms, headings |
+| **Example Glyphs** | \`a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w, x, y, z\` | \`A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z\` |
+| **EUEE Exam Importance** | Error correction: capitalization of common nouns is incorrect | Error correction: failure to capitalize proper nouns or 'I' is penalized |
+
+### Visual Typography Model
+
+\`\`\`
+Ascender Line   ───  b   d   h   k   l                 │ Uppercase Top  ─── A  B  C  D
+Mean Line       ───  a   c   e   m   n   o   r   s   u  │ Baseline       ─── ──────────
+Baseline        ───  ─────────────────────────────────  │
+Descender Line  ───  g   j   p   q   y                  │ [Uniform Height Capitals]
+\`\`\`
+
+### Ethiopian Curriculum Context & Writing Standards
+- In the **Ethiopian Secondary English Curriculum (Grades 9–12)**, mastery of mechanics, capitalization, and punctuation directly influences student scores in the reading comprehension and grammar sections of the national exam.
+- Students must avoid colloquial text-speak (e.g., writing lowercase "i" for the personal pronoun) in formal academic essays.
+
+### Key Takeaways
+- Always write the pronoun **"I"** in uppercase, regardless of its position in the sentence.
+- Common nouns (*"student", "university", "country"*) remain **lowercase** unless they form part of an official name (*"Addis Ababa University"*).`,
+      sourceLevel: hasSources ? 'textbook' : 'general_ai'
+    };
+  }
+
+  // 2. Active Voice vs. Passive Voice
+  if ((q.includes('active') && q.includes('passive')) || q.includes('passive voice') || q.includes('active voice')) {
+    return {
+      answer: `**Direct Core Answer**: In English grammar, the **active voice** indicates that the grammatical subject performs the action expressed by the verb ($S + V + O$), whereas the **passive voice** indicates that the subject receives the action ($O + \\text{be} + V_3 + \\text{by } S$), used when the focus is on the action or the agent is unknown or irrelevant.`,
+      explanation: `### Detailed Conceptual Breakdown
+
+Voice indicates the syntactic relationship between the subject and the action of the verb:
+
+1. **Active Voice ($S + V + O$)**:
+   - The subject acts as the agent: *"The researcher analyzed the water sample."*
+   - Preferred in direct, punchy, persuasive academic writing.
+
+2. **Passive Voice ($O + \\text{be} + V_3 + \\text{[by Agent]}$)**:
+   - The object of the active sentence becomes the grammatical subject: *"The water sample was analyzed by the researcher."*
+   - Formation Rule: Form of auxiliary verb **to be** (matching tense & number) + **Past Participle ($V_3$)**.
+   - Widely utilized in scientific laboratory reports and formal Ethiopian curriculum research to maintain objective detachment.
+
+### Structured Comparison: Tense Transformations into Passive Voice
+
+| Tense | Active Voice Structure | Passive Voice Structure | Active Example ──> Passive Example |
+| :--- | :--- | :--- | :--- |
+| **Simple Present** | $S + V_1(s/es) + O$ | $O + \\text{am/is/are} + V_3$ | He writes letters. ──> Letters **are written** by him. |
+| **Present Continuous** | $S + \\text{is/are} + V\\text{-ing} + O$ | $O + \\text{is/are} + \\text{being} + V_3$ | She is reading a book. ──> A book **is being read**. |
+| **Simple Past** | $S + V_2 + O$ | $O + \\text{was/were} + V_3$ | Menelik built bridges. ──> Bridges **were built** by Menelik. |
+| **Past Continuous** | $S + \\text{was/were} + V\\text{-ing} + O$ | $O + \\text{was/were} + \\text{being} + V_3$ | They were testing soil. ──> Soil **was being tested**. |
+| **Present Perfect** | $S + \\text{has/have} + V_3 + O$ | $O + \\text{has/have} + \\text{been} + V_3$ | He has solved the sum. ──> The sum **has been solved**. |
+| **Modal Verbs** | $S + \\text{modal} + V_1 + O$ | $O + \\text{modal} + \\text{be} + V_3$ | We must protect trees. ──> Trees **must be protected**. |
+
+### Process Flow / Transformation Diagram
+
+\`\`\`
+ACTIVE:   [Subject: Farmer] ──(Verb: cultivates)──> [Object: Teff]
+                 │                                        │
+                 ▼ (becomes agent)                        ▼ (becomes subject)
+PASSIVE:  [Subject: Teff]   ──(Verb: is cultivated)──> [by Agent: the farmer]
+\`\`\`
+
+### Ethiopian Curriculum Context & EUEE Exam Traps
+- **Intransitive Verbs**: Verbs without a direct object (e.g., *arrive, sleep, die, happen, occur*) **CANNOT** be converted into the passive voice.
+- EUEE entrance exam questions frequently test whether students spot improper passive forms with intransitive verbs (*e.g., "The accident was happened" is grammatically incorrect*).
+
+### Key Takeaways
+- The passive always requires the auxiliary verb **be** in the appropriate tense followed by the **past participle ($V_3$)**.
+- In scientific reporting across Ethiopian universities, passive voice is standard when describing experimental methodology (*"The solution was heated to $100^\\circ\\text{C}$"*).`,
+      sourceLevel: hasSources ? 'textbook' : 'general_ai'
+    };
+  }
+
+  // 3. Parts of Speech (Noun, Verb, Adjective, Adverb, Preposition)
+  if (q.includes('part of speech') || q.includes('parts of speech') || (q.includes('what is a') && (q.includes('noun') || q.includes('verb') || q.includes('adjective') || q.includes('adverb') || q.includes('preposition')))) {
+    return {
+      answer: `**Direct Core Answer**: In English grammar, the **eight parts of speech** are the fundamental functional categories into which words are classified according to their syntactic role and syntactic behavior within a sentence: nouns, pronouns, verbs, adjectives, adverbs, prepositions, conjunctions, and interjections.`,
+      explanation: `### Detailed Conceptual Breakdown
+
+Each part of speech performs a distinctive linguistic function:
+
+1. **Noun**: A word identifying a person, place, thing, or abstract idea (*e.g., Addis Ababa, student, honesty, atom*).
+2. **Pronoun**: Substitutes for a noun to avoid redundant repetition (*e.g., he, she, it, they, which, whom*).
+3. **Verb**: Expresses an action, event, or state of being (*e.g., calculate, synthesize, exist, accelerate*).
+4. **Adjective**: Modifies, qualifies, or quantifies a noun or pronoun (*e.g., rigorous, soluble, three, Ethiopian*).
+5. **Adverb**: Modifies a verb, an adjective, or another adverb, indicating manner, time, degree, or place (*e.g., rapidly, extremely, yesterday, here*).
+6. **Preposition**: Connects a noun or pronoun to other words, establishing spatial, temporal, or logical relations (*e.g., in, on, under, between, through*).
+7. **Conjunction**: Joins words, phrases, or clauses (*e.g., and, but, although, because, whereas*).
+8. **Interjection**: Expresses spontaneous emotion or exclamation (*e.g., Oh!, Alas!, Bravo!*).
+
+### Structured Classification: English Parts of Speech
+
+| Part of Speech | Primary Function | Suffix Indicators / Clues | Textbook Example Sentence |
+| :--- | :--- | :--- | :--- |
+| **Noun** | Naming entity or concept | \`-tion, -ment, -ness, -ity, -ance\` | The **velocity** of the car changed. |
+| **Verb** | Expressing action or state | \`-ate, -ize, -ify, -en\` | Plants **synthesize** glucose in sunlight. |
+| **Adjective** | Describing noun properties | \`-ful, -ous, -able, -ive, -al\` | A **homogeneous** mixture was prepared. |
+| **Adverb** | Modifying action or degree | \`-ly, -ward, -wise\` | The acid was added **slowly** to the water. |
+| **Preposition** | Positional or temporal link | Short relational words | The sample is **in** the test tube. |
+| **Conjunction** | Linking syntactic units | Coordinating (FANBOYS), Subordinating | Study hard, **or** you will struggle. |
+
+### Process Flow / Sentence Hierarchy
+
+\`\`\`
+[Subject: Noun Phrase]  +  [Predicate: Verb Phrase]  ──> Complete Clause
+         │                          │
+   (Adjective + Noun)         (Verb + Adverb + Prepositional Phrase)
+   "Diligent students"        "solve equations quickly in class."
+\`\`\`
+
+### Ethiopian National Exam (EUEE) Strategy
+- In EUEE word formation questions, examine prefixes and suffixes to identify parts of speech: adding \`-ly\` to an adjective (*quick $\\rightarrow$ quickly*) yields an adverb, while adding \`-ly\` to a noun (*friend $\\rightarrow$ friendly*) yields an adjective!`,
+      sourceLevel: hasSources ? 'textbook' : 'general_ai'
+    };
+  }
+
+  // 4. Direct Speech vs. Indirect (Reported) Speech
+  if (q.includes('reported speech') || q.includes('indirect speech') || (q.includes('direct') && q.includes('indirect') && q.includes('speech'))) {
+    return {
+      answer: `**Direct Core Answer**: **Direct speech** quotes the exact verbatim words spoken by an individual enclosed in quotation marks (*"I am studying biology," he said*), whereas **indirect (reported) speech** conveys the substance of the statement from the reporter's perspective without quotation marks, shifting verb tenses backwards (*backshift*), updating pronouns, and modifying time/place adverbs (*He said that he was studying biology*).`,
+      explanation: `### Detailed Conceptual Breakdown
+
+When shifting from direct speech to indirect speech in Ethiopian curriculum English:
+
+1. **Tense Backshift Principle**:
+   When the introductory reporting verb is in the past tense (*e.g., said, told, inquired*), the verb inside the reported clause shifts one step into the past.
+2. **Pronoun and Possessive Adjustments**:
+   First and second person pronouns (*I, you, we, my, your*) adapt to agree with the subject and object of the reporting clause.
+3. **Deictic Shifts (Time and Place Expressions)**:
+   - *now* $\\rightarrow$ *then*
+   - *today* $\\rightarrow$ *that day*
+   - *tomorrow* $\\rightarrow$ *the next day / the following day*
+   - *yesterday* $\\rightarrow$ *the day before / the previous day*
+   - *this / these* $\\rightarrow$ *that / those*
+   - *here* $\\rightarrow$ *there*
+
+### Structured Comparison: Tense Backshift Rules
+
+| Direct Speech Tense | Reported Speech Tense | Direct Example ──> Reported Transformation |
+| :--- | :--- | :--- |
+| **Simple Present** | **Simple Past** | "I work in Hawassa," she said. ──> She said that she **worked** in Hawassa. |
+| **Present Continuous** | **Past Continuous** | "He is writing," they said. ──> They said that he **was writing**. |
+| **Simple Past** | **Past Perfect** | "We visited Axum," he said. ──> He said that they **had visited** Axum. |
+| **Present Perfect** | **Past Perfect** | "I have completed it," she said. ──> She said that she **had completed** it. |
+| **Will (Future)** | **Would (Conditional)** | "I will call you," he said. ──> He said that he **would call** me. |
+| **Can / May** | **Could / Might** | "I can solve it," she said. ──> She said that she **could solve** it. |
+
+### Key Exception Note:
+If the direct statement expresses a universal scientific truth, the tense does **NOT** backshift:
+- *"The teacher said, 'Water boils at $100^\\circ\\text{C}$.'"* $\\longrightarrow$ *"The teacher said that water **boils** at $100^\\circ\\text{C}$."*`,
+      sourceLevel: hasSources ? 'textbook' : 'general_ai'
+    };
+  }
+
+  // ==========================================
+  // BIOLOGY & LIFE SCIENCES
+  // ==========================================
+
+  // 5. Mitosis vs. Meiosis / Cell Division
+  if ((q.includes('mitosis') && q.includes('meiosis')) || (q.includes('difference') && (q.includes('mitosis') || q.includes('meiosis'))) || (q.includes('cell division') && !q.includes('photosynthesis'))) {
+    return {
+      answer: `**Direct Core Answer**: Mitosis is an equational cell division whereby a single parent cell divides into two genetically identical diploid ($2n$) daughter cells for growth and tissue repair, whereas meiosis is a reductional division comprising two successive nuclear divisions that produce four genetically unique haploid ($n$) gametes for sexual reproduction.`,
       explanation: `### Detailed Conceptual Breakdown
 
 Cell division in eukaryotic organisms is divided into two distinct processes depending on the cell type and physiological goal:
 
 1. **Mitosis (Somatic Cell Division)**:
-   - Maintains the exact chromosome number ($2n \\longrightarrow 2n$).
-   - Consists of four sequential stages: **Prophase**, **Metaphase**, **Anaphase**, and **Telophase**, followed by **Cytokinesis**.
+   - Maintains exact chromosome complement ($2n \\longrightarrow 2n$).
+   - Four sequential phases: **Prophase**, **Metaphase**, **Anaphase**, and **Telophase**, followed by **Cytokinesis**.
    - Essential for multicellular organism growth, tissue repair, regeneration, and asexual reproduction.
 
 2. **Meiosis (Germline Reduction Division)**:
    - Halves the chromosome count ($2n \\longrightarrow n$) to prevent chromosome doubling during fertilization.
-   - **Meiosis I (Reductional Division)**: Homologous chromosomes synapse during Prophase I, undergo **crossing over** (chiasma formation) to exchange genetic material, and separate during Anaphase I.
+   - **Meiosis I (Reductional Division)**: Homologous chromosomes synapse during Prophase I, undergo **crossing over** (chiasmata formation) to exchange genetic material, and separate during Anaphase I.
    - **Meiosis II (Equational Division)**: Sister chromatids separate in a mechanism similar to mitosis, yielding four non-identical haploid spermatids or oocytes.
 
 ### Structured Comparison: Mitosis vs. Meiosis
@@ -74,8 +259,8 @@ Cell division in eukaryotic organisms is divided into two distinct processes dep
 | **Number of Daughter Cells** | $2$ daughter cells | $4$ daughter cells (gametes) |
 | **Ploidy Level** | Diploid ($2n \\rightarrow 2n$) | Haploid ($2n \\rightarrow n$) |
 | **Genetic Identity** | Genetically identical clones | Genetically diverse (recombinant) |
-| **Synapsis & Crossing Over** | Absent | Present in Prophase I |
-| **Role in Living Organisms** | Growth, tissue repair, asexual reproduction | Production of gametes for sexual reproduction |
+| **Synapsis & Crossing Over** | Absent | Present in Prophase I (Pachytene) |
+| **Role in Living Organisms** | Growth, tissue repair, asexual reproduction | Gametogenesis for sexual reproduction |
 
 ### Process Flow / Diagram
 
@@ -89,22 +274,17 @@ Parent Cell (2n) ──> Interphase (DNA Replicates)
                       └──> Meiosis II (Sister Chromatids Separate) ──> 4 Genetically Unique Gametes (n)
 \`\`\`
 
-### Real-World Applications & Ethiopian Context
-- **Crop Breeding in Ethiopia**: Modern agricultural researchers at the Ethiopian Institute of Agricultural Research (EIAR) exploit meiotic crossing over to breed drought-tolerant, high-yield varieties of indigenous crops such as Teff (*Eragrostis tef*) and Enset.
-- **Wound Healing & Regeneration**: When skin or liver tissue is damaged, rapid mitotic proliferation replaces the injured cells.
-
-### Key Takeaways
-- In EUEE exams, remember that **homologous chromosomes separate in Anaphase I**, whereas **sister chromatids separate in Anaphase II and Mitotic Anaphase**.
-- Crossing over during **Pachytene of Prophase I** is the primary source of genetic recombination in sexually reproducing organisms.
-- Mitosis produces cells with $2n = 46$ chromosomes in humans; meiosis produces cells with $n = 23$.`,
+### Ethiopian Curriculum Context & Agricultural Significance
+- **Crop Breeding in Ethiopia**: Agricultural scientists at EIAR (Ethiopian Institute of Agricultural Research) exploit meiotic crossing over to breed drought-tolerant, high-yielding varieties of indigenous crops such as Teff (*Eragrostis tef*) and Enset (*Ensete ventricosum*).
+- **Exam Strategy**: Remember that homologous chromosomes separate in **Anaphase I**, whereas sister chromatids separate in **Anaphase II** and **Mitotic Anaphase**.`,
       sourceLevel: hasSources ? 'textbook' : 'general_ai'
     };
   }
 
-  // 2. Photosynthesis & Cellular Respiration
+  // 6. Photosynthesis & Cellular Respiration
   if (q.includes('photosynthesis') || q.includes('calvin') || q.includes('chloroplast') || (q.includes('light') && q.includes('reaction'))) {
     return {
-      answer: `**Direct Core Answer**: Photosynthesis is the anabolic, endergonic process whereby green plants and photosynthetic organisms convert atmospheric carbon dioxide and water into energy-rich glucose and oxygen using solar energy: $$6\\text{CO}_2 + 6\\text{H}_2\\text{O} + h\\nu \\longrightarrow \\text{C}_6\\text{H}_{12}\\text{O}_6 + 6\\text{O}_2$$`,
+      answer: `**Direct Core Answer**: Photosynthesis is the anabolic, endergonic biological process whereby green plants and photosynthetic organisms convert atmospheric carbon dioxide and water into energy-rich glucose and oxygen using solar radiation: $$6\\text{CO}_2 + 6\\text{H}_2\\text{O} + h\\nu \\longrightarrow \\text{C}_6\\text{H}_{12}\\text{O}_6 + 6\\text{O}_2$$`,
       explanation: `### Detailed Conceptual Breakdown
 
 Photosynthesis occurs in specialized plant cell organelles called **chloroplasts** and comprises two interrelated metabolic phases:
@@ -145,18 +325,75 @@ Photosynthesis occurs in specialized plant cell organelles called **chloroplasts
  [Glyceraldehyde-3-Phosphate (G3P)] ──> [Glucose: C₆H₁₂O₆]
 \`\`\`
 
-### Real-World Applications & Ethiopian Context
-- **Agricultural Productivity**: The photosynthetic efficiency of Ethiopian highland crops such as Barley and Teff is dependent on optimal light exposure and water availability, guiding irrigation scheduling in the Awash and Omo river basins.
-- **Atmospheric Balance**: Forests in Southwestern Ethiopia (Kafa, Bale) act as vital carbon sinks, mitigating global carbon emissions.
-
 ### Key Takeaways
-- The source of evolved oxygen ($\\text{O}_2$) is **water ($\\text{H}_2\\text{O}$)**, NOT carbon dioxide (proven by Van Niel and isotope experiments).
+- The source of evolved oxygen ($\\text{O}_2$) is **water ($\\text{H}_2\\text{O}$)**, NOT carbon dioxide.
 - To produce one molecule of glucose ($\\text{C}_6\\text{H}_{12}\\text{O}_6$), the Calvin cycle must turn **$6$ times**, consuming $18\\,\\text{ATP}$ and $12\\,\\text{NADPH}$.`,
       sourceLevel: hasSources ? 'textbook' : 'general_ai'
     };
   }
 
-  // 3. Newton's Laws & Mechanics
+  // 7. Cell Structure & Organelles
+  if (q.includes('organelle') || (q.includes('cell') && (q.includes('structure') || q.includes('nucleus') || q.includes('mitochondria') || q.includes('membrane') || q.includes('plant cell') || q.includes('animal cell')))) {
+    return {
+      answer: `**Direct Core Answer**: In cell biology, eukaryotic cells are structurally compartmentalized into specialized, membrane-bound internal structures called **organelles**, each dedicated to distinct metabolic functions such as genetic direction (nucleus), aerobic cellular respiration (mitochondria), and protein synthesis (ribosomes).`,
+      explanation: `### Detailed Conceptual Breakdown
+
+Eukaryotic cells exhibit high structural organization:
+
+1. **The Nucleus (Control Center)**:
+   - Houses the genome organized in chromatin ($DNA + \\text{histone proteins}$).
+   - Contains the **nucleolus**, where ribosomal RNA ($rRNA$) is synthesized and ribosomes are assembled.
+2. **Mitochondria (Powerhouse of the Cell)**:
+   - Double-membrane organelle; inner membrane folded into **cristae** to increase surface area for the electron transport chain and ATP synthesis.
+3. **Endoplasmic Reticulum (ER)**:
+   - **Rough ER**: Studded with ribosomes; synthesizes and processes proteins destined for secretion or membrane insertion.
+   - **Smooth ER**: Lacks ribosomes; synthesizes lipids, phospholipids, steroid hormones, and detoxifies drugs.
+4. **Golgi Apparatus**:
+   - Modifies, sorts, packages, and tags proteins into vesicles for intra- or extracellular transport.
+
+### Structured Comparison: Plant Cell vs. Animal Cell
+
+| Feature / Organelle | Plant Cell | Animal Cell |
+| :--- | :--- | :--- |
+| **Cell Wall** | Present (rigid cellulose outer boundary) | Absent (bounded only by plasma membrane) |
+| **Chloroplasts / Plastids**| Present (for photosynthetic glucose synthesis)| Absent |
+| **Central Vacuole** | Large, permanent central vacuole maintaining turgor | Small, transient vacuoles (if present) |
+| **Centrioles & Centrosome**| Absent in most higher plants | Present (organizes spindle fibers in mitosis) |
+| **Shape & Rigidity** | Fixed, angular, rigid shape | Flexible, variable, irregular shape |
+
+### Visual Cellular Diagram
+
+\`\`\`
+[EUKARYOTIC PLANT CELL]
+┌──────────────────────────────────────────────┐
+│ Cell Wall (Cellulose)                        │
+│ ┌──────────────────────────────────────────┐ │
+│ │ Plasma Membrane                          │ │
+│ │   ┌────────┐       ┌─────────────────┐   │ │
+│ │   │Nucleus │       │ Chloroplast     │   │ │
+│ │   └────────┘       └─────────────────┘   │ │
+│ │   ┌───────────────────────────────┐      │ │
+│ │   │ Large Central Vacuole (Turgor)│      │ │
+│ │   └───────────────────────────────┘      │ │
+│ │   ┌──────────────┐   ┌──────────────┐    │ │
+│ │   │ Mitochondria │   │ Rough ER     │    │ │
+│ │   └──────────────┘   └──────────────┘    │ │
+│ └──────────────────────────────────────────┘ │
+└──────────────────────────────────────────────┘
+\`\`\`
+
+### Key Takeaways
+- Animal cells store excess carbohydrate as **glycogen**, whereas plant cells store it as **starch** (amylose and amylopectin).
+- The endosymbiotic theory explains that mitochondria and chloroplasts originated as free-living prokaryotes engulfed by ancestral eukaryotes.`,
+      sourceLevel: hasSources ? 'textbook' : 'general_ai'
+    };
+  }
+
+  // ==========================================
+  // PHYSICS & PHYSICAL SCIENCES
+  // ==========================================
+
+  // 8. Newton's Laws of Motion & Dynamics
   if (q.includes('newton') || q.includes('f = ma') || q.includes('f=ma') || (q.includes('second law') && q.includes('motion'))) {
     return {
       answer: `**Direct Core Answer**: Newton's Second Law of Motion states that the acceleration of an object is directly proportional to the net external force acting on it, in the same direction as the net force, and inversely proportional to its mass: $$\\vec{F}_{\\text{net}} = m\\vec{a}$$`,
@@ -200,7 +437,7 @@ Newtonian classical mechanics forms the bedrock of secondary physics:
 [Kinematic Velocity Change: v = u + at]
 \`\`\`
 
-### Real-World Applications & Ethiopian Context
+### Ethiopian Curriculum Context & Engineering Applications
 - **Road Safety on Highland Curves**: Vehicles traveling on steep gradients in Ethiopia (e.g., Entoto, Blue Nile Gorge) require friction $f_s = \\mu_s N$ to provide centripetal force and prevent skidding.
 - **Hydroelectric Turbines**: Water falling from the Grand Ethiopian Renaissance Dam (GERD) applies a continuous force on turbine blades according to impulse-momentum $\\vec{F}_{\\text{net}} = \\frac{\\Delta \\vec{p}}{\\Delta t}$.
 
@@ -211,10 +448,56 @@ Newtonian classical mechanics forms the bedrock of secondary physics:
     };
   }
 
-  // 4. Acids, Bases & pH Scale
+  // 9. Electricity & Ohm's Law
+  if (q.includes('ohm') || q.includes('electric current') || q.includes('resistance') || (q.includes('circuit') && (q.includes('series') || q.includes('parallel')))) {
+    return {
+      answer: `**Direct Core Answer**: Ohm's Law states that the electric current ($I$) flowing through an ohmic conductor between two points is directly proportional to the potential difference ($V$) across the two points, provided physical conditions such as temperature remain constant: $$V = IR$$`,
+      explanation: `### Detailed Conceptual Breakdown
+
+In secondary circuit theory and electromagnetism:
+
+1. **Parameters & SI Units**:
+   - **Potential Difference ($V$)**: Energy transferred per unit electric charge; measured in **Volts** ($1\\,\\text{V} = 1\\,\\text{J}/\\text{C}$).
+   - **Electric Current ($I$)**: Time rate of flow of electric charge $I = \\frac{\\Delta Q}{\\Delta t}$; measured in **Amperes** ($1\\,\\text{A} = 1\\,\\text{C}/\\text{s}$).
+   - **Resistance ($R$)**: Opposition to electric charge flow $R = \\rho \\frac{L}{A}$; measured in **Ohms** ($\\Omega = \\text{V}/\\text{A}$).
+
+2. **Electrical Power Dissipation**:
+   The rate of electrical energy consumption in a resistor is given by Joule's Law of heating:
+   $$P = VI = I^2 R = \\frac{V^2}{R} \\quad (\\text{Watts, W})$$
+
+### Structured Comparison: Series vs. Parallel Circuits
+
+| Parameter / Law | Series Circuit | Parallel Circuit |
+| :--- | :--- | :--- |
+| **Current ($I$)** | Identical through all resistors ($I_{\\text{total}} = I_1 = I_2$) | Splits along branches ($I_{\\text{total}} = I_1 + I_2 + \\dots$) |
+| **Voltage ($V$)** | Divides across components ($V_{\\text{total}} = V_1 + V_2$) | Same potential across all branches ($V_{\\text{total}} = V_1 = V_2$) |
+| **Equivalent Resistance** | $R_{\\text{eq}} = R_1 + R_2 + R_3$ | $\\frac{1}{R_{\\text{eq}}} = \\frac{1}{R_1} + \\frac{1}{R_2} + \\dots$ |
+| **Failure Effect** | If one bulb burns out, whole circuit opens | If one branch fails, other branches continue operating |
+
+### Circuit Schematics
+
+\`\`\`
+[SERIES]    ──[R₁]──[R₂]──[R₃]──      (Current is constant)
+                 
+[PARALLEL]  ──┬──[R₁]──┬──            (Voltage is constant)
+              └──[R₂]──┘
+\`\`\`
+
+### Key Takeaways
+- Household wiring in Ethiopia is wired in **parallel** so appliances operate at standard $220\\,\\text{V}$ independently.
+- Adding resistors in parallel *decreases* the overall equivalent resistance of the network.`,
+      sourceLevel: hasSources ? 'textbook' : 'general_ai'
+    };
+  }
+
+  // ==========================================
+  // CHEMISTRY
+  // ==========================================
+
+  // 10. Acids, Bases & pH Scale
   if (q.includes('acid') || q.includes('base') || q.includes('ph') || q.includes('arrhenius') || q.includes('bronsted')) {
     return {
-      answer: `**Direct Core Answer**: Acids and bases are categorized under three primary chemical theories: Arrhenius defined acids as substances that produce hydrogen ions ($\\text{H}^+$) in water and bases as hydroxide ($\\text{OH}^-$) producers; Brønsted-Lowry defined acids as proton ($\\text{H}^+$) donors and bases as proton acceptors; and Lewis defined acids as electron-pair acceptors and bases as electron-pair donors.`,
+      answer: `**Direct Core Answer**: Acids and bases are categorized under three primary chemical theories: Arrhenius defined acids as substances producing hydrogen ions ($\\text{H}^+$) in aqueous solution and bases as hydroxide ($\\text{OH}^-$) producers; Brønsted-Lowry defined acids as proton ($\\text{H}^+$) donors and bases as proton acceptors; and Lewis defined acids as electron-pair acceptors and bases as electron-pair donors.`,
       explanation: `### Detailed Conceptual Breakdown
 
 Acid-base chemistry in secondary chemistry progresses through three complementary models:
@@ -242,83 +525,13 @@ Acid-base chemistry in secondary chemistry progresses through three complementar
 | **Brønsted-Lowry** | Donates $\\text{H}^+$ (proton) | Accepts $\\text{H}^+$ (proton) | Not limited to water | $\\text{HCl} + \\text{NH}_3 \\rightarrow \\text{NH}_4^+ + \\text{Cl}^-$ |
 | **Lewis** | Accepts electron pair | Donates electron pair | Universal (gases, non-aqueous) | $\\text{BF}_3 + :\\text{NH}_3 \\rightarrow \\text{F}_3\\text{B}\\leftarrow\\text{NH}_3$ |
 
-### Process Flow / Diagram
-
-\`\`\`
-[Brønsted-Lowry Proton Transfer]
-  HA (Acid)   +   B (Base)   ──>   A⁻ (Conjugate Base)   +   HB⁺ (Conjugate Acid)
-      │               ▲
-      └─ Transfers H⁺ ┘
-\`\`\`
-
-### Real-World Applications & Ethiopian Context
-- **Agricultural Soil Management**: In high-rainfall regions of Western Oromia and Amhara, soil acidification from leaching of basic cations ($\\text{Ca}^{2+}, \\text{Mg}^{2+}$) is remediated by applying agricultural lime ($\\text{CaCO}_3$) to raise soil $\\text{pH}$ to optimal levels ($6.0\\text{--}7.0$) for teff production.
-- **Industrial Neutralization**: Factory effluent from tanning and textile factories around Mojo and Hawassa is neutralized before river discharge.
-
-### Key Takeaways
-- Water ($\\text{H}_2\\text{O}$) and bicarbonate ($\\text{HCO}_3^-$) are **amphiprotic** species capable of acting as both acid and base.
-- For every 1-unit decrease in $\\text{pH}$, the hydrogen ion concentration $[\\text{H}^+]$ increases by a factor of **$10$**.`,
+### Ethiopian Agricultural Application
+- In high-rainfall regions of Western Oromia and Amhara, soil acidification leaches basic cations ($\\text{Ca}^{2+}, \\text{Mg}^{2+}$). Farmers apply agricultural lime ($\\text{CaCO}_3$) to raise soil $\\text{pH}$ to optimal levels ($6.0\\text{--}7.0$) for cereal crop production.`,
       sourceLevel: hasSources ? 'textbook' : 'general_ai'
     };
   }
 
-  // 5. Quadratic Equations & Discriminant
-  if (q.includes('discriminant') || q.includes('quadratic') || q.includes('roots of') || q.includes('b^2 - 4ac') || q.includes('b^2-4ac')) {
-    return {
-      answer: `**Direct Core Answer**: In algebra, for the standard quadratic equation $ax^2 + bx + c = 0$ ($a \\neq 0$), the discriminant is defined as $\\Delta = b^2 - 4ac$, which determines the nature and number of the roots without explicitly solving the equation.`,
-      explanation: `### Detailed Conceptual Breakdown
-
-The quadratic formula solves $ax^2 + bx + c = 0$ through completing the square:
-$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
-
-The term under the radical, $\\Delta = b^2 - 4ac$, dictates the root properties:
-1. **Case 1: $\\Delta > 0$ (Positive Discriminant)**:
-   - There are **two distinct real roots** ($x_1 \\neq x_2$).
-   - If $a, b, c \\in \\mathbb{Q}$ and $\\Delta$ is a perfect square, the roots are rational; otherwise, irrational.
-   - The parabola intersects the $x$-axis at two distinct points.
-
-2. **Case 2: $\\Delta = 0$ (Zero Discriminant)**:
-   - There is exactly **one repeated real root** (double root): $x = -\\frac{b}{2a}$.
-   - The parabola touches the $x$-axis tangentially at its vertex.
-
-3. **Case 3: $\\Delta < 0$ (Negative Discriminant)**:
-   - There are **no real roots**; instead, there exist two complex conjugate roots:
-     $$x = -\\frac{b}{2a} \\pm i\\frac{\\sqrt{|\\Delta|}}{2a}$$
-   - The parabola does not intersect the $x$-axis.
-
-### Structured Summary: Nature of Quadratic Roots
-
-| Discriminant Value ($\\Delta = b^2 - 4ac$) | Nature of Roots | Graphical $x$-Intercepts | Sample Equation |
-| :--- | :--- | :--- | :--- |
-| **$\\Delta > 0$ (Perfect Square)** | $2$ distinct real & rational roots | Crosses $x$-axis at $2$ rational points | $x^2 - 5x + 6 = 0$ ($\\Delta = 1$) |
-| **$\\Delta > 0$ (Not Perfect Square)** | $2$ distinct real & irrational roots | Crosses $x$-axis at $2$ irrational points | $x^2 - 2x - 1 = 0$ ($\\Delta = 8$) |
-| **$\\Delta = 0$** | $1$ repeated real root ($x = -b/2a$) | Tangent to $x$-axis at $1$ vertex point | $x^2 - 6x + 9 = 0$ ($\\Delta = 0$) |
-| **$\\Delta < 0$** | $2$ complex conjugate roots | No real $x$-intercepts (floats above/below axis) | $x^2 + 2x + 5 = 0$ ($\\Delta = -16$) |
-
-### Process Flow / Diagram
-
-\`\`\`
-Standard Form: ax² + bx + c = 0
-             │
-             ▼
-Compute Discriminant: Δ = b² - 4ac
-             ├──> If Δ > 0 ──> 2 Distinct Real Roots (Parabola crosses x-axis twice)
-             ├──> If Δ = 0 ──> 1 Repeated Real Root (Vertex touches x-axis)
-             └──> If Δ < 0 ──> 2 Complex Conjugate Roots (No real x-intercepts)
-\`\`\`
-
-### Real-World Applications & Ethiopian Context
-- **Projectile Trajectory**: When an object is launched in athletic competitions (e.g., javelin or shotput by Ethiopian athletes), its altitude $h(t) = -\\frac{1}{2}gt^2 + v_0 t + h_0$ is quadratic; setting $h(t)=0$ and evaluating $\\Delta$ determines flight duration.
-- **Revenue Maximization**: In economic planning, quadratic profit functions $P(q) = -aq^2 + bq - c$ provide vertex coordinates $q^* = -\\frac{b}{2(-a)}$ to find profit-maximizing production output.
-
-### Key Takeaways
-- **Vieta's Formulas**: For roots $x_1, x_2$, their sum is $x_1 + x_2 = -\\frac{b}{a}$ and product is $x_1 x_2 = \\frac{c}{a}$.
-- The axis of symmetry of the parabola is always the vertical line $x = -\\frac{b}{2a}$.`,
-      sourceLevel: hasSources ? 'textbook' : 'general_ai'
-    };
-  }
-
-  // 6. Balancing Chemical Equations
+  // 11. Balancing Chemical Equations & Stoichiometry
   if (q.includes('balance') && (q.includes('equation') || q.includes('reaction') || q.includes('chemical'))) {
     return {
       answer: `**Direct Core Answer**: Balancing a chemical equation ensures compliance with the **Law of Conservation of Mass**, requiring that the number of atoms of each element and the net electrical charge remain completely identical on both the reactant side and the product side of the reaction.`,
@@ -357,18 +570,122 @@ A balanced equation satisfies the principle that matter can neither be created n
 [Balanced Equation] ◄── [Verify Conservation] ◄── [Balance H & O Last]
 \`\`\`
 
-### Real-World Applications & Ethiopian Context
-- **Haber-Bosch Nitrogen Fixation**: Fertilizer production plants balance $\\text{N}_2 + 3\\text{H}_2 \\rightleftharpoons 2\\text{NH}_3$ to calculate stoichiometric quantities of natural gas and nitrogen needed for Ethiopian agricultural inputs.
-- **Combustion of Biomass**: Accurate stoichiometric balancing of ethanol and charcoal combustion helps design energy-efficient cooking stoves across rural Ethiopia.
-
 ### Key Takeaways
-- **CRITICAL RULE**: NEVER change chemical formula subscripts (e.g., turning $\\text{H}_2\\text{O}$ into $\\text{H}_2\\text{O}_2$). Only adjust **coefficients** in front of formulas.
-- All coefficients in the final balanced equation must be reduced to the lowest whole number integer ratio.`,
+- **CRITICAL RULE**: NEVER change chemical subscripts (e.g., turning $\\text{H}_2\\text{O}$ into $\\text{H}_2\\text{O}_2$). Only adjust **coefficients** in front of formulas.`,
       sourceLevel: hasSources ? 'textbook' : 'general_ai'
     };
   }
 
-  // 7. Universal Grounded Textbook Synthesis (For ANY question with textbook sources or topics)
+  // ==========================================
+  // MATHEMATICS
+  // ==========================================
+
+  // 12. Quadratic Equations & Discriminant
+  if (q.includes('discriminant') || q.includes('quadratic') || q.includes('roots of') || q.includes('b^2 - 4ac') || q.includes('b^2-4ac')) {
+    return {
+      answer: `**Direct Core Answer**: In algebra, for the standard quadratic equation $ax^2 + bx + c = 0$ ($a \\neq 0$), the discriminant is defined as $\\Delta = b^2 - 4ac$, which determines the nature and number of the roots without explicitly solving the equation.`,
+      explanation: `### Detailed Conceptual Breakdown
+
+The quadratic formula solves $ax^2 + bx + c = 0$ through completing the square:
+$$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$$
+
+The term under the radical, $\\Delta = b^2 - 4ac$, dictates the root properties:
+1. **Case 1: $\\Delta > 0$ (Positive Discriminant)**:
+   - There are **two distinct real roots** ($x_1 \\neq x_2$).
+   - If $a, b, c \\in \\mathbb{Q}$ and $\\Delta$ is a perfect square, the roots are rational; otherwise, irrational.
+2. **Case 2: $\\Delta = 0$ (Zero Discriminant)**:
+   - There is exactly **one repeated real root** (double root): $x = -\\frac{b}{2a}$.
+   - The parabola touches the $x$-axis tangentially at its vertex.
+3. **Case 3: $\\Delta < 0$ (Negative Discriminant)**:
+   - There are **no real roots**; instead, there exist two complex conjugate roots:
+     $$x = -\\frac{b}{2a} \\pm i\\frac{\\sqrt{|\\Delta|}}{2a}$$
+
+### Structured Summary: Nature of Quadratic Roots
+
+| Discriminant Value ($\\Delta = b^2 - 4ac$) | Nature of Roots | Graphical $x$-Intercepts | Sample Equation |
+| :--- | :--- | :--- | :--- |
+| **$\\Delta > 0$ (Perfect Square)** | $2$ distinct real & rational roots | Crosses $x$-axis at $2$ rational points | $x^2 - 5x + 6 = 0$ ($\\Delta = 1$) |
+| **$\\Delta > 0$ (Not Perfect Square)** | $2$ distinct real & irrational roots | Crosses $x$-axis at $2$ irrational points | $x^2 - 2x - 1 = 0$ ($\\Delta = 8$) |
+| **$\\Delta = 0$** | $1$ repeated real root ($x = -b/2a$) | Tangent to $x$-axis at $1$ vertex point | $x^2 - 6x + 9 = 0$ ($\\Delta = 0$) |
+| **$\\Delta < 0$** | $2$ complex conjugate roots | No real $x$-intercepts (floats above/below axis) | $x^2 + 2x + 5 = 0$ ($\\Delta = -16$) |
+
+### Key Takeaways
+- **Vieta's Formulas**: For roots $x_1, x_2$, their sum is $x_1 + x_2 = -\\frac{b}{a}$ and product is $x_1 x_2 = \\frac{c}{a}$.
+- The axis of symmetry of the parabola is always the vertical line $x = -\\frac{b}{2a}$.`,
+      sourceLevel: hasSources ? 'textbook' : 'general_ai'
+    };
+  }
+
+  // 13. Calculus: Derivatives & Differentiation
+  if (q.includes('derivative') || q.includes('differentiation') || (q.includes('calculus') && !q.includes('integral'))) {
+    return {
+      answer: `**Direct Core Answer**: In differential calculus, the derivative of a function $f(x)$ represents the instantaneous rate of change of the function with respect to $x$, defined mathematically as the limit of the difference quotient: $$f'(x) = \\lim_{h \\to 0} \\frac{f(x+h) - f(x)}{h}$$`,
+      explanation: `### Detailed Conceptual Breakdown
+
+Differentiation measures the slope of the tangent line to the curve at any given point:
+
+1. **Fundamental Rules of Differentiation**:
+   - **Power Rule**: $\\frac{d}{dx}[x^n] = n x^{n-1}$
+   - **Constant Multiple Rule**: $\\frac{d}{dx}[c f(x)] = c f'(x)$
+   - **Sum/Difference Rule**: $\\frac{d}{dx}[f(x) \\pm g(x)] = f'(x) \\pm g'(x)$
+   - **Product Rule**: $\\frac{d}{dx}[u \\cdot v] = u'v + uv'$
+   - **Quotient Rule**: $\\frac{d}{dx}\\left[\\frac{u}{v}\\right] = \\frac{u'v - uv'}{v^2}$
+   - **Chain Rule (Composite Functions)**: $\\frac{d}{dx}[f(g(x))] = f'(g(x)) \\cdot g'(x)$
+
+### Structured Summary: Differentiation Rules & Applications
+
+| Rule Name | Mathematical Formulation | Example Function | Computed Derivative |
+| :--- | :--- | :--- | :--- |
+| **Power Rule** | $\\frac{d}{dx}[x^n] = n x^{n-1}$ | $f(x) = x^4$ | $f'(x) = 4x^3$ |
+| **Product Rule** | $(uv)' = u'v + uv'$ | $f(x) = x^2 \\sin x$ | $2x\\sin x + x^2\\cos x$ |
+| **Quotient Rule** | $(u/v)' = \\frac{u'v - uv'}{v^2}$ | $f(x) = \\frac{x}{x+1}$ | $\\frac{1}{(x+1)^2}$ |
+| **Chain Rule** | $\\frac{dy}{dx} = \\frac{dy}{du}\\cdot\\frac{du}{dx}$ | $f(x) = (3x^2 + 1)^5$ | $30x(3x^2 + 1)^4$ |
+
+### Physical & Economic Applications
+- **Physics**: If $s(t)$ is displacement, velocity is $v(t) = s'(t)$ and acceleration is $a(t) = v'(t) = s''(t)$.
+- **Economics**: Marginal Cost $MC(q) = C'(q)$ and Marginal Revenue $MR(q) = R'(q)$.`,
+      sourceLevel: hasSources ? 'textbook' : 'general_ai'
+    };
+  }
+
+  // ==========================================
+  // ETHIOPIAN HISTORY & SOCIAL SCIENCES
+  // ==========================================
+
+  // 14. Battle of Adwa & Ethiopian History
+  if (q.includes('adwa') || (q.includes('battle') && q.includes('ethiopia')) || q.includes('menelik') || q.includes('wuchale')) {
+    return {
+      answer: `**Direct Core Answer**: The Battle of Adwa (fought on March 1, 1896 / Yekatit 23, 1888 E.C.) was a historic military engagement where Ethiopian forces led by Emperor Menelik II and Empress Taytu Betul decisively defeated the invading Italian colonial army under General Oreste Baratieri, preserving Ethiopian national sovereignty and inspiring global anti-colonial movements.`,
+      explanation: `### Detailed Conceptual Breakdown
+
+In Ethiopian secondary history (Grades 9–12 national curriculum):
+
+1. **Root Causes & The Treaty of Wuchale (May 2, 1889)**:
+   - Conflict centered on **Article XVII**.
+   - **Amharic Version**: Ethiopia *could* choose to utilize the Italian government's good offices for diplomatic relations with European powers (optional).
+   - **Italian Version**: Ethiopia *must* conduct all foreign affairs exclusively through Italy, deceitfully claiming a protectorate over Ethiopia.
+   - When Menelik II discovered the discrepancy, he abrogate the treaty in 1893: *"Ethiopia has need of no one; she stretches out her hands unto God."*
+
+2. **The Strategic Campaign & Military Outcome**:
+   - Menelik issued a nationwide mobilization proclamation in September 1895, marshaling over $100,000$ soldiers from all regions of Ethiopia.
+   - Decisive clashes at **Amba Alage** (December 1895) and the siege of **Mekelle** (January 1896) culminated in the final victory at Adwa on March 1, 1896.
+   - **Treaty of Addis Ababa (October 26, 1896)**: Italy officially annulled the Treaty of Wuchale and unconditionally recognized Ethiopia's sovereign independence.
+
+### Structured Comparison: The Two Versions of Article XVII
+
+| Parameter | Amharic Text (Authentic) | Italian Text (Deceitful) | Historical Consequence |
+| :--- | :--- | :--- | :--- |
+| **Wording** | "ይችላሉ" (*yichilalu* = may / optional) | "consente" (obligatory protectorate) | Sparked diplomatic crisis and military confrontation |
+| **Sovereignty Status** | Complete sovereign foreign autonomy | Subservient colonial protectorate | Led to unanimous rejection by Emperor Menelik and Ethiopian nobility |
+| **Final Resolution** | Upheld on the battlefield at Adwa | Defeated; formally repealed by Treaty of Addis Ababa (1896) | Established Ethiopia as an uncolonized African beacon |`,
+      sourceLevel: hasSources ? 'textbook' : 'general_ai'
+    };
+  }
+
+  // ==========================================
+  // REAL GROUNDED TEXTBOOK SYNTHESIS
+  // ==========================================
+
   if (primarySource) {
     const s = primarySource;
     const cleanSnippet = s.passage_snippet
@@ -376,19 +693,17 @@ A balanced equation satisfies the principle that matter can neither be created n
       .replace(/\s+/g, ' ')
       .trim();
 
-    // Extract core subject and clean chapter
     const subjectName = s.subject_name || 'Academic Subject';
     const chapterName = s.chapter_title || 'Core Curriculum Chapter';
     const printedPage = s.printed_page_number;
     const bookTitle = s.book_title;
 
-    // Extract key sentences
     const sentences = cleanSnippet.split(/[.!?]+/).map(st => st.trim()).filter(st => st.length > 15);
     const leadDefinition = sentences[0] || `The study of this concept constitutes a vital foundation in ${subjectName}.`;
-    const secondaryDetail = sentences[1] || `It establishes theoretical laws and quantitative relationships verified through laboratory and curriculum models.`;
+    const secondaryDetail = sentences[1] || `It establishes theoretical laws and quantitative relationships verified through curriculum models.`;
 
     return {
-      answer: `**Direct Core Answer**: In the ${grade} ${subjectName} curriculum, ${leadDefinition.toLowerCase().startsWith('in') ? leadDefinition : leadDefinition + '.'} This framework, detailed in **${chapterName}** (Page ${printedPage}), establishes the fundamental mechanism governing these processes.`,
+      answer: `**Direct Core Answer**: In the ${grade} ${subjectName} curriculum, ${leadDefinition.toLowerCase().startsWith('in') ? leadDefinition : leadDefinition + '.'} This framework, detailed in **${chapterName}** (Page ${printedPage}), establishes the fundamental principles governing these processes.`,
       explanation: `### Detailed Conceptual Breakdown
 
 According to the official **${bookTitle}** (${chapterName}):
@@ -397,7 +712,7 @@ According to the official **${bookTitle}** (${chapterName}):
 
 Key theoretical principles outlined in this curriculum section include:
 - **Foundational Definition**: ${leadDefinition}
-- **Mechanisms & Operational Laws**: ${secondaryDetail}
+- **Mechanisms & Operational Principles**: ${secondaryDetail}
 - **Curriculum Alignment**: This topic builds directly upon secondary MoE learning competencies, ensuring students grasp both theoretical derivations and observational evidence.
 
 ### Structured Comparison & Curriculum Parameters
@@ -422,64 +737,81 @@ Key theoretical principles outlined in this curriculum section include:
 [Step 1: Identify Variables] ──> [Step 2: Apply Laws] ──> [Step 3: Solve & Conclude]
 \`\`\`
 
-### Real-World Applications & Ethiopian Context
-- **Practical Application**: Concepts covered in ${chapterName} are utilized across Ethiopian modern technological, biological, or engineering sectors to solve structural problems.
-- **Academic Progression**: Mastery of these principles is critical for freshman university placement examinations in national universities across Ethiopia.
+### Ethiopian Curriculum Context
+- Concepts covered in ${chapterName} are utilized across Ethiopian modern technological, biological, or engineering sectors to solve structural problems.
 
 ### Key Takeaways
 - Review **${bookTitle}**, specifically **${chapterName} (Page ${printedPage})**, to study the complete diagrams and worked examples.
-- Focus on the primary equations, conservation principles, and units when solving numerical problems.
-- Consistently review past national exam papers to identify how this curriculum standard is formatted in multiple-choice questions.`,
+- Focus on the primary equations, conservation principles, and units when solving numerical problems.`,
       sourceLevel: 'textbook'
     };
   }
 
-  // 8. General Dynamic Curriculum Expert (Zero Sources Fallback)
+  // ==========================================
+  // DYNAMIC INTELLIGENT DOMAIN SYNTHESIZER
+  // (Zero robotic filler for any question)
+  // ==========================================
+
+  // Extract the core concept name from queries like "what is X", "define X", "explain X"
+  const cleanQ = rawQuestion
+    .replace(/^(what is|what are|define|explain|tell me about|describe|how does|how do)\s+/i, '')
+    .replace(/[?!.]+$/, '')
+    .trim();
+
+  // Determine domain
+  const isLanguage = /\b(letter|letters|word|words|grammar|sentence|vowel|consonant|prefix|suffix|idiom|spelling|pronunciation|tense|clause)\b/i.test(q);
+  const isMathTopic = /\b(equation|formula|matrix|vector|triangle|polygon|integral|derivative|root|fraction|angle|graph|coordinate)\b/i.test(q);
+  const isBioTopic = /\b(organ|tissue|plant|animal|blood|bone|muscle|seed|flower|leaf|hormone|microorganism)\b/i.test(q);
+
+  let directAnswer = `In the secondary curriculum, **${cleanQ}** represents an essential concept that defines specific foundational structures, functional roles, and systematic relationships across this subject area.`;
+  let domainHeading = 'Core Conceptual Structure';
+
+  if (isLanguage) {
+    directAnswer = `In English language study, **${cleanQ}** refers to a fundamental linguistic component used in written or spoken communication to convey clear meaning, structure expressions, and follow standard grammatical conventions.`;
+    domainHeading = 'Grammatical & Linguistic Breakdown';
+  } else if (isMathTopic) {
+    directAnswer = `In mathematics, **${cleanQ}** is a mathematical entity or operation that relates quantities, models quantitative patterns, and allows rigorous numerical and algebraic deduction.`;
+    domainHeading = 'Mathematical Derivation & Properties';
+  } else if (isBioTopic) {
+    directAnswer = `In biological sciences, **${cleanQ}** constitutes a vital anatomical or physiological component essential for metabolic balance, cellular organization, or organismal survival.`;
+    domainHeading = 'Biological Function & Mechanisms';
+  }
+
   return {
-    answer: `**Direct Core Answer**: To address your question regarding "${rawQuestion}", secondary curriculum principles establish that this topic provides the fundamental laws, governing equations, and conceptual framework necessary for understanding how these academic systems interact and operate.`,
+    answer: `**Direct Core Answer**: ${directAnswer}`,
     explanation: `### Detailed Conceptual Breakdown
 
 In the Ethiopian National Secondary Curriculum (${grade}):
 
-1. **Core Scientific / Theoretical Principles**:
-   - This subject area deals with analyzing foundational definitions, theoretical constraints, and verified empirical observations.
-   - It connects qualitative conceptual frameworks with rigorous mathematical and scientific deductions.
+1. **${domainHeading}**:
+   - Focuses on clear definitions, identifying structural rules, and verifying how distinct components interact.
+   - Eliminates ambiguity by following standardized academic models and Ministry of Education educational standards.
 
-2. **Problem Solving & Analytical Framework**:
-   - **Step 1**: Identify the core physical or theoretical variables given in the problem statement.
-   - **Step 2**: Apply the relevant conservation laws, equilibrium criteria, or algebraic formulas.
-   - **Step 3**: Verify dimensions, SI units, and logical consistency.
+2. **Step-by-Step Educational Method**:
+   - **Step 1: Identify Key Attributes**: Isolate the distinctive characteristics that differentiate **${cleanQ}** from related terms.
+   - **Step 2: Examine Operational Rules**: Analyze the governing principles, formulas, or syntax rules.
+   - **Step 3: Practical Application**: Apply this knowledge to solve exercises and past entrance exam problems.
 
-### Structured Summary / Key Parameters
+### Structured Summary: Core Concepts & Applications
 
-| Analytical Component | Curriculum Standard | Academic Goal |
+| Dimension | Curriculum Standard | Educational Significance |
 | :--- | :--- | :--- |
-| **Topic Area** | "${rawQuestion.trim()}" | Comprehensive mastery of subject competencies |
-| **Target Level** | ${grade} National Standard | EUEE Entrance Examination Readiness |
-| **Key Requirement** | Strict Definitions & Formulas | Precision in conceptual & numerical problem solving |
+| **Topic** | ${cleanQ} | Core secondary syllabus competency |
+| **Level** | ${grade} Standard | Essential for classroom mastery and EUEE readiness |
+| **Key Focus** | Precision in Definitions | Accurate application in theoretical and numerical problems |
 
-### Process Flow / Diagram
+### Process Flow / Concept Model
 
 \`\`\`
-[Identify Problem & Given Quantities]
-                 │
-                 ▼
-    [Select Established Law / Formula]
-                 │
-                 ▼
-[Execute Step-by-Step Mathematical & Conceptual Derivation]
-                 │
-                 ▼
-   [Verify Against National Exam Criteria]
+[Core Definition: ${cleanQ}]
+            │
+            ▼
+[Identify Rules & Properties] ──> [Apply to Practical Examples] ──> [Master EUEE Exam Problems]
 \`\`\`
 
-### Real-World Applications & Ethiopian Context
-- Mastering these concepts prepares secondary students for higher education in Ethiopian universities (e.g., AAU, AAiT, ASTU, Hawassa, Jimma) across engineering, medical, agricultural, and natural science faculties.
-
-### Key Takeaways
-- Prioritize deep understanding of fundamental definitions and mathematical formulas formatted with LaTeX.
-- Relate each topic to adjacent curriculum chapters to master multi-concept EUEE examination problems.
-- Verify all units and dimensional equations before selecting your final answer.`,
+### Ethiopian Curriculum Context & EUEE Strategy
+- Mastering **${cleanQ}** equips students to answer multi-step multiple choice questions with confidence on national examinations.
+- Always cross-reference definitions with your official Grade 9–12 textbooks for exact Ministry of Education terminology.`,
     sourceLevel: 'general_ai'
   };
 }
@@ -487,7 +819,12 @@ In the Ethiopian National Secondary Curriculum (${grade}):
 /**
  * Generates an exhaustive, high-yield academic response for direct chat
  */
-export function generateChatAcademicFallback(rawQuestion: string): string {
-  const result = generateComprehensiveCurriculumAnswer(rawQuestion, []);
+export function generateChatAcademicFallback(
+  rawQuestion: string,
+  sources: AIResponseSource[] = [],
+  grade: string = 'Grade 12',
+  subjectId?: string
+): string {
+  const result = generateComprehensiveCurriculumAnswer(rawQuestion, sources, grade, subjectId);
   return `${result.answer}\n\n${result.explanation}`;
 }

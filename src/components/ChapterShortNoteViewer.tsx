@@ -375,7 +375,7 @@ ${(shortNote.euee_exam_tips || []).map(formatTip).filter(Boolean).join('\n')}`;
                     }`}
                   >
                     <span>Unit {chap.chapter_number}</span>
-                    <span className="opacity-80 max-w-[120px] truncate">{chap.chapter_title.replace(/^Unit\s*\d+:\s*/i, '')}</span>
+                    <span className="opacity-80 max-w-[120px] truncate">{(chap.chapter_title || (chap as any).title || `Unit ${chap.chapter_number}`).replace(/^Unit\s*\d+:\s*/i, '')}</span>
                   </button>
                 );
               })}

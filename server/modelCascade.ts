@@ -13,13 +13,13 @@ export interface ModelTier {
 }
 
 export const GEMINI_MODEL_CASCADE: ModelTier[] = [
-  { modelName: 'gemini-2.5-flash', tier: 1, isLite: false, maxTokens: 4000 },
-  { modelName: 'gemini-2.5-flash-lite', tier: 2, isLite: true, maxTokens: 4000 },
-  { modelName: 'gemini-2.0-flash', tier: 3, isLite: false, maxTokens: 4000 },
-  { modelName: 'gemini-1.5-flash', tier: 4, isLite: true, maxTokens: 4000 },
-  { modelName: 'gemini-3.5-flash', tier: 5, isLite: false, maxTokens: 4000 },
-  { modelName: 'gemini-3.5-flash-lite', tier: 6, isLite: true, maxTokens: 4000 },
-  { modelName: 'gemini-3.8-flash', tier: 7, isLite: false, maxTokens: 4000 }
+  { modelName: 'gemini-3.5-flash-lite', tier: 1, isLite: true, maxTokens: 4000 },
+  { modelName: 'gemini-3.5-flash', tier: 2, isLite: false, maxTokens: 4000 },
+  { modelName: 'gemini-3.8-flash', tier: 3, isLite: false, maxTokens: 4000 },
+  { modelName: 'gemini-2.5-flash', tier: 4, isLite: false, maxTokens: 4000 },
+  { modelName: 'gemini-2.5-flash-lite', tier: 5, isLite: true, maxTokens: 4000 },
+  { modelName: 'gemini-2.0-flash', tier: 6, isLite: false, maxTokens: 4000 },
+  { modelName: 'gemini-1.5-flash', tier: 7, isLite: true, maxTokens: 4000 }
 ];
 
 export function getRecommendedModelList(requestedModel?: string): string[] {

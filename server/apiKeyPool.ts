@@ -48,15 +48,8 @@ class ApiKeyPool {
     this.refreshKeysFromEnv();
   }
 
-  // Seeded high-capacity API key pool provided by user
-  private readonly defaultApiKeys: string[] = [
-    'AQ.Ab8RN6LqkXUKPoVicidGMLMi-qvDTG7eLwKdNQu3a6pFH-ERaw', // API Key 5
-    'AQ.Ab8RN6I9jOKLLBFN-kyQxdpoBFocTldwLLkM30ZM6uZW8bTsFg', // API Key 6
-    'AQ.Ab8RN6K_xbsU5MMyfyuZa2ga1-R1qz-yhgj2BTJwX4wxs6u0ag', // API Key 7
-    'AQ.Ab8RN6KfVp7ar836G7tBL_4BtRHUBKOWe2BJs9G-rhWvCUMgOg', // API Key 8
-    'AQ.Ab8RN6JfFVw45czt3Zs6v12ScgY-AoRKmPlZTPMki5PCZY2cMQ', // API Key 9
-    'AQ.Ab8RN6JDSZN74nv41uzvD6sL1xgm9vpTp4YVEMO-YVA9gnRlMQ'  // API Key 10
-  ];
+  // Seeded high-capacity API key pool loaded securely via environment/.env
+  private readonly defaultApiKeys: string[] = [];
 
   /**
    * Refreshes and loads all available keys from process.env and default pool:

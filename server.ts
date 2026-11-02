@@ -9,6 +9,7 @@ const aiGenSDK = { GoogleGenAI };
 import { db, normalizePhoneNumber, isPhoneNumberAdmin } from './server/db';
 import { askAITutor } from './server/aiRouter';
 import { generateChatAcademicFallback } from './server/curriculumAIExpert';
+import { retrieveRAGContext } from './server/ragEngine';
 import { apiKeyPool, isRejectedKeyError } from './server/apiKeyPool';
 import { getRecommendedModelList } from './server/modelCascade';
 import { smartAICache } from './server/smartCache';
@@ -1868,12 +1869,20 @@ app.post('/api/ai/chat', async (req: Request, res: Response) => {
   // Quota tracking
   const quotaCheck = db.checkAndIncrementDailyAI(user.id || 'usr-student-premium');
 
+  // Ground conversational response in authentic curriculum textbook RAG context
+  const rag = retrieveRAGContext(message, user?.grade_id || 'grade-12', subject_id);
+  let textbookContext = '';
+  if (rag.sources.length > 0) {
+    const topSource = rag.sources[0];
+    textbookContext = `\n\n[OFFICIAL ETHIOPIAN CURRICULUM TEXTBOOK REFERENCE]\nTextbook: ${topSource.book_title}\nUnit / Section: ${topSource.chapter_title}\nPrinted Page: Page ${topSource.printed_page_number}\nTextbook Excerpt: "${topSource.passage_snippet.slice(0, 800)}"`;
+  }
+
   let assistantReply = '';
   let usedModel = 'gemini-2.5-flash';
   const candidateModels = getRecommendedModelList();
 
   const systemInstruction = `You are "EthioLearn AI", an elite AI Tutor and Senior Academic Specialist for the Ethiopian Secondary School Curriculum (Grades 9–12).
-Student Grade: ${user?.grade || 'Grade 12 - Natural Science'}
+Student Grade: ${user?.grade || 'Grade 12 - Natural Science'}${textbookContext}
 Directives:
 1. Answer the student's question directly in the very first sentence, then explain it in deep pedagogical detail with clear sub-headings (no robotic filler).
 2. You MUST use standard LaTeX notation for ALL mathematical symbols, chemical formulas, and equations ($inline$ or $block$).
@@ -1962,8 +1971,20 @@ Directives:
   // Graceful high-yield curriculum fallback only if external network/quota is completely unreachable
   if (!assistantReply) {
     console.log(`[AI Chat] Serving curriculum verified pedagogical knowledge for: "${message.slice(0, 50)}..."`);
-    assistantReply = generateChatAcademicFallback(message);
+    const rag = retrieveRAGContext(message, user?.grade_id || 'grade-12', subject_id);
+    assistantReply = generateChatAcademicFallback(message, rag.sources, user?.grade || 'Grade 12', subject_id);
     usedModel = 'curriculum-expert-engine';
+  }
+
+  // Append verified curriculum textbook reference to assistant reply
+  if (rag.sources.length > 0 && !assistantReply.includes('Verified Curriculum Textbook Reference')) {
+    const topRef = rag.sources[0];
+    const snippetExcerpt = topRef.passage_snippet
+      .replace(/^#+\s+/gm, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 320);
+    assistantReply += `\n\n### Verified Curriculum Textbook References\n- **Textbook**: ${topRef.book_title}\n- **Unit / Section**: ${topRef.chapter_title}\n- **Printed Page**: Page ${topRef.printed_page_number}\n- **Direct Curriculum Excerpt**: "${snippetExcerpt}..."`;
   }
 
   // Instant related authentic entrance exam questions strictly matching subject domain
@@ -1977,6 +1998,7 @@ Directives:
     remaining: quotaCheck.remaining,
     daily_requests_used: quotaCheck.count,
     daily_limit: quotaCheck.limit,
+    sources: rag.sources,
     ai_generated_questions: aiPracticeQuestions,
     related_exam_questions: relatedExamQuestions
   });

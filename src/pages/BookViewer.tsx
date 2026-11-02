@@ -528,11 +528,14 @@ export const BookViewer: React.FC<BookViewerProps> = ({
                 className="bg-transparent text-white text-xs font-semibold focus:outline-none cursor-pointer max-w-[150px] truncate"
                 title="Select Curriculum Unit"
               >
-                {chapters.map(c => (
-                  <option key={c.id} value={c.id} className="bg-slate-900 text-white">
-                    Unit {c.chapter_number}: {c.chapter_title.replace(/^Unit\s*\d+:\s*/i, '')}
-                  </option>
-                ))}
+                {chapters.map(c => {
+                  const titleStr = c.chapter_title || (c as any).title || `Unit ${c.chapter_number}`;
+                  return (
+                    <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                      Unit {c.chapter_number}: {titleStr.replace(/^Unit\s*\d+:\s*/i, '')}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
@@ -827,7 +830,7 @@ export const BookViewer: React.FC<BookViewerProps> = ({
                         >
                           <div className="flex items-center gap-1.5 text-xs font-bold text-white hover:text-emerald-400 transition">
                             <span className="text-emerald-400 text-[11px]">Unit {c.chapter_number}:</span>
-                            <span className="line-clamp-1">{c.chapter_title.replace(/^Unit \d+:\s*/, '')}</span>
+                            <span className="line-clamp-1">{(c.chapter_title || (c as any).title || `Unit ${c.chapter_number}`).replace(/^Unit \d+:\s*/, '')}</span>
                           </div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
                             Pages {c.start_page} – {c.end_page} • {c.topics?.length || 0} Topics
