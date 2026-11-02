@@ -26,11 +26,12 @@ import {
   Table,
   Trash2
 } from 'lucide-react';
-import { AIExplanationResult, ExamQuestion } from '../types';
+import { AIExplanationResult, ExamQuestion, AIResponseSource } from '../types';
 import { QuestionDiagramViewer } from '../components/QuestionDiagramViewer';
 import { FormattedQuestionText, renderRichInline } from '../components/FormattedQuestionText';
 import { AIQuestionsAndExamCard } from '../components/AIQuestionsAndExamCard';
 import { LockedFeaturePaywall } from '../components/LockedFeaturePaywall';
+import { generateOfflineAIExplanation } from '../services/offlineAITutorService';
 
 interface AITutorProps {
   onNavigate: (route: string, params?: Record<string, any>) => void;
@@ -81,6 +82,7 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
   const [chatMessages, setChatMessages] = useState<{
     role: 'user' | 'assistant';
     content: string;
+    sources?: AIResponseSource[];
     ai_generated_questions?: ExamQuestion[];
     related_exam_questions?: ExamQuestion[];
   }[]>(() => {
@@ -93,6 +95,18 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
   });
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleChat = async () => {
     if (!chatInput.trim() || chatLoading) return;
@@ -103,6 +117,34 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
     setChatMessages(newHistory);
     setChatLoading(true);
     setChatError(null);
+
+    // If offline, generate instant response locally
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      try {
+        const offlineData = await generateOfflineAIExplanation(
+          newMessage,
+          subjectFilter !== 'all' ? subjectFilter : undefined,
+          user?.grade_id
+        );
+        const updatedHistory = [
+          ...newHistory,
+          {
+            role: 'assistant' as const,
+            content: `${offlineData.answer}\n\n${offlineData.explanation}`,
+            sources: offlineData.sources,
+            ai_generated_questions: offlineData.ai_generated_questions,
+            related_exam_questions: offlineData.related_exam_questions
+          }
+        ];
+        setChatMessages(updatedHistory);
+        localStorage.setItem(`ethiolearn_ai_chat_${user?.id || 'default'}`, JSON.stringify(updatedHistory));
+      } catch (e) {
+        setChatError('Offline engine encountered an error.');
+      } finally {
+        setChatLoading(false);
+      }
+      return;
+    }
 
     try {
       const res = await fetch('/api/ai/chat', {
@@ -129,6 +171,7 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
           {
             role: 'assistant' as const,
             content: data.message,
+            sources: data.sources,
             ai_generated_questions: data.ai_generated_questions,
             related_exam_questions: data.related_exam_questions
           }
@@ -140,17 +183,48 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
         setDailyRemaining(0);
         setChatError(err.message || 'Daily limit reached. Your quota resets at midnight.');
       } else {
-        const err = await res.json().catch(() => ({}));
-        let displayMsg = 'The AI Tutor is currently experiencing high demand. Please try asking again in a few moments.';
-        if (err.message && typeof err.message === 'string') {
-          if (!err.message.startsWith('{') && !err.message.includes('Quota exceeded') && !err.message.includes('RESOURCE_EXHAUSTED')) {
-            displayMsg = err.message;
+        // Fallback to offline engine on server error
+        const offlineData = await generateOfflineAIExplanation(
+          newMessage,
+          subjectFilter !== 'all' ? subjectFilter : undefined,
+          user?.grade_id
+        );
+        const updatedHistory = [
+          ...newHistory,
+          {
+            role: 'assistant' as const,
+            content: `${offlineData.answer}\n\n${offlineData.explanation}`,
+            sources: offlineData.sources,
+            ai_generated_questions: offlineData.ai_generated_questions,
+            related_exam_questions: offlineData.related_exam_questions
           }
-        }
-        setChatError(displayMsg);
+        ];
+        setChatMessages(updatedHistory);
+        localStorage.setItem(`ethiolearn_ai_chat_${user?.id || 'default'}`, JSON.stringify(updatedHistory));
       }
     } catch (err) {
-      setChatError('Connection lost. Please try again.');
+      // Offline fallback
+      try {
+        const offlineData = await generateOfflineAIExplanation(
+          newMessage,
+          subjectFilter !== 'all' ? subjectFilter : undefined,
+          user?.grade_id
+        );
+        const updatedHistory = [
+          ...newHistory,
+          {
+            role: 'assistant' as const,
+            content: `${offlineData.answer}\n\n${offlineData.explanation}`,
+            sources: offlineData.sources,
+            ai_generated_questions: offlineData.ai_generated_questions,
+            related_exam_questions: offlineData.related_exam_questions
+          }
+        ];
+        setChatMessages(updatedHistory);
+        localStorage.setItem(`ethiolearn_ai_chat_${user?.id || 'default'}`, JSON.stringify(updatedHistory));
+      } catch (e) {
+        setChatError('Connection lost. Please try again.');
+      }
     } finally {
       setChatLoading(false);
     }
@@ -227,6 +301,31 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
     setGeneratedPracticeQuestion(null);
     setPracticeAnswerFeedback(null);
 
+    // 1. If device is offline, run instant local curriculum engine
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      try {
+        const offlineData = await generateOfflineAIExplanation(
+          q,
+          effectiveSubject !== 'all' ? effectiveSubject : undefined,
+          user?.grade_id
+        );
+        setCurrentResult(offlineData);
+        setHistory(prev => {
+          const updated = [offlineData, ...prev.filter(item => item.id !== offlineData.id)].slice(0, 50);
+          try {
+            localStorage.setItem(`ethiolearn_ai_history_${user?.id || 'default'}`, JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+        setDailyRemaining(999);
+      } catch (e) {
+        setErrorMessage('Failed to generate offline curriculum lesson.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     try {
       const res = await fetch('/api/ai/ask', {
         method: 'POST',
@@ -261,12 +360,43 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
         setDailyRemaining(0);
         setErrorMessage(errJson.message || 'Daily limit reached. Your quota resets at midnight.');
       } else {
-        const errorData = await res.json().catch(() => ({}));
-        setErrorMessage(errorData.message || 'Unable to reach the AI tutor right now. Please try asking again.');
+        // Fallback to local curriculum engine on server error
+        const offlineData = await generateOfflineAIExplanation(
+          q,
+          effectiveSubject !== 'all' ? effectiveSubject : undefined,
+          user?.grade_id
+        );
+        setCurrentResult(offlineData);
+        setHistory(prev => {
+          const updated = [offlineData, ...prev.filter(item => item.id !== offlineData.id)].slice(0, 50);
+          try {
+            localStorage.setItem(`ethiolearn_ai_history_${user?.id || 'default'}`, JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+        setDailyRemaining(999);
       }
     } catch (err) {
-      console.error('Failed to ask AI Tutor:', err);
-      setErrorMessage('Network connection interrupted. Please try again.');
+      console.warn('Network request failed, running Client-Side Offline Curriculum AI Engine:', err);
+      try {
+        const offlineData = await generateOfflineAIExplanation(
+          q,
+          effectiveSubject !== 'all' ? effectiveSubject : undefined,
+          user?.grade_id
+        );
+        setCurrentResult(offlineData);
+        setHistory(prev => {
+          const updated = [offlineData, ...prev.filter(item => item.id !== offlineData.id)].slice(0, 50);
+          try {
+            localStorage.setItem(`ethiolearn_ai_history_${user?.id || 'default'}`, JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+        setDailyRemaining(999);
+      } catch (offlineErr) {
+        console.error('Offline AI fallback error:', offlineErr);
+        setErrorMessage('Failed to generate offline curriculum lesson. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -483,6 +613,19 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
         )}
       </div>
 
+      {/* Offline Mode Active Banner */}
+      {isOffline && (
+        <div className="bg-amber-950/40 border border-amber-700/60 rounded-2xl px-4 py-3 flex items-center justify-between text-xs text-amber-200 shadow-sm">
+          <span className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-amber-400 shrink-0" />
+            <span><strong>100% Offline Mode Active:</strong> Running local secondary curriculum knowledge engine on your device. Instant explanations, KaTeX formulas, MoE textbook citations & review questions with zero mobile data.</span>
+          </span>
+          <span className="px-2.5 py-1 bg-amber-900/70 border border-amber-600/50 rounded-lg text-[10px] font-mono uppercase font-bold tracking-wider text-amber-300 shrink-0">
+            ⚡ Zero Data
+          </span>
+        </div>
+      )}
+
       {/* Mode Tabs */}
       <div className="flex items-center gap-1 p-1 bg-slate-900 border border-slate-700/60 rounded-2xl w-fit">
         <button
@@ -637,6 +780,13 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
                   {currentResult.cached && (
                     <span className="text-[10px] text-slate-400 bg-slate-900 px-2 py-0.5 rounded border border-slate-700">
                       Cached
+                    </span>
+                  )}
+
+                  {(currentResult as any).is_offline && (
+                    <span className="px-2.5 py-1 bg-amber-950/80 text-amber-300 border border-amber-700/80 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                      <Zap className="w-3.5 h-3.5 text-amber-400" />
+                      100% Offline Local Engine
                     </span>
                   )}
                 </div>
@@ -964,6 +1114,42 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
                       </div>
                     )}
                     <MathMarkdownRenderer content={msg.content} />
+                    {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-slate-700/80 space-y-2">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                          <BookOpen className="w-3.5 h-3.5" />
+                          <span>Verified Textbook Reference</span>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2">
+                          {msg.sources.slice(0, 2).map((s, sIdx) => (
+                            <div key={sIdx} className="p-3 bg-slate-950/60 border border-slate-700/80 rounded-xl space-y-2 text-left">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-bold text-white line-clamp-1">{s.book_title}</span>
+                                <span className="text-[10px] px-1.5 py-0.5 bg-emerald-950 text-emerald-400 rounded font-semibold whitespace-nowrap">
+                                  {Math.round(s.relevance_score * 100)}% Match
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-400">
+                                {s.chapter_title} • Printed Page: <strong className="text-emerald-400">{s.printed_page_number}</strong>
+                              </div>
+                              <p className="text-[11px] text-slate-300 italic line-clamp-2">
+                                "{s.passage_snippet}"
+                              </p>
+                              <button
+                                onClick={() => onNavigate('library-book-page', {
+                                  bookId: s.book_id,
+                                  pageNumber: s.printed_page_number
+                                })}
+                                className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm mt-1"
+                              >
+                                <BookOpen className="w-3.5 h-3.5" />
+                                <span>Open Page {s.printed_page_number}</span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {msg.role === 'assistant' && (
                       <AIQuestionsAndExamCard
                         aiGeneratedQuestions={msg.ai_generated_questions}

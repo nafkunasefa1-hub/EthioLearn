@@ -266,9 +266,9 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
         }
       });
 
-      // Strictly exclude Agriculture from Grade 12 Natural Science and accidental multer temp duplicates
+      // Strictly exclude Agriculture from Grade 12 Natural Science and accidental empty uploads
       finalBooks = finalBooks
-        .filter(b => b.id !== 'book-12-nat-agri' && !(b.grade_id === 'grade-12-natural' && b.subject_id === 'subj-agri') && !/^\d{13}-[a-z0-9]+$/i.test(b.id))
+        .filter(b => b.id !== 'book-12-nat-agri' && !(b.grade_id === 'grade-12-natural' && b.subject_id === 'subj-agri'))
         .map(b => {
         let pages = (typeof b.total_pages === 'number' && b.total_pages > 0) ? b.total_pages : 0;
         if (!pages) {
@@ -310,7 +310,7 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
       }
       let fallbackList = offlineBooks.length > 0 ? offlineBooks : STATIC_BOOKS_CATALOG;
       fallbackList = fallbackList
-        .filter(b => b.id !== 'book-12-nat-agri' && !(b.grade_id === 'grade-12-natural' && b.subject_id === 'subj-agri') && !/^\d{13}-[a-z0-9]+$/i.test(b.id))
+        .filter(b => b.id !== 'book-12-nat-agri' && !(b.grade_id === 'grade-12-natural' && b.subject_id === 'subj-agri'))
         .map(b => ({
           ...b,
           total_pages: getAuthoritativeTotalPages(b.id, b.total_pages),
@@ -578,8 +578,10 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
   const GRADE_SUBJECT_MAP: Record<string, string[]> = {
     'grade-9': ['subj-math', 'subj-phys', 'subj-chem', 'subj-bio', 'subj-eng', 'subj-geog', 'subj-hist', 'subj-amh', 'subj-civ', 'subj-it'],
     'grade-10': ['subj-math', 'subj-phys', 'subj-chem', 'subj-bio', 'subj-eng', 'subj-geog', 'subj-hist', 'subj-amh', 'subj-civ', 'subj-it'],
+    'grade-11': ['subj-math', 'subj-phys', 'subj-bio', 'subj-chem', 'subj-eng', 'subj-sat', 'subj-apt', 'subj-it', 'subj-econ', 'subj-hist', 'subj-geog', 'subj-agri'],
     'grade-11-natural': ['subj-math', 'subj-phys', 'subj-bio', 'subj-chem', 'subj-eng', 'subj-sat', 'subj-apt', 'subj-it'],
     'grade-11-social': ['subj-math', 'subj-eng', 'subj-sat', 'subj-apt', 'subj-econ', 'subj-hist', 'subj-geog', 'subj-agri', 'subj-it'],
+    'grade-12': ['subj-math', 'subj-phys', 'subj-bio', 'subj-chem', 'subj-eng', 'subj-sat', 'subj-apt', 'subj-it', 'subj-econ', 'subj-hist', 'subj-geog', 'subj-agri'],
     'grade-12-natural': ['subj-math', 'subj-phys', 'subj-bio', 'subj-chem', 'subj-eng', 'subj-sat', 'subj-apt', 'subj-it'],
     'grade-12-social': ['subj-math', 'subj-eng', 'subj-sat', 'subj-apt', 'subj-econ', 'subj-hist', 'subj-geog', 'subj-agri', 'subj-it']
   };
@@ -593,9 +595,6 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
 
   const filteredBooks = books.filter(b => {
     if (b.id === 'book-12-nat-agri' || (b.grade_id === 'grade-12-natural' && b.subject_id === 'subj-agri')) {
-      return false;
-    }
-    if (/^\d{13}-[a-z0-9]+$/i.test(b.id)) {
       return false;
     }
     if (selectedGrade !== 'all') {
@@ -613,7 +612,11 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
       }
     }
 
-    if (selectedSubject !== 'all' && b.subject_id !== selectedSubject) return false;
+    if (selectedSubject !== 'all') {
+      const isAptMatch = (selectedSubject === 'subj-sat' || selectedSubject === 'subj-apt') &&
+                         (b.subject_id === 'subj-sat' || b.subject_id === 'subj-apt');
+      if (!isAptMatch && b.subject_id !== selectedSubject) return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
@@ -817,7 +820,7 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
             user?.role === 'admin' ||
             (user?.unlocked_grades && user.unlocked_grades.length > 0)
           );
-          const canRead = isStudentPaid && hasGradeAccess(book.grade_id, book.subject_id, 'book');
+          const canRead = user?.role === 'admin' || book.access_level === 'free' || book.is_free_preview || (isStudentPaid && hasGradeAccess(book.grade_id, book.subject_id, 'book'));
           const isOffline = offlineIds.includes(book.id);
 
           return (

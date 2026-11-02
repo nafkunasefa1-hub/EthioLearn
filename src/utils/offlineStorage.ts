@@ -1,5 +1,6 @@
 import { Book, BookChapter, Exam, ExamAttempt, ExamQuestion, ChapterShortNote, Grade, Subject } from '../types';
 import { getEmbeddedBookPage } from '../data/embeddedPagesFallback';
+import { WORKSHEET_QUESTIONS } from '../../server/worksheetsCatalog';
 
 const DB_NAME = 'EthioLearnOfflineDB';
 const DB_VERSION = 3;
@@ -128,7 +129,38 @@ export async function getAllOfflineExamIds(): Promise<string[]> {
   }
 }
 
+export function getBundledExamQuestions(examId: string): ExamQuestion[] {
+  // 1. Direct match in worksheet questions catalog
+  const wsMatches = WORKSHEET_QUESTIONS.filter(q => q.exam_id === examId);
+  if (wsMatches.length > 0) return wsMatches;
+
+  // 2. Subject-aligned fallback from authentic question sets
+  if (examId.includes('phys')) {
+    return WORKSHEET_QUESTIONS.filter(q => q.subject_id === 'subj-phys').map((q, idx) => ({
+      ...q,
+      id: `${examId}-q-${idx + 1}`,
+      exam_id: examId,
+      question_number: idx + 1
+    }));
+  }
+  if (examId.includes('chem')) {
+    return WORKSHEET_QUESTIONS.filter(q => q.subject_id === 'subj-chem').map((q, idx) => ({
+      ...q,
+      id: `${examId}-q-${idx + 1}`,
+      exam_id: examId,
+      question_number: idx + 1
+    }));
+  }
+
+  return [];
+}
+
 export async function isExamSavedOffline(examId: string): Promise<boolean> {
+  // If exam has prebundled offline questions, it is always ready offline
+  if (examId.startsWith('ws-') || getBundledExamQuestions(examId).length > 0) {
+    return true;
+  }
+
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_EXAM_QUESTIONS, 'readonly');
@@ -172,16 +204,16 @@ export async function getOfflineExamQuestions(examId: string): Promise<ExamQuest
 
     return new Promise((resolve) => {
       req.onsuccess = () => {
-        if (req.result && Array.isArray(req.result.questions)) {
+        if (req.result && Array.isArray(req.result.questions) && req.result.questions.length > 0) {
           resolve(req.result.questions);
         } else {
-          resolve([]);
+          resolve(getBundledExamQuestions(examId));
         }
       };
-      req.onerror = () => resolve([]);
+      req.onerror = () => resolve(getBundledExamQuestions(examId));
     });
   } catch {
-    return [];
+    return getBundledExamQuestions(examId);
   }
 }
 

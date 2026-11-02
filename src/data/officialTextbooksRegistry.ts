@@ -362,7 +362,7 @@ export const OFFICIAL_TEXTBOOKS_REGISTRY: Record<string, OfficialTextbookMeta> =
     title: 'Grade 11 Scholastic Aptitude Test (Natural)',
     grade_id: 'grade-11-natural',
     subject_id: 'subj-sat',
-    total_pages: 200,
+    total_pages: 230,
     grade_name: 'Grade 11',
     subject_name: 'Aptitude'
   },
@@ -371,7 +371,7 @@ export const OFFICIAL_TEXTBOOKS_REGISTRY: Record<string, OfficialTextbookMeta> =
     title: 'Grade 11 Scholastic Aptitude Test (Social)',
     grade_id: 'grade-11-social',
     subject_id: 'subj-sat',
-    total_pages: 200,
+    total_pages: 230,
     grade_name: 'Grade 11',
     subject_name: 'Aptitude'
   },
@@ -536,7 +536,7 @@ export const OFFICIAL_TEXTBOOKS_REGISTRY: Record<string, OfficialTextbookMeta> =
     title: 'Grade 12 Scholastic Aptitude Test (Natural)',
     grade_id: 'grade-12-natural',
     subject_id: 'subj-sat',
-    total_pages: 200,
+    total_pages: 240,
     grade_name: 'Grade 12',
     subject_name: 'Aptitude'
   },
@@ -545,7 +545,7 @@ export const OFFICIAL_TEXTBOOKS_REGISTRY: Record<string, OfficialTextbookMeta> =
     title: 'Grade 12 Scholastic Aptitude Test (Social)',
     grade_id: 'grade-12-social',
     subject_id: 'subj-sat',
-    total_pages: 200,
+    total_pages: 240,
     grade_name: 'Grade 12',
     subject_name: 'Aptitude'
   },
