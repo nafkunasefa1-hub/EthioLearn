@@ -1,9 +1,14 @@
 import { installUniversalOfflineInterceptor } from './services/universalOfflineInterceptor';
-installUniversalOfflineInterceptor();
+try {
+  installUniversalOfflineInterceptor();
+} catch (e) {
+  console.warn('Interceptor activation note:', e);
+}
 
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './index.css';
 import 'katex/dist/katex.min.css';
 
@@ -16,8 +21,13 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 });
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const rootElement = document.getElementById('root');
+if (rootElement) {
+  createRoot(rootElement).render(
+    <StrictMode>
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
+    </StrictMode>,
+  );
+}

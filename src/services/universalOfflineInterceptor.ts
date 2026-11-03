@@ -24,14 +24,20 @@ import { Book, BookChapter, Exam, ExamQuestion } from '../types';
 // Store reference to native browser fetch
 const nativeFetch = window.fetch.bind(window);
 
-// In-memory caches for fast, zero-latency retrieval
+// In-memory caches for fast, zero-latency retrieval (pre-seeded with static catalogs)
 let cachedMetadata: {
   version?: string;
   exams?: Exam[];
   subjects?: any[];
   books?: Book[];
   book_chapters?: BookChapter[];
-} | null = null;
+} | null = {
+  version: '2026.11.03-standalone',
+  exams: STATIC_EXAMS_CATALOG,
+  subjects: STATIC_SUBJECTS_CATALOG,
+  books: STATIC_BOOKS_CATALOG,
+  book_chapters: []
+};
 
 let cachedQuestionsByExam: Record<string, ExamQuestion[]> | null = null;
 let cachedPages: any[] | null = null;
@@ -48,7 +54,7 @@ let flashcardsPromise: Promise<any> | null = null;
 /** Helper: Load JSON asset safely from /data/... */
 async function loadAssetJson(filePath: string): Promise<any> {
   try {
-    const res = await nativeFetch(filePath, { cache: 'force-cache' });
+    const res = await nativeFetch(filePath);
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
@@ -59,26 +65,21 @@ async function loadAssetJson(filePath: string): Promise<any> {
 
 /** Preload/fetch metadata bundle */
 async function ensureMetadata(): Promise<typeof cachedMetadata> {
-  if (cachedMetadata) return cachedMetadata;
+  if (cachedMetadata && cachedMetadata.book_chapters && cachedMetadata.book_chapters.length > 0) {
+    return cachedMetadata;
+  }
   if (!metadataPromise) {
     metadataPromise = (async () => {
-      const data = await loadAssetJson('/data/offline_metadata.json');
-      if (data && data.books && data.exams) {
-        cachedMetadata = data;
-      } else {
-        // Fallback to static catalogs
-        cachedMetadata = {
-          version: '2026.11.03-fallback',
-          exams: STATIC_EXAMS_CATALOG,
-          subjects: STATIC_SUBJECTS_CATALOG,
-          books: STATIC_BOOKS_CATALOG,
-          book_chapters: []
-        };
-      }
+      try {
+        const data = await loadAssetJson('/data/offline_metadata.json');
+        if (data && data.books && data.exams) {
+          cachedMetadata = data;
+        }
+      } catch (_) {}
       return cachedMetadata;
     })();
   }
-  return metadataPromise;
+  return cachedMetadata;
 }
 
 /** Preload/fetch questions bundle */
@@ -269,7 +270,7 @@ export function installUniversalOfflineInterceptor(): void {
   ensureMetadata();
 
   window.fetch = async function (input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    const urlString = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    const urlString = typeof input === 'string' ? input : input instanceof URL ? input.toString() : (input ? (input as any).url || '' : '');
 
     // Check if this is an /api/... route
     let parsedUrl: URL;
