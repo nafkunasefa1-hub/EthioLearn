@@ -10,6 +10,7 @@
 import { STATIC_EXAMS_CATALOG } from '../data/staticExamsCatalog';
 import { STATIC_SUBJECTS_CATALOG } from '../data/staticSubjectsCatalog';
 import { STATIC_BOOKS_CATALOG } from '../data/staticBooksCatalog';
+import { STATIC_GRADES_CATALOG } from '../data/staticGradesCatalog';
 import { getOfflineExamQuestions, loadOfflineQuestionsBundle } from './offlineStorage';
 
 export async function apiFetch(
@@ -93,6 +94,12 @@ export async function apiFetchJson<T = any>(
     if (urlStr.startsWith('/api/subjects')) {
       console.log('[Offline API Interceptor] Serving full offline subjects catalog');
       return STATIC_SUBJECTS_CATALOG as unknown as T;
+    }
+
+    // 3b. Grades Catalog: /api/grades
+    if (urlStr.startsWith('/api/grades')) {
+      console.log('[Offline API Interceptor] Serving full offline grades catalog');
+      return STATIC_GRADES_CATALOG as unknown as T;
     }
 
     // 4. Books Catalog: /api/books

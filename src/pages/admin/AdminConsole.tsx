@@ -185,21 +185,54 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
 
       const [metricsRes, rcptRes, booksRes, examsRes, aiRes, payRes, logsRes, grRes, subRes, transRes, advRes, studRes] = results;
 
-      if (metricsRes.status === 'fulfilled' && metricsRes.value.ok) setMetrics(await metricsRes.value.json());
-      if (rcptRes.status === 'fulfilled' && rcptRes.value.ok) setReceipts(await rcptRes.value.json());
-      if (booksRes.status === 'fulfilled' && booksRes.value.ok) setBooks(await booksRes.value.json());
+      if (metricsRes.status === 'fulfilled' && metricsRes.value.ok) {
+        const d = await metricsRes.value.json().catch(() => null);
+        if (d && typeof d === 'object') setMetrics(d);
+      }
+      if (rcptRes.status === 'fulfilled' && rcptRes.value.ok) {
+        const d = await rcptRes.value.json().catch(() => []);
+        if (Array.isArray(d)) setReceipts(d);
+      }
+      if (booksRes.status === 'fulfilled' && booksRes.value.ok) {
+        const d = await booksRes.value.json().catch(() => []);
+        if (Array.isArray(d)) setBooks(d);
+      }
       if (examsRes.status === 'fulfilled' && examsRes.value.ok) {
-        const loadedExams = await examsRes.value.json();
+        const loadedExams = await examsRes.value.json().catch(() => []);
         if (Array.isArray(loadedExams)) setExams(loadedExams);
       }
-      if (aiRes.status === 'fulfilled' && aiRes.value.ok) setAiProviders(await aiRes.value.json());
-      if (payRes.status === 'fulfilled' && payRes.value.ok) setPaymentSettings(await payRes.value.json());
-      if (logsRes.status === 'fulfilled' && logsRes.value.ok) setAuditLogs(await logsRes.value.json());
-      if (grRes.status === 'fulfilled' && grRes.value.ok) setGrades(await grRes.value.json());
-      if (subRes.status === 'fulfilled' && subRes.value.ok) setSubjects(await subRes.value.json());
-      if (transRes.status === 'fulfilled' && transRes.value.ok) setDeviceTransfers(await transRes.value.json());
-      if (advRes.status === 'fulfilled' && advRes.value.ok) setAdvisorData(await advRes.value.json());
-      if (studRes.status === 'fulfilled' && studRes.value.ok) setStudents(await studRes.value.json());
+      if (aiRes.status === 'fulfilled' && aiRes.value.ok) {
+        const d = await aiRes.value.json().catch(() => []);
+        if (Array.isArray(d)) setAiProviders(d);
+      }
+      if (payRes.status === 'fulfilled' && payRes.value.ok) {
+        const d = await payRes.value.json().catch(() => null);
+        if (d && typeof d === 'object') setPaymentSettings(d);
+      }
+      if (logsRes.status === 'fulfilled' && logsRes.value.ok) {
+        const d = await logsRes.value.json().catch(() => []);
+        if (Array.isArray(d)) setAuditLogs(d);
+      }
+      if (grRes.status === 'fulfilled' && grRes.value.ok) {
+        const d = await grRes.value.json().catch(() => []);
+        if (Array.isArray(d)) setGrades(d);
+      }
+      if (subRes.status === 'fulfilled' && subRes.value.ok) {
+        const d = await subRes.value.json().catch(() => []);
+        if (Array.isArray(d)) setSubjects(d);
+      }
+      if (transRes.status === 'fulfilled' && transRes.value.ok) {
+        const d = await transRes.value.json().catch(() => []);
+        if (Array.isArray(d)) setDeviceTransfers(d);
+      }
+      if (advRes.status === 'fulfilled' && advRes.value.ok) {
+        const d = await advRes.value.json().catch(() => null);
+        if (d && typeof d === 'object') setAdvisorData(d);
+      }
+      if (studRes.status === 'fulfilled' && studRes.value.ok) {
+        const d = await studRes.value.json().catch(() => []);
+        if (Array.isArray(d)) setStudents(d);
+      }
 
       // Pre-select page for OCR inspection
       try {
@@ -942,18 +975,18 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
 
   const tabs = [
     { id: 'copilot', label: '🤖 AI Developer Chat (Make App Changes)', icon: Brain },
-    { id: 'payments', label: 'Payment Verifications', icon: CreditCard, count: receipts.filter(r => r.status === 'pending').length },
-    { id: 'students', label: 'Registered Students', icon: User, count: students.length },
-    { id: 'transfers', label: 'Device Transfers', icon: Smartphone, count: deviceTransfers.filter(t => t.status === 'pending').length },
+    { id: 'payments', label: 'Payment Verifications', icon: CreditCard, count: (Array.isArray(receipts) ? receipts : []).filter(r => r.status === 'pending').length },
+    { id: 'students', label: 'Registered Students', icon: User, count: (Array.isArray(students) ? students : []).length },
+    { id: 'transfers', label: 'Device Transfers', icon: Smartphone, count: (Array.isArray(deviceTransfers) ? deviceTransfers : []).filter(t => t.status === 'pending').length },
     { id: 'advisor', label: 'AI Health & Scale Advisor', icon: Sparkles },
     { id: 'plan-settings', label: 'Study Plan & Goals', icon: Target },
-    { id: 'books', label: 'Textbook Ingestion & Notes', icon: BookOpen, count: books.length },
+    { id: 'books', label: 'Textbook Ingestion & Notes', icon: BookOpen, count: (Array.isArray(books) ? books : []).length },
     { id: 'ocr', label: 'Page OCR & Verification', icon: FileCheck },
-    { id: 'exams', label: 'Entrance Exams & Bank', icon: Award, count: exams.length },
-    { id: 'feedback', label: 'Question Feedbacks', icon: MessageSquarePlus, count: questionFeedbacks.filter(f => f.status === 'pending').length },
+    { id: 'exams', label: 'Entrance Exams & Bank', icon: Award, count: (Array.isArray(exams) ? exams : []).length },
+    { id: 'feedback', label: 'Question Feedbacks', icon: MessageSquarePlus, count: (Array.isArray(questionFeedbacks) ? questionFeedbacks : []).filter(f => f.status === 'pending').length },
     { id: 'ai', label: 'AI Router & Providers', icon: Cpu },
     { id: 'settings', label: 'Payment Settings', icon: Settings },
-    { id: 'audit', label: 'Audit Logs', icon: History, count: auditLogs.length },
+    { id: 'audit', label: 'Audit Logs', icon: History, count: (Array.isArray(auditLogs) ? auditLogs : []).length },
   ];
 
   if (!user || user.role !== 'admin') {
@@ -1023,7 +1056,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
               <div className="text-[10px] text-slate-400 uppercase">Premium</div>
             </div>
             <div className="text-center px-3">
-              <div className="text-base font-bold text-amber-400">{receipts.filter(r => r.status === 'pending').length}</div>
+              <div className="text-base font-bold text-amber-400">{(Array.isArray(receipts) ? receipts : []).filter(r => r.status === 'pending').length}</div>
               <div className="text-[10px] text-slate-400 uppercase">Pending Pay</div>
             </div>
           </div>

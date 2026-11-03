@@ -30,6 +30,8 @@ import { uploadLargeBookPdf } from '../utils/uploader';
 import { apiFetchJson } from '../utils/api';
 import { getAuthoritativeTotalPages } from '../data/officialTextbooksRegistry';
 import { STATIC_BOOKS_CATALOG } from '../data/staticBooksCatalog';
+import { STATIC_GRADES_CATALOG } from '../data/staticGradesCatalog';
+import { STATIC_SUBJECTS_CATALOG } from '../data/staticSubjectsCatalog';
 
 interface LibraryProps {
   onNavigate: (route: string, params?: Record<string, any>) => void;
@@ -37,9 +39,9 @@ interface LibraryProps {
 
 export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
   const { user, hasGradeAccess } = useAuth();
-  const [books, setBooks] = useState<Book[]>([]);
-  const [grades, setGrades] = useState<Grade[]>([]);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [books, setBooks] = useState<Book[]>(STATIC_BOOKS_CATALOG);
+  const [grades, setGrades] = useState<Grade[]>(STATIC_GRADES_CATALOG);
+  const [subjects, setSubjects] = useState<Subject[]>(STATIC_SUBJECTS_CATALOG);
   const [selectedGrade, setSelectedGrade] = useState<string>(user?.grade_id || 'all');
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -294,8 +296,8 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
         localStorage.setItem('ethiolearn_cached_books_catalog', JSON.stringify(finalBooks));
       } catch (e) {}
       setBooks(finalBooks);
-      if (Array.isArray(gradesData) && gradesData.length > 0) setGrades(gradesData);
-      if (Array.isArray(subjectsData) && subjectsData.length > 0) setSubjects(subjectsData);
+      setGrades(Array.isArray(gradesData) && gradesData.length > 0 ? gradesData : STATIC_GRADES_CATALOG);
+      setSubjects(Array.isArray(subjectsData) && subjectsData.length > 0 ? subjectsData : STATIC_SUBJECTS_CATALOG);
       
       const savedOffline = await getAllOfflineBookIds().catch(() => []);
       setOfflineIds(savedOffline);
@@ -317,6 +319,8 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
           processed_pages: getAuthoritativeTotalPages(b.id, b.processed_pages || b.total_pages)
         }));
       setBooks(fallbackList);
+      setGrades(STATIC_GRADES_CATALOG);
+      setSubjects(STATIC_SUBJECTS_CATALOG);
       const savedOffline = await getAllOfflineBookIds().catch(() => []);
       setOfflineIds(savedOffline);
     } finally {
@@ -586,14 +590,18 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
     'grade-12-social': ['subj-math', 'subj-eng', 'subj-sat', 'subj-apt', 'subj-econ', 'subj-hist', 'subj-geog', 'subj-agri', 'subj-it']
   };
 
-  const filteredSubjects = subjects.filter(s => {
+  const safeSubjects = Array.isArray(subjects) ? subjects : STATIC_SUBJECTS_CATALOG;
+  const safeGrades = Array.isArray(grades) ? grades : STATIC_GRADES_CATALOG;
+  const safeBooks = Array.isArray(books) ? books : STATIC_BOOKS_CATALOG;
+
+  const filteredSubjects = safeSubjects.filter(s => {
     if (GRADE_SUBJECT_MAP[selectedGrade]) {
       return GRADE_SUBJECT_MAP[selectedGrade].includes(s.id);
     }
     return true;
   });
 
-  const filteredBooks = books.filter(b => {
+  const filteredBooks = safeBooks.filter(b => {
     if (b.id === 'book-12-nat-agri' || (b.grade_id === 'grade-12-natural' && b.subject_id === 'subj-agri')) {
       return false;
     }
@@ -1116,7 +1124,7 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
                     onChange={e => setUploadGrade(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                   >
-                    {grades.filter(g => g.id !== 'grade-11' && g.id !== 'grade-12').map(g => (
+                    {safeGrades.filter(g => g.id !== 'grade-11' && g.id !== 'grade-12').map(g => (
                       <option key={g.id} value={g.id}>{g.name}</option>
                     ))}
                   </select>
@@ -1128,7 +1136,7 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
                     onChange={e => setUploadSubject(e.target.value)}
                     className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500"
                   >
-                    {subjects.filter(s => s.id !== 'subj-apt').map(s => (
+                    {safeSubjects.filter(s => s.id !== 'subj-apt').map(s => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>

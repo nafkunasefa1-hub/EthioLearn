@@ -539,7 +539,7 @@ export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
 
         {/* Question Text */}
         <div className="text-base sm:text-lg text-white font-medium leading-relaxed">
-          <FormattedQuestionText text={currentQ.question_text} />
+          <FormattedQuestionText text={currentQ.question_text || currentQ.text || ''} />
         </div>
 
         {/* Official Question Diagram or Vector Graphic if present */}
@@ -555,10 +555,10 @@ export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
         {/* Options with IMMEDIATE Green/Red Evaluation */}
         <div className="space-y-3 pt-2">
           {[
-            { opt: 'A' as const, text: currentQ.option_a },
-            { opt: 'B' as const, text: currentQ.option_b },
-            { opt: 'C' as const, text: currentQ.option_c },
-            { opt: 'D' as const, text: currentQ.option_d },
+            { opt: 'A' as const, text: currentQ.option_a || (Array.isArray(currentQ.options) ? currentQ.options[0] : '') || '' },
+            { opt: 'B' as const, text: currentQ.option_b || (Array.isArray(currentQ.options) ? currentQ.options[1] : '') || '' },
+            { opt: 'C' as const, text: currentQ.option_c || (Array.isArray(currentQ.options) ? currentQ.options[2] : '') || '' },
+            { opt: 'D' as const, text: currentQ.option_d || (Array.isArray(currentQ.options) ? currentQ.options[3] : '') || '' },
           ].map(choice => {
             const hasAnswered = !!currentFeedback;
             const isStudentChoice = currentFeedback?.selected_answer === choice.opt;

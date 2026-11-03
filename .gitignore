@@ -32,3 +32,6 @@ storage/private/books/book-11-soc-math.pdf
 storage/private/books/book-12-nat-bio.pdf
 storage/private/books/book-12-nat-math.pdf
 storage/private/books/book-12-soc-math.pdf
+
+# Mobile APK binaries
+*.apk
