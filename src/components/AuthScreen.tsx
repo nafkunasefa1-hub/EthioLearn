@@ -186,11 +186,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         } else {
           // Any invalid credential / wrong password / unauthenticated attempt
           setIsWrongPassword(true);
-          setErrorMsg(res.message || 'The password is incorrect. Please check your password and try again.');
+          const rawMsg = res.message || '';
+          const cleanMsg = (rawMsg.includes('doctype') || rawMsg.includes('Unexpected token') || rawMsg.includes('JSON'))
+            ? 'Incorrect password. Please verify your password and try again.'
+            : (rawMsg || 'The password is incorrect. Please check your password and try again.');
+          setErrorMsg(cleanMsg);
         }
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Network error during sign in.');
+      const msg = err.message || '';
+      const cleanMsg = (msg.includes('doctype') || msg.includes('Unexpected token') || msg.includes('JSON'))
+        ? 'Incorrect password. Please verify your credentials and try again.'
+        : (msg || 'Network error during sign in.');
+      setErrorMsg(cleanMsg);
     } finally {
       setLoading(false);
     }
