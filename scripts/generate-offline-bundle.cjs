@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-console.log('📦 Generating comprehensive offline bundle for Mobile APK...');
+console.log('⚡ Generating comprehensive offline bundles for EthioLearn Mobile APK...');
 
 const dbPath = path.resolve(__dirname, '../data/database.json');
 if (!fs.existsSync(dbPath)) {
@@ -10,6 +10,10 @@ if (!fs.existsSync(dbPath)) {
 }
 
 const db = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+const outDir = path.resolve(__dirname, '../public/data');
+if (!fs.existsSync(outDir)) {
+  fs.mkdirSync(outDir, { recursive: true });
+}
 
 // 1. Group questions by exam_id
 const questionsByExam = {};
@@ -32,8 +36,8 @@ const questionsByExam = {};
     instruction_category: q.instruction_category || null
   });
 });
-
-console.log(`✓ Grouped ${db.exam_questions ? db.exam_questions.length : 0} questions across ${Object.keys(questionsByExam).length} exams.`);
+fs.writeFileSync(path.join(outDir, 'offline_questions.json'), JSON.stringify(questionsByExam));
+console.log(`✅ Written public/data/offline_questions.json with ${Object.keys(questionsByExam).length} exams.`);
 
 // 2. Prepare metadata
 const metadata = {
@@ -43,17 +47,19 @@ const metadata = {
   books: db.books || [],
   book_chapters: db.book_chapters || []
 };
-
-// 3. Write to public/data directory
-const outDir = path.resolve(__dirname, '../public/data');
-if (!fs.existsSync(outDir)) {
-  fs.mkdirSync(outDir, { recursive: true });
-}
-
-fs.writeFileSync(path.join(outDir, 'offline_questions.json'), JSON.stringify(questionsByExam));
-console.log('✓ Written public/data/offline_questions.json');
-
 fs.writeFileSync(path.join(outDir, 'offline_metadata.json'), JSON.stringify(metadata));
-console.log('✓ Written public/data/offline_metadata.json');
+console.log(`✅ Written public/data/offline_metadata.json with ${metadata.exams.length} exams and ${metadata.books.length} books.`);
 
-console.log('✨ Offline bundle generation complete!');
+// 3. Pages
+fs.writeFileSync(path.join(outDir, 'offline_pages.json'), JSON.stringify(db.book_pages || []));
+console.log(`✅ Written public/data/offline_pages.json with ${(db.book_pages || []).length} pages.`);
+
+// 4. Short notes
+fs.writeFileSync(path.join(outDir, 'offline_short_notes.json'), JSON.stringify(db.chapter_short_notes || {}));
+console.log(`✅ Written public/data/offline_short_notes.json with ${Object.keys(db.chapter_short_notes || {}).length} notes.`);
+
+// 5. Flashcards
+fs.writeFileSync(path.join(outDir, 'offline_flashcards.json'), JSON.stringify(db.flashcards || []));
+console.log(`✅ Written public/data/offline_flashcards.json with ${(db.flashcards || []).length} flashcards.`);
+
+console.log('🎉 Comprehensive offline bundle generation complete!');

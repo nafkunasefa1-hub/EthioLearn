@@ -1,3 +1,6 @@
+import { installUniversalOfflineInterceptor } from './services/universalOfflineInterceptor';
+installUniversalOfflineInterceptor();
+
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
