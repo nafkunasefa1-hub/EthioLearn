@@ -6,11 +6,18 @@ echo       EthioLearn AI - Android APK Compilation Pipeline
 echo ========================================================
 echo.
 
-REM 1. Generate icons
-echo [1/4] Ensuring EL Logo launcher icons are up-to-date...
+REM 1. Generate icons & Offline Question Bundle
+echo [1/4] Ensuring EL Logo launcher icons and offline bundles are up-to-date...
 call node scripts\generate-el-icons.cjs
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to generate EL logo icons.
+    pause
+    exit /b %errorlevel%
+)
+
+call node scripts\generate-offline-bundle.cjs
+if %errorlevel% neq 0 (
+    echo [ERROR] Failed to generate offline data bundle.
     pause
     exit /b %errorlevel%
 )

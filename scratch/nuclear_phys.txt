@@ -1,0 +1,115 @@
+IFA BORU
+SPECIAL BOARDING SECONDARY SCHOOL
+Nuclear Physics
+Worksheet
+Prepared For Summer Program
+BY:
+Wondimu Getachew
+(Summer, 2016 E.C)
+Asella, Ethiopia
+Follow Us On:
+You Tube: http://www.youtube.com/@WondexAcademy
+Telegram: https://t.me/WondexAcademy
+
+-- 1 of 3 --
+
+1. The half-life of radium-224 is 3.5 days. What fraction of the sample remains undecided after
+fourteen days? (if needed use: ln 2 = − ln(1/2) = 0.693)
+A) 1
+2 B) 1
+4 C) 1
+8 D) 1
+16
+2. When the radioactive element 144
+60 Nd decays to 140
+58 Ce, which one of the following particles is
+emitted?
+A) A beta particle C) a proton
+B) An alpha particle D) a gamma ray
+3. The activity of a radioactive source falls to one sixteenth its original value in 32 minutes. What
+is the half-life, in minutes, of this decay process?
+A) 2 min B) 8 min C) 4 min D) 16min
+4. Which statement is NOT correct about the emission from radioactive isotope?
+A) Alpha particles are negatively charged and more penetrating than beta and gamma.
+B) Beta particles are negatively charged and more penetrating than alpha particles.
+C) Alpha emissions are least influenced by magnetic field.
+D) The most penetrating emissions are gamma particles.
+5. A common unit of energy in atomic physics is:
+A) Plank’s constant C) de Broglie wavelength
+B) Electron volt D) uncertainty principle
+6. The activity of radioactive substances reduces from 2000Bq to 1000Bq in 106 seconds. What
+is the decay constant?
+A) 6.93 × 105decay/s C) 2.00 × 106decay/s
+B) 6.93 × 10−7decay/s D) 5.00 × 10−7decay/s
+7. Which of the following phenomena clearly demonstrates the particle nature of light?
+A) Refraction of light by prism C) Diffraction of light by slit
+B) The photoelectric effect D) Dispersion of white light
+8. Which of the following has an electron volt unit?
+A) Charge C. Potential difference
+B) Energy D. Electromagnetic intensity
+9. In Rutherford experiment, a beam of positively charged alpha particles was projected in to
+a thin piece of a gold foil. One of the observation of this experiment is that some charged
+particles deflected through a large angel (100 to 900) are those concentrated in one place. What
+conclusion can be drawn from this observation?
+A) Most of the mass and all positive charge is in tiny central nucleus
+B) Most of the atom is empty space
+C) All the atom is positive charge
+1
+
+-- 2 of 3 --
+
+D) All the atom is negative charge
+10. Calculate the ratio of volume of uranium-238 isotope to the volume of its Nucleus.
+A) 238 B) 1
+1770 C) 1770 D) 1
+238
+11. Which, among the following are isotopes?
+A) a
+bX; b
+cY B) a
+bX; a
+b+1Y C) a
+bX; a+1
+b Y D) a
+bXa−1
+b−1 Y
+12. Find the binding energy per nucleon in carbon-14 nucleus (14
+6 C = 14u, mp = 1.00728u, mn =
+1.00867u).
+A) 7.84MeV B) 7.52MeV C) 8.82MeV D) 7.60MeV
+13. What the nuclear reaction, a
+bX →a
+b−1 Y +0
++1 Z, represents?
+A) Electron emission C) Positron emission
+B) Neutron emission D) proton emissio
+14. Injected radioactive sources can be used as tracers to make soft tissues, such as blood vessels
+or the kidneys, show up through medical imaging processes. Which radiation type should the
+radioactive source used emit?
+A) Alpha Particles B) Beta Particles C) Electrons D) Gamma Particles
+15. Which of the following principle is not advised to minimize the radiation exposure?
+A) Keeping distance from the radiation source
+B) Bravely working with radiation without hesitation.
+C) Not to stay in radiation area for long time
+D) Using the radiation shielding
+16. In the fusion reaction below determine the energy released. (m(1
+1H) = 1.00825u, m(4
+2He) =
+4.0026u)
+41
+1H →4
+2 He + 20
++1β + Energy
+A) 3726.82MeV B) 3755.10MeV C) 26.72MeV D) 7481.90MeV
+17. In the radioactive decay of radon-222, both alpha and gamma radiation are emitted, with the
+latter having energy of 8.2 × 1014 J per nucleus decayed. How much energy does 2mol of Rn
+release in the form of gamma radiation?
+222
+86 Rn →218
+84 Po +4
+2 α +0
+0 γ
+A) 3.64 × 1017J B) 1.82 × 1017J C) 4.93 × 1038J D) 9.87 × 1038J
+2
+
+-- 3 of 3 --

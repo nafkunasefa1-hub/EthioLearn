@@ -1,0 +1,365 @@
+IFA BORU
+SPECIAL BOARDING SECONDARY SCHOOL
+Static and Current Electricity
+Worksheet
+Prepared For Summer Program
+BY:
+Wondimu Getachew
+(Summer, 2016 E.C)
+Asella, Ethiopia
+Follow Us On:
+You Tube: http://www.youtube.com/@WondexAcademy
+Telegram: https://t.me/WondexAcademy
+
+-- 1 of 13 --
+
+Electric Charge, Force, Field, and Flux
+1. An electron enters a region of uniform electric field of 5x103 N/C. what is the force on the
+electron?
+A) 8x10−22 N B) 5.3x10−22 N C) 8x10−16 N D) 1.88x1022 N
+2. The distance between two point charges is doubled. What will happen to the force of interaction
+between the charges?
+A) The force will be doubled.
+B) The force will be reduced by half.
+C) The force will be reduced by a factor of 1
+4 .
+D) The force will not be affected.
+3. In the sketch below, which best describe the location of the negative charges (electrons) when
+negatively charged rod id brought near but not touching the conducting sphere?
+4. A charge of q1 = −10.0x10−9C, q2 = +10.0x10−9C and q3 = −2.5x10−8C are placed on x-y
+plane as shown in the figure below. What is the electric force on q3 by q1 and q2?
+A) 1.08x10−7 N in +ve y direction
+B) 9.00x10−7 N in -ve y direction
+C) 1.42x10−7 N in +ve x direction
+D) 1.42x10−7 N in -ve x direction
+5. Suppose that three point charges are placed along a straight line and electrostatic force exerted
+on the middle charge is zero. What can we conclude about the charges?
+A) The signs of the three charges should be the same
+B) The charges at the ends must have the same sign
+C) The middle charge should be placed at the center between the two charges
+D) The charge at the middle and at the left end should have the same sign
+6. Two positive charges of magnitude q are each a distance d from the origin A of a coordinate
+system as shown below. The magnitude of the electric field is minimum at point:
+1
+
+-- 2 of 13 --
+
+A) A B) B C) C D) D
+7. Which one of the following statement is correct?
+A) The electric field strength due to two point charges of equal magnitude and the same sign
+is zero only at one point on the line joining the two charges.
+A) If a point charge of mass m is released from the rest in uniform electric field, it will move
+along a line of force with uniform speed.
+C) The variation of the strength of the electric field due to an electric dipole is inversely
+proportional with the square of the distance from its center of mass.
+D) An electric dipole moment p in a uniform external electric field E is in stable equilibrium
+if p and E are in opposite directions.
+8. A positively charged glass rod and a negatively charged rubber rod are placed far from each
+other. What happens to the dry pieces of paper brought nearby the rods before touching them?
+A) repelled by glass and attracted by rubber
+B) attracted by glass and repelled by rubber
+C) attracted by both glass and rubber
+D) repelled by both glass and rubber
+9. Two particles, with charges q1 and q2, are on the x-axis, with q1 at x = a and q2 at x = −2a.
+For net force on a third charged particle, at x=0, to be zero, q1 and q2 must be related by:
+A) q2 = 2q1 B) q2 = −4q1 C) q2 = −2q1 D) q2 = 4q1
+10. A point charge Q1 is at x = 0 and Q2 is at x = 8cm. What is the relationship between these
+charges if the resultant electric field strength is zero at x = 16cm?
+A) Q1 = 2Q2 B) Q1 = −0.25Q2 C) Q2 = 0.25Q1 D) Q1 = −4Q2
+11. The cone shaped solid conductor shown below is negatively charged. Which of the following
+statement is correct?
+A) the charge density is greater at the tip of the conductor.
+2
+
+-- 3 of 13 --
+
+B) the charge is uniformly distributed on its surface.
+C) the electric field is very weak at the tip of the conductor.
+D) there is an electric field inside the conductor.
+12. Three point charge lie in a straight line as shown in the figure below. What is the net force
+acting on the −2μC charge? (Use K = 9x109Nm2/C2)
+A) 100N, to the left B) 15N, to the right
+C) 115N, to the right D) 85N, to the left
+13. Which of the following is Not true about the effect of electrostatic charges? They
+A) can be applied in the photo copying process
+B) can be applied for spray painting.
+C) can result in an electric current between object which is always useful and harmless.
+D) can be applied to filter the chimney by trapping soot particles so that they will not pollute
+the air
+14. Charges q1 and q2 are located at positions (3m,0) on the x-axis and (0,3m) on the y-axis re-
+spectively as shown in the following figure. What should be the x and y components of the net
+electric force on a 1æc charge placed at the origin? (k = 1/(4πε0) = 9 × 109Nm2C−2)
+A) Fx = 4 × 10−3N and Fy = 3 × 10−3N
+B) Fx = 3 × 10−3N and Fy = 4 × 10−3N
+C) Fx = −4 × 10−3N and Fy = −3 × 10−3N
+D) Fx = −3 × 10−3N and Fy = −4 × 10−3N
+Electric Potential and Potential Energy
+15. Points A and B are each a distance d from each of two equal and opposite charge as shown
+below. What will be the work required to move a negative charge q from A to B?
+3
+
+-- 4 of 13 --
+
+A) Zero B) qQ
+4πε0d2 C) qQ
+4πε0d D) qQ
+4πε0(4d2)
+16. Moving 2.5x10−6 coulomb of charge from point A to point B in an electric field requires
+6.3x10−4 joule of work. The potential difference between points A and B is approximately:
+A) 4.0x103 V B) 2.5x10−2 V C) 1.6x10−19 V D) 1.0x10−14 V
+17. What is the potential (V) at a distance of 10m from a charge of +5.0C?
+A) −4.45x109 V B) −0.5 V C) +4.45x109V D) +0.5V
+18. Positive charge of 1.0x10−4 C is on the negatively charged plate of a parallel plate capacitor as
+shown below. If the potential difference on the top plate is +10,000V and that of the bottom
+plate is -10,000V, how much work (W) is required to move the charge from the bottom to the
+top plate?
+A) 2.0J B) 1.0J C) zero D) 2.0x104J
+19. Two positive charges of magnitude 2.4x10−9C and 1.6x10−9C are separated in air by a distance
+of 2.0cm. How much electrostatic potential is produced by the two charges at midway between
+them?
+A) 3.6kV B) 0.72kV C) 2.16kV D) 1.44kV
+20. In the figure below Q is a negative source charge and q is a positive test charge. If q is replaced
+by a charge of the same magnitude but negative, the potential at this position due to Q
+A) remains the same B) increases C) decreases D) changes its sign
+21. Which one of the following is true about absolute potential and potential difference?
+A) Both quantities have arbitrary value that can be set equal to zero convenience.
+B) potential difference is a location dependent quantity.
+4
+
+-- 5 of 13 --
+
+C) absolute potential is energy while potential difference is the work done per unit time.
+D) both quantities are measured in the same unit even if they are different.
+22. What is an electric potential energy? It is the energy a charge possesses because, it is in the
+A) region of other masses
+B) region of zero electric field
+C) vacuum
+D) region of other charges
+23. Which of the following is true about an absolute electric potential? It is
+A) an electric potential at a position in an electric field relative to that at infinity from the field
+source.
+B) An electric potential at a position in an electric field relative to that at another positon in
+the field.
+C) The work done to move a unit charge from an infinity to a position in an electric field.
+D) The work done per unit charge to move it from one point to another in an electric field.
+Capacitor, Capacitance, and Dielectrics
+24. An air-filled parallel-plate capacitor has a capacitance of 1pF. The plate separation is then dou-
+bled and a wax dielectric is inserted, completely filling the space between the plates. As a
+result, the capacitance becomes 2pF. What is the dielectric constant of the wax?
+A) 8.0 B) 4.0 C) 2.0 D) 0.5
+25. What is the capacitance of a capacitor that should be connected with 2 other capacitors having
+capacitance of 4μF and 8μF all in series to produce an effective capacitance of 24
+11 μF?
+A) 12 μF B) 10 μF C) 8 μF D) 4 μF
+26. Which one of the following changes to parallel plate capacitor would not increase energy stored
+in the capacitor at a fixed voltage across the plates?
+A) increasing the area of the plates
+B) increasing the dielectric constant
+C) decreasing the charges on the plates
+D) increasing the distance between the plates
+27. A parallel plate capacitor has a capacitance of 10μF. If the distance between the plates is dou-
+bled, keeping all other quantities constant, what is the new capacitance of the capacitor?
+A) 0.2 μF B) 5 μF C) 10 μF D) 20 μF
+28. A capacitor of 12 μF capacitance can fully charged after it is connected between a potential
+difference of 9 V. how much external energy is used in charging the capacitor?
+A) 1.0x10−3 J B. 54x10−4 J C. 9.72x10−4 J D. 4.86x10−4 J
+5
+
+-- 6 of 13 --
+
+29. A 2μF and a 1μF capacitors are connected in parallel and a potential difference is applied
+across the combination. The 2μF capacitor has
+A) half the charge of the 1μF capacitor
+B) twice the potential difference of the 1μF capacitor
+C) half the stored energy of the 1μF capacitor
+D) twice the stored energy of the 1μF capacitor.
+30. A 9V battery is connected to a 2μF capacitor. How much electric energy can be stored in the
+capacitor?
+A) 8.1x10−5J B) 8.1x10−6J
+C) 1.62x10−4J D) 1.62x10−5J
+31. If 9V battery is connected to the plates of a 3μF capacitor, what will be the charge stored in the
+capacitor
+A) 54 μF B) 1/3 μF C) 3 μF D) 27 μF
+32. The following circuit diagram shows a combination of different capacitors and a voltage sources.
+What is the equivalent capacitance of the circuit?
+A) 16.00μF B) 27.00μF C) 5.00μF D)5.76μF
+Electric Current, Resistance, and Ohm’s Law
+33. Suppose that a voltage source produces 240V for a moment. By what percentage does the
+power output of 220V light bulb increases?
+A) 38% B) 36% C) 19% D) 18%
+34. If all the six resistors in the circuit shown in the figure have equal resistance, and the current
+flowing into resistor B is 4A, then what is the current flowing into resistor G?
+6
+
+-- 7 of 13 --
+
+A) 16A B) 8A C) 2A D) 1A
+35. A small radio receiver uses a battery that delivers a constant current of 25mA for 3 hours.
+Calculate the total charge delivered by the battery.
+A) 1080000C B) 270000C C) 540C D) 270C
+36. What is the resistance of a copper cable if it has a cross sectional area of 1cm2 and a length of
+2km? The resistivity of copper is 2x10−8Ωm.
+A) 0.0004Ω B) 0.004Ω C) 0.04Ω D) 0.4Ω
+37. If the terminals of a battery with zero internal resistance are connected across two identical re-
+sistors in series, the total power delivered by the battery is 8 W. If the same battery is connected
+across the same resistors in parallel, what is the total power delivered by the battery?
+A) 2W B) 4W C) 16W D) 32W
+38. Wire B has twice the length and twice the radius wire A. Both wires are made from the same
+material. If wire A has a resistance R, what is the resistance of wire B?
+A) 4R B) 2R C) R
+2 D) R
+4
+39. If several resistors are connected in parallel, the equivalent resistance is
+A) greater than any of the resistances in the group.
+B) equal to the average resistances of the group.
+C) less than any of the resistances in the group.
+D) equal to the sum of the resistances in the group.
+40. In aluminium and copper wires with circular cross sections have equal length and equal resis-
+tance, then the ratio of the radius of aluminium to that of copper should be the same as that of
+the
+A) ratio of the resistivity of aluminium to copper
+B) ratio of the resistivity of copper to aluminium
+C) square root of the ratio of the resistivity of aluminium to copper
+D) square root of the ratio of the resistivity of copper to aluminium
+41. Three resistors connected in series have individual voltage labeled V1, V2 and V3, respectively.
+Which of the following express the value of the total voltage VT taken over the three resistors
+together?
+A) VT = V1 +V2 +V3 C) VT = V1 = V2 = V3
+B) VT = 1/V1 + 1/V2 + 1/V3 D) VT = (1/V1 + 1/V2 + 1/V3)−1
+42. Which of the following is NOT correct about the circuit shown below?
+7
+
+-- 8 of 13 --
+
+A) Voltage across RL is RL
+(r+RL)ε C) Current flowing through RL is ε
+(r+RL)
+B) Current flowing through r is r
+(r+RL)ε D) Power drop in RL is RL
+(r+RL)ε2
+43. If a cell supplies a current of 0.9A when connected to a 2Ω resister and a current of 0.3A, then
+what will be the internal resistance of the cell when connected to a 7Ω resistor?
+A) 2 Ω B) 12 Ω C) 1 Ω D) 0.5 Ω
+44. A copper wire of cross sectional area 2mm2 carrying a current of 1.5 A. if the drift velocity
+of the electron is 0.00028 m/s, what is the number of charge carriers (free electrons) per unit
+volume in the copper wire?
+A) 1.5x1025/m3 B) 1.5x1032/m3 C) 1.88x1028/m3 D) 1.67x1032/m3
+45. A simple circuit consisted of a resistor of 10Ω connect to a battery of emf 18V. if the current
+through the circuit is 1.6A, what is the internal resistance of the battery?
+A) 10.0 Ω B) 8.75 Ω C) 1.25 Ω D) 11.2 Ω
+46. Ethiopian Electric Power Corporation calculates the first 50 kwh consumption at the minimum
+rate. In this quantity the unit kwh refers to
+A) power B) current C) charge D) energy
+47. The terminal potential difference of ta battery is the maximum when
+A) the e.m.f of the battery is the minimum.
+B) the battery is being discharged through a wire.
+C) there is a steady current flowing through the battery.
+D) there is no current flowing through the battery.
+48. A stove that draws 10A current from 220V line is used for 5 hours. If the electrical company
+demands 20 cents per kilowatt-hour, what is the cost of the electrical energy consumed?
+A) 2 Birr and 20 cents B) 1 Birr and 10 cents
+C) 1 Birr D) 55 cents
+49. A 12V battery is connected to a resistors networks as shown in the figure below.
+8
+
+-- 9 of 13 --
+
+What is the potential drop across the 10Ω resistor?
+A) 5V B) 1V C) 10V D) 12V
+50. Which of the following statement is correct about resistivity and conductivity?
+A) they are dimensionless.
+B) they have the same SI unit.
+C) they have direct relationship.
+D) one is the reciprocal of the other.
+51. The potential difference between the terminals of battery when the battery is isolated electrically
+is called
+A) electric force B) electromotive force
+C) terminal force D) electrical field
+52. A 360W refrigerator, a 1200W stove, a 720w heater and a 15 A fuse are connected to 120V
+main line as shown in the figure. Under what condition will the fuse melt?
+A) when the refrigerator and the stove are switched on.
+B) when the refrigerator and the heater are switched on.
+C) when the heater and the stove are switched on.
+D) when any of devices is switched on.
+53. The two ends of a 4Ω resistor are connected to a 16V battery. What is the total power delivered
+by the battery to the circuit?
+A) 4W B) 16W C) 32W D) 64W
+54. A group of grade ten students connected a battery, voltmeter, resistor, rheostat and ammeter in
+a circuit to demonstrate Ohm’s law as shown in the figure below What are the data to be taken?
+The values of
+A) potential difference across R and that of rheostat.
+9
+
+-- 10 of 13 --
+
+B) Both the current and the potential difference across R for different values of rheostat.
+C) The current in the circuit and the potential difference across the rheostat
+D) current in the circuit and that of rheostat.
+55. Two resistors and a voltage source are connected in series as shown in the figure below. If
+R1 = 2R2 which of the following statements is true?
+A) The current in R1 is half of that in R2
+B) The current in R1 is twice of that in R2
+C) The potential difference across R1 is half of the across R2
+D) the potential difference across R1 is twice of that across R2
+56. If a battery with an emf of 24v is connected to a 6Ω resistor and as a result, a current of 3A
+exists in the resistor, what is the internal resistance of the battery?
+A) 8 Ω B) 14 Ω C) 2 Ω D) 6 Ω
+57. One kilo-watt-hour (1KWh) is the same as,
+A) 3.6 × 103J B) 3.6 × 106J C) 1.0J D) 3.6J
+58. A uniform cylindrical wire of 1cm radius and 10m length has a resistance of 5 × 10−4Ω, what
+is the resistivity of the wire? A) 1.00 × 10−4Ωm B) 1.57 × 10−4Ωm
+C) 1.00 × 10−8Ωm D) 1.57 × 10−8Ωm
+59. The circuit diagram shown below is a combination of resistors and a voltage source. The voltage
+drop across the 5Ω resistor is
+A) 4.5V B) 2.0V C)7.5V D) 6.0V
+60. A dry cell’s voltage is labelled to be 1.5V. Which of the following statements is correct?
+A) The terminal voltage of the cell is equal to 1.5V for closed circuit.
+10
+
+-- 11 of 13 --
+
+B) The electromotive force (emf) of the cell is equal to 1.5V.
+C) The terminal voltage of the cell is greater than 1.5V.
+D) The emf of the dry cell is less than 1.5V.
+61. A resistor of resistance R is connected to a battery as shown in the figure below. If the potential
+difference and the current are V and I, respectively, what is the electrical power P delivered to
+the circuit?
+A) P = R ×V 2 B) P = I ×V C) P = I2/R D) P = (I ×V )/R
+Measuring Instruments and Kirchhoff’s Rules
+62. In Figure given below, the current in the 16Ω resistor is
+A) 0.64A B) 0.15A C) 0.49A D) 1.28A
+63. In the circuit shown below, what is the potential difference between point b and a?
+A) 19.2V B) 24.0V C) 13.0V D) 12.0V
+11
+
+-- 12 of 13 --
+
+64. Which one of the following statement is not correct about galvanometer?
+A) It is used to measure small amount of current.
+B) It has infinite resistance
+C) It can be used to measure voltage if shunted with large load in series.
+D) Its working principle is the same as that of electric motor.
+65. Which instrument should, ideally, have zero resistance?
+A) Wheatstone bridge C) Voltmeter
+B) Oscilloscope D) Ammeter
+66. A galvanometer of full-scale deflection 10mA is to be converted into a 0-10.0A ammeter. If its
+coil has a resistance of 100Ω, then what value of shunt resistance must be fitted?
+A) 0.1 Ω B) 10 Ω C) 9.99 Ω D) 0.999 Ω
+67. Which of the following statement is correct?
+A) Galvanometer can be converted to voltmeter of different scale by connecting low valued
+resistance in parallel
+B) Low valued internal resistance increases accuracy of voltmeter
+C) High valued internal resistance increases accuracy of ammeter
+D) Galvanometer can be converted to ammeter of different scale by connecting variety of low
+value shunt resistance in parallel.
+68. In the circuit shown below, each resistor has a value of 3Ω. What is the value of the current
+through R4?
+A) 0.75 A B) 1.0 A C) 0.625 A D) 0.125 A
+69. A voltmeter should be connected in parallel across a resistor in a circuit because
+A) its resistance is very small
+B) it requires high current
+C) its resistance is very high
+D) it measures current
+12
+
+-- 13 of 13 --

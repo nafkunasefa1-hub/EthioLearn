@@ -1,0 +1,103 @@
+IFA BORU
+SPECIAL BOARDING SECONDARY SCHOOL
+Thermal Physics Worksheet
+Prepared For Summer Program
+BY:
+Wondimu Getachew
+(Summer, 2016 E.C)
+Asella, Ethiopia
+Follow Us On:
+You Tube: http://www.youtube.com/@WondexAcademy
+Telegram: https://t.me/WondexAcademy
+
+-- 1 of 4 --
+
+1. A gas in a cylinder expanded and does 150J of work in pushing up the piston while 500J of heat
+is supplied to it. What is the change in the internal energy of the gas in the process?
+A) 150 J B) 650 J C) 500 J D) 350 J
+2. Cities have higher average evening temperature than the surrounding countryside. This is be-
+cause concrete (common building material for roads, buildings, etc in cities) has a higher spe-
+cific heat capacity than soil, this implies that, in the evening
+A) concrete releases the large amount of energy stored in t during the day and cools faster than
+soil
+B) soil releases the large amount of energy stored in it during the day and cools slower than
+concrete
+C) concrete releases the large amount of energy stored in it during the day and cools slower
+than soil.
+D) soil absorbs large amount of energy and cools slower than concrete
+3. Why is an ice at 00C more effective than the same mass of water at 00C in cooling a drink?
+A) the ice more average kinetic energy than the water
+B) the ice absorbs heat from the drink in order to melt to water
+C) the water transfers heat to the drink in order to freeze to ice
+D) the water particles on the average move faster than the ice.
+4. Which of the following systems can absorb some amount of heat without any change in its
+temperature?
+A) Ice at 00C B) water 100C
+C) water 00C D) ice at −100C
+5. What is the ratio of the coefficient of linear expansion to coefficient of volume expansion?
+A) 1:2 B) 1:4 C) 1:3 D) 1:6
+6. Body x and Body y are separately in thermal equilibrium with Body z. Based on these facts,
+what can you conclude about Body x and Body y?
+A) they have the same temperature.
+B) they have the same heat capacity.
+C) they are in thermal contact.
+D) they are in thermal equilibrium with any other body.
+7. Coefficient of expansion of water is greater than that of glass. Two identical glass beakers are
+full of water at a temperature of 200C. Beaker-1 is first warmed to a temperature of 350C and
+then cooled back to a temperature of 200C. Beaker-2 is first cooled to a temperature of 50C and
+then warmed back to a temperature of 200C. What can you conclude about the final states of
+the breakers?
+A) both breakers are full.
+B) both breakers are not full.
+C) only breaker-2 is full.
+D) breaker-1 contains more volume of water.
+1
+
+-- 2 of 4 --
+
+8. Metallic water pipes burst during cold seasons. This is because,
+A) the outer part of the pipe contracts more than the inner part.
+B) Metal contracts easily than water.
+C) Water expands when it freezes.
+D) Ice expands when it melts.
+9. If a silver bar having a mass of 525g absorbs 6151 energy and its temperature rises by 500Cc
+what is the heat capacity of silver?
+A) 234J/0C B) 246J/0C C) 0.234J/0C D) 123J/0C
+10. Heat is continuously supplied to a mass of water. The temperature (T) of the water varies with
+time (t) as shown in the figure below, what would happen during the time interval between t1
+and t2? There is a phase transition from
+A) water to steam B) water to ice
+C) steam to ice D) steam to water
+11. A square metal plate has area of 0.09m2 at a temperature of 300C. if the temperature is raised
+to 600C the area increases by (the coefficient of linear expansion for metal is 1.1 × 10−5/0C)
+A) 1.000059m2 B) 1.0001188m2 C) 0.0000297m2 D) 0.0000594m2C
+12. How much heat energy is required to change an ice cube of mass m = 720g from ice at a
+temperature of Ti = −100C to water at a temperature of Tf = 150C? (Specific heat capacity of
+ice is ci = 2.220 × 103J/(kg.K), specific heat capacity of water is cw = 4.187 × 103J/kg.K, and
+the latent heat of fusion of ice is L f = 3.330 × 105J/kg
+A) 2.4 × 104J B) 6.12 × 104J C) 3.00 × 105J D) 2.68 × 105J
+13. The length of an aluminum rod at a temperature of 200C is 3m. What will be the ratio of change
+in the length of the rod to its original length if its temperature is raised to 1200C? the coefficient
+of linear expansion of aluminum is 3.31x10−5/K
+A) 23% B) 3.2% C) 3% D) 0.33%
+14. A physics student derived the formula for the surface expansion, ∆A, of a rectangular plate in
+terms of its linear expansion coefficient, α. Which of the following formulas is possibly derived
+by the student? (Assume that ∆T is the change in temperature of the plate and A0 is its initial
+area.)
+A) ∆A = 2A0α∆T C) ∆A = 3A0α∆T
+B) ∆A = 1
+2 A0α∆T D) ∆A = A0α∆T
+2
+
+-- 3 of 4 --
+
+15. A hot alloy with specific heat capacity of 200J/kg0C cooled by 500C when added in to water.
+What amount of energy is given off by the alloy if its mass 0.3 kg?
+A) 3000J B) 5000J C) 1000J D) 1500J
+16. A certain mass of ice at 00C is placed in a thermos bottle containing 0.1 kg of water at 60C.
+How many grams of ice will melt if the final temperature of the system is 00C? (The heat of
+fusion of water is 334, 000J/Kg and the specific heat is 4, 200J/kg0C)
+A) 1.7x10−3kg B) 5.0x10−3kg C) 7.5x10−3kg D) 2.0x10−3kg
+3
+
+-- 4 of 4 --

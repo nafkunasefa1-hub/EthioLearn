@@ -1,0 +1,446 @@
+OROMIA IFA BORU SPECIAL BOARDING SCHOOL@2016
+CHEMISTRY WORKSHEET FOR GRADE (9-11)
+[ON HYDROCARBONS, IMPORTANT INORGANIC COMPOUNDS, CHEMICAL KINETICS, CHEMICAL
+EQUILIBRIUM AND OXYGEN-CONTAINING ORGANIC COMPOUNDS]
+1
+I. CHOOSE THE MOST APPROPRIATE ANSWER FROM THE SUGGESTED OPTIONS
+1. The process of removing coloring matter from wood pulp and increasing its brightness.
+A. Annealing C. Soaking
+B. Bleaching D. Scudding
+2. Given the reaction: SiCl2+ 2Cl- [SiCl4]-, SiCl2 would be:
+A. Lewis base C. Lewis acid
+B. Electron pair donor D. It is an electron rich specie
+3. Given the reaction:
+O
+OCH3
++ H2O(l) H+
++
+The product of the above reaction would be:
+A. + CH3OH C.
+O	H
++ CH3CH2OH
+O	H3CH2CO
+B. 	+ CH3OH D.
+O	HO
++ CH3OH
+4. Given two different molecule (I) and (II); what is the product of the reaction below.
+CH3CH2CHCH3
+OH
+CH3CH2CH2OH
+I 	II
+Cu	360 oC
+-------------- & ---------- respectively
+A. CH3COOH & CH3CHO C. CH3CH2COOH & CH3CH2CH2CH3
+B. CH3CH2COCH3 & CH3CH2CHO D. CH3CH2CH2COOCH3 &|CH3CH2CH2CHO
+5. Industrially; ethanol can be prepared by:
+A. Dehydrohalogenation of ethyl halide with potassium hydroxide (KOH).
+B. Reaction between calcium carbide with water.
+C. Fermentation of carbohydrates such as sugar.
+D. Reaction between sodium acetate and soda lime.
+
+-- 1 of 10 --
+
+OROMIA IFA BORU SPECIAL BOARDING SCHOOL@2016
+CHEMISTRY WORKSHEET FOR GRADE (9-11)
+[ON HYDROCARBONS, IMPORTANT INORGANIC COMPOUNDS, CHEMICAL KINETICS, CHEMICAL
+EQUILIBRIUM AND OXYGEN-CONTAINING ORGANIC COMPOUNDS]
+2
+6. What is the IUPAC name of the following organic molecule?
+CH3CH2CH2CCH2CHCH2CH3
+H
+OH CH3
+A. 3-methyl -4-hydroxy octane C. 6-methyl-4- hydrogen-4-hydroxy octane
+B. 2-ethyl-4-octanol D. 6-methyl-4-octanol
+7. Given the reaction: NH3 () + H+ (aq) NH4+ (aq). Which of the following is true?
+A. H+ is electron loving species/electrophile C. NH3 is Lewis’s acid
+B. In NH3 molecule, two lone pair es- exist on the 3H’s D. H+ is Lewis’s base
+8. Given that: CO, CO2 & I2. Which arrangement of bond strength is correct for the covalent molecules:
+A. CO < CO2 < I2 C. CO2 < I2 < CO
+B. CO < I2 < CO2 D. I2 < CO2 < CO
+9. What is the product of the reaction:
+CH3CH2CHCH3
+OH
+Conc. H2SO4 	+ ?	?
+A. 	& CO2
+B. CH3CH=CHCH3 & H2O
+C. CH3CH2CH=CH2	CH3CH2CH=CH2
+& H2O
+D. CH3CHCH2CH3 & H2O
+CH3
+10. Which one of the following molecules belongs to ketones group?
+A. CH3 (CH2)5CO (CH2)2 CH3 C. CH3 CH2O CH2 CH3
+B. CH3(CH2)5 CHO D. CH3 (CH2)5 CH(OH)CH2CH2CH3
+11. The most common reaction in which benzene undergo is said to be:
+A. Combustion reaction B. Elimination rxn. C. Substitution rxn. D. Synthesis rxn.
+12. The chemical used to pests that damage plants growth, development & crop yields is said to be:
+A. Fertilizers B. Herbicides C. Sedatives D. Pesticides
+13. Which of the following hydrocarbons does belongs to the homologous series of alkenes?
+A. C3H4 B. C8H16 C. C6H10 D. C9H16
+14. Silver is an element with atomic number 47 is found in d-block in the periodic table. What compound would you
+expect from combination of Ag (I) and SO4 2-?
+A. AgSO4 B. Ag (SO4)2 C. Ag 2SO4 D. Ag 3(SO4)2
+15. Which arrangement is correctly represents descending order the oxidation number of the central atoms in the
+following ternary acids?
+A. HClO4 < HClO3 < HClO < HClO2 C. HClO < HClO2 < HClO3 < HClO4
+B. HClO3 < HClO < HClO2 < HClO4 D. HClO4 < HClO3 < HClO2 < HClO
+
+-- 2 of 10 --
+
+OROMIA IFA BORU SPECIAL BOARDING SCHOOL@2016
+CHEMISTRY WORKSHEET FOR GRADE (9-11)
+[ON HYDROCARBONS, IMPORTANT INORGANIC COMPOUNDS, CHEMICAL KINETICS, CHEMICAL
+EQUILIBRIUM AND OXYGEN-CONTAINING ORGANIC COMPOUNDS]
+3
+16. Which structure correctly have an IUPAC name 3,5-diethyl hept-1-yne?
+CH3CH2CHCH2CHC
+CH2CH3
+CH2CH3
+CH	A.
+B. CH3CH2CHCH2CHC
+CH2CH3
+CH3
+CH
+C. CH3CHCH2CHC
+CH2CH3
+CH2CH3
+CH
+D. CH3CH2CHCH2CHC
+CH3
+CH2CH3
+CH
+17. A Bronsted Lowry acid is defined as a substance that:
+A. Furnishes hydronium ion in an aqueous solution C. Accept proton from another species
+B. Accept a pair of electrons from another species D. Donate proton for another species
+18. What is the function of adding gypsum salt to the cements’ raw materials during industrial manufacture
+of cements?
+A. In order to solidify cement C. To acidify cement
+B. In order to make cement become fine powder D. To enhance impurities in cement
+19. In the Arrhenius equation k = Ae−Ea/RT, at what condition the rate constant k equal to the Arrhenius
+frequency factor, A?
+A. When the temperature becomes infinite
+B. When the fraction of the molecules crossing the energy barrier is unity
+C. When 50% reactants are converted to product
+D. When activation energy is not needed to reactants for undergoing chemical change
+20. The temperature dependence of rate constant (k) of a chemical reaction is written in terms of Arrhenius
+equation, k = Ae−Ea/RT. Activation energy (Ea) of the reaction can be calculated by plotting:
+A. logk vs T B. logk vs 1/T C. k vs 1/logT D. k vs T
+21. The temperature dependence of the rate of a chemical reaction is given by Arrhenius equation, k =
+Ae−Ea/RT. Which of the following graphs will provide a straight line?
+A. lnA vs 1/T B. lnA vs Ea C. lnk vs 1/T D. lnk vs −Ea/R
+22. Rate constant k of a reaction varies with temperature according to the equation logk = constant − Ea
+/2.303R×(1/T) where Ea is the energy of activation for the reaction. When a graph is plotted for logk vs 1/T
+a straight line with a slope −6670k is obtained. The activation energy for this reaction will be:
+(R = 8.314 J. K-1mol-1)
+A. 122.65 kJmol-1 B. 127.71 kJmol-1 C. 150.00 kJmol-1 D. 142.34 kJmol-1
+23. Which of the following factor will lower the activation energy for a reaction?
+i. Adding a suitable catalyst
+ii. Increasing the concentrations of reactants
+iii. Raising the temperature of the reaction
+iv. All of these options will lower the activation energy for a reaction
+24. Activation energy is required to initiate:
+A. Neither exothermic or endothermic reactions C. Endothermic reactions only
+B. Both exothermic and endothermic reactions D. Exothermic reactions only
+
+-- 3 of 10 --
+
+OROMIA IFA BORU SPECIAL BOARDING SCHOOL@2016
+CHEMISTRY WORKSHEET FOR GRADE (9-11)
+[ON HYDROCARBONS, IMPORTANT INORGANIC COMPOUNDS, CHEMICAL KINETICS, CHEMICAL
+EQUILIBRIUM AND OXYGEN-CONTAINING ORGANIC COMPOUNDS]
+4
+25. Consider the following plots of log(k) versus 1/T for three different reactions.
+Which of the following reaction has highest activation energy (Ea)? (where, k is the rate constant).
+26. According to the Arrhenius equation, k = Ae-EA/(RT), what happens to the rate constant k of the reaction as
+the temperature of the reaction is increased?
+A. The rate constant would increase
+B. There is no effect in either direction
+C. It cannot be determined from the given information
+D. The rate constant would decrease
+27. According to Arrhenius equation, the rate constant (k) is related to temperature (T) as:
+A. ln(k2/k1) =Ea/R(1/T1 -1/T2) C. ln(k2/k1) = Ea/R(1/T1 +1/T2)
+B. ln(k2/k1) = −Ea/R(1/T1 -1/T2) D. ln(k2/k1) = −EaR(1/T1 + 1/T2)
+28. Consider the reaction which ammonia is synthesized from nitrogen and hydrogen gases:
+How is the rate of formation of ammonia related to the rate of consumption of hydrogen?
+A. The rate of formation of ammonia is two thirds the rate of consumption of hydrogen
+B. The rate of formation of ammonia is half the rate of consumption of hydrogen
+C. The rate of formation of ammonia is equal to the rate of consumption of hydrogen
+D. The rate of formation of ammonia is 1/5 times the rate of consumption of hydrogen
+29. If K1 and K2 are the equilibrium constants at temperature T1 and T2, where T2 >T1, then:
+A. K2 = K1 when Ea is 0 C. K2 > K1 when Ea is +ve
+B. K2 < K1 when Ea is -ve D. K2 < K1 when Ea is +ve
+30. In the reaction, 2A + B 2C + D, the -Δ[A] per time was found to be 5.0. What is the rate
+of change of Δ[B]?
+A. 25 M/min B. 10 M/min C. 2.5 M/min D. 5.0 M/min
+31. Given the reaction: 2SO2(g) + O2(g) 2SO3(g). The rate of the forward reaction increases
+by adding more SO2 because the
+A. Number of molecular collisions will increase C. Forward reaction is endothermic
+B. Temperature will increase D. Reaction will shift to the left
+32. For the reaction A B, the activation energy is 125 kJ/mol and the heat of reaction, ΔH =
+50.00 kJ/mol. What is the for the reverse reaction in kJ/mol?
+A. 125 kJ/mol B. -75 kJ/mol C. 75 kJ/mol D. -125 kJ/mol
+A . E b
+B E a
+C . E c
+D . A l l h a v e e q u a l a c t i v a t i o n e n e r g i e s .
+
+-- 4 of 10 --
+
+OROMIA IFA BORU SPECIAL BOARDING SCHOOL@2016
+CHEMISTRY WORKSHEET FOR GRADE (9-11)
+[ON HYDROCARBONS, IMPORTANT INORGANIC COMPOUNDS, CHEMICAL KINETICS, CHEMICAL
+EQUILIBRIUM AND OXYGEN-CONTAINING ORGANIC COMPOUNDS]
+5
+33. When NH4NO3 is dissolved in water, the temperature of the water decreases. When NaOH is dissolved in a
+separate water sample, the temperature of the water increases. Based on these observations, it can be
+concluded that the dissolving of:
+A. Both salts are endothermic.
+B. Both salts are exothermic.
+C. NH4NO3 is exothermic and the dissolving of NaOH is endothermic.
+D. NH4NO3 is endothermic and the dissolving of NaOH is exothermic.
+34. Which of the following is an example of a heterogeneous reaction?
+A. Combustion of methane C. Dissolution of sugar in water
+B. Formation of rust on iron D. Decomposition of hydrogen peroxide
+35. For a reaction to occur, reactant molecules must:
+A. Collide with sufficient energy and proper orientation
+B. Collide with minimal energy and any orientation
+C. Collide with maximal energy and proper orientation
+D. Collide with any energy and random orientation
+36. The term 'collision theory' is used to explain:
+A. How catalysts work in reactions C. How particles interact during reactions
+B. The role of temperature in reactions D. The equilibrium state of reactions
+37. When the two reactants are in the same phase, then which common phase will ensure that the products are
+formed at the fastest pace?
+A. Solid B. Liquid C. Gas D. The rate of a rxn. is independent of the phase of the Rs.
+38. Which of the following is not a direct factor affecting the rate of a reaction?
+A. Temperature B. Presence of catalyst C. Order of reaction D. Molecularity
+39. Which of the following will lead to an increase in the rate of the reaction?
+A. Decrease in temperature C. Addition of catalyst
+B. Decreasing concentration of reactants D. Addition of inhibitor
+40. The rate of a chemical reaction tells us about: -
+A. The reactants taking part in the reaction C. The products formed in the reaction
+B. How slow or fast the reaction is taking place D. It does not tell anything
+41. The average rate and instantaneous rate of a reaction are equal
+A. At the start C. At the end
+B. In the middle D. When two rates have a time interval equal to zero
+42. If the reaction quotient Q has a smaller value than the related equilibrium constant, K then:
+A. The reaction is not at equilibrium, and will make more products at the expense of reactants.
+B. The reaction is not at equilibrium, and will make more reactants at the expense of products.
+C. The value of K will decrease until it is equal to Q.
+D. The value of K will ascend until it is equal to Q.
+
+-- 5 of 10 --
+
+OROMIA IFA BORU SPECIAL BOARDING SCHOOL@2016
+CHEMISTRY WORKSHEET FOR GRADE (9-11)
+[ON HYDROCARBONS, IMPORTANT INORGANIC COMPOUNDS, CHEMICAL KINETICS, CHEMICAL
+EQUILIBRIUM AND OXYGEN-CONTAINING ORGANIC COMPOUNDS]
+6
+43. Consider this equilibrium reaction in a sealed container. H2O (g) H2O (ɭ), which one of
+the following will be the effect on the equilibrium of increasing the temperature from 20oC
+to 30oC?
+A. More of the water will be in the gaseous state of at equilibrium.
+B. More of the water will be in the liquid state at equilibrium.
+C. At equilibrium the rate of condensation will be greater than the rate of evaporation.
+D. At equilibrium the rate of evaporation will be greater than the rate of condensation.
+44. For the reaction: H2(g) + I2(g) 2HI(g), at a certain temperature the equilibrium
+concentrations in mol/liter are [H2] = 0.2 , [I2] = 0.2 and [HI] = 2.0, then based on this given
+data which one of the following is the equilibrium constant(Kc)?
+A. 0.002 B.10 C. 20 D.100
+45. Which statement is correct about the effect of adding a catalyst to a system at equilibrium?
+I. The rate the of forward reaction increases.
+II. The rate of reverse reaction increases.
+III. The yield of the products increases.
+A. I only B. I and II only C. III only D. I, II and III
+46. For the reaction: N2O4 (g) 2NO2 (g), Kc = 8 x 10-4 mol/cm, in an equilibrium of mixture these two
+gases [N2O4] = 8 x 10-2 mol/cm3, then which one is the equilibrium concentration NO2 in mol/cm3?
+A. 8.0 x 10-1 B. 8.0 x 10-3 C. 8.0x 10-2 D.4.5 X10-4
+47. For the reaction: C2H4 (g) + H2 (g) → C2H6 (g), ∆H = -137KJ, which statement about the information is
+correct?
+A. The total energy of the bonds broken in the reactant is greater than the total energy of the bonds formed
+in the product.
+B. The bonds broken and the bonds made are of the same strength.
+C. The total energy of the bonds broken in the reactants is less than the total energy of the bonds formed in
+the product.
+D. No conclusion can be made about the sums of the bond enthalpies in the product compared with
+reactants.
+48. Under what conditions can we absolutely say a system is at equilibrium at constant temperature and
+pressure?
+A. Change in Enthalpy is equal to Zero C. Change in Gibbs free energy is equal to Zero
+B. Change in Entropy is greater than Zero D. Change in Enthalpy is greater than Zero
+49. In the following reaction, what is equal to the rate of production of NO gas?
+i.e. 4NH3(g) + 5O2(g) → 4NO(g) + 6H2O(g)
+A. The rate of production of NH3 gas C. One third the rate of production of water
+B. Four fifths the rate of disappearance of O2 gas D. One quarter the rate of disappearance of NH3
+
+-- 6 of 10 --
+
+OROMIA IFA BORU SPECIAL BOARDING SCHOOL@2016
+CHEMISTRY WORKSHEET FOR GRADE (9-11)
+[ON HYDROCARBONS, IMPORTANT INORGANIC COMPOUNDS, CHEMICAL KINETICS, CHEMICAL
+EQUILIBRIUM AND OXYGEN-CONTAINING ORGANIC COMPOUNDS]
+7
+50. Each of the following is true about heterogeneous catalyst EXCEPT:
+A. It does not undergo a permanent change
+B. It is in the same phase as the reacting particles
+C. Its presence lowers the activation energy of the overall reaction
+D. Its presence decreases the potential energy of the activated complex
+51. In general, reaction rates double when the temperature is increased by 10°C. The temperature of a reaction
+is increased by 40°C. The rate of the reaction will increase by a factor of:
+A. 2 B. 4 C. 8 D. 16
+52. Which of the following elementary reactions is a termolecular reaction?
+A. A + 2B + C → D B. A + B + B → C C. 2A + 2B + 2C → 2D D. 2A + B + C → D
+53. Which of the following explains the increase in the reaction rate by a catalyst?
+A. Catalyst decreases the rate of backward reaction so that rate of forward reaction increases
+B. Catalyst provides extra energy to reacting molecules so that they produce effective collisions
+C. Catalyst provides an alternative path of lower activation energy to the reactants
+D. Catalyst increases the number of collisions between the reacting molecules
+54. What is the characteristic smell for ester?
+A. Fruity like smell B. Fish like smell C. Rotten egg smell D. Alcoholic smell
+Explanation: Many esters have distinctive fruit-like odors, and many occur naturally in the essential oils
+of plants. This has also led to their commonplace use in artificial flavorings and fragrances when those
+odors aim to be mimicked.
+55. What will be the product of given reaction?
+A. Ether and alcohol C. Alcohol and sodium carboxylate
+B. Aldehyde and alcohol D. Carboxylic acid and alkene
+Explanation: Ester pyrolysis in is a vacuum pyrolysis reaction converting esters containing a β-hydrogen
+atom into the corresponding carboxylic acid and the alkene.
+56. What is the order or solubility in water of the following compound?
+i) ethyl methanoate ii. ethyl butanoate iii. ethyl ethanoate iv. ethyl propanoate
+A. i > ii > iii > iv B. i > iii > iv > ii C. i > ii > iv > iii D. iii > i > iv > ii
+Explanation: As chain length increases, the hydrocarbon portion forces itself between water molecules,
+breaking the relatively strong hydrogen bonds between water molecules without offering an energetic
+compensation; furthermore, the water molecules are forced into an ordered alignment along the chain,
+decreasing the entropy in the system. This makes the process thermodynamically less favorable, and so
+solubility decreases.
+
+-- 7 of 10 --
+
+OROMIA IFA BORU SPECIAL BOARDING SCHOOL@2016
+CHEMISTRY WORKSHEET FOR GRADE (9-11)
+[ON HYDROCARBONS, IMPORTANT INORGANIC COMPOUNDS, CHEMICAL KINETICS, CHEMICAL
+EQUILIBRIUM AND OXYGEN-CONTAINING ORGANIC COMPOUNDS]
+8
+57. Among the following, which is least acidic?
+A. Phenol B. O-cresol C. p-nitrophenol D. p-chlorophenol
+Explanation: O-cresol is least acidic because Presence of electron withdrawing groups at ortho and para
+position increases the acidic strength, whereas electron releasing or donating groups at ortho and para
+position decreases acidic strength. In cresol (ortho or para cresol), methyl group is +I group, so it
+destabilizes the anion formed after ionization, hence cresol is less acidic than carbolic acid (phenol).
+58. Which of the following alcohols would be most soluble in water?
+A. Propanol B. Hexanol C. Pentanol D. Butanol
+Explanation: Propanol is the most soluble in water among given alcohols, as solubility of alcohols in water
+decreases with increase in molecular mass.
+59. What is the best reagent to convert isopropyl alcohol to isopropyl bromide?
+A. HBr B. SOBr2 C. Br2 D. CH3MgBr
+Explanation: Thionyl bromide will react with secondary alcohols and give a reasonable percent yield of the
+bromide.
+60. The major reason that phenol is a better Bronsted acid than cyclohexanol is:-
+A. It is a better proton donor
+B. The cyclohexyl group is an electron donating group by induction, which destabilizes the anion formed in
+the reaction
+C. Phenol is able to stabilize the anion formed in the reaction by resonance
+D. The phenyl group is an electron withdrawing group by induction, which stabilizes the anion formed in
+the reaction.
+Explanation: Whenever resonance exists, it usually is a very important factor to be considered in decisions
+about structure and reactivity correlations and in many cases, it is the most important factor. In this case
+there is delocalization of the electrons into the benzene ring.
+61. Which one of the following compd. is obtained by the oxidation of 1o alcohol with nascent oxygen?
+A. Alkanal B. Alkanone C. Ether D. Amine
+Explanation: Oxidation of alcohols to aldehydes is partial oxidation; aldehydes are further oxidized to
+carboxylic acids. Conditions required for making aldehydes are heat and distillation. In aldehyde formation,
+the temperature of the reaction should be kept above the boiling point of the aldehyde and below the boiling
+point of the alcohol.
+62. The reaction of carboxylic acids with alcohols catalyzed by conc. H2SO4 is known as: -
+A. Dehydration B. Saponification C. Esterification D. Neutralization
+Explanation: When a carboxylic acid is treated with an alcohol and an acid catalyst, an ester is formed
+(along with water). This reaction is called the esterification.
+63. Which one is the correct order of reactivity of different types of alcohol towards hydrogen halide?
+A. 1° alcohol > 2° alcohol > 3° alcohol C. 2° alcohol > 1° alcohol > 3° alcohol
+B. 3° alcohol > 1° alcohol > 2° alcohol D. 3° alcohol > 2° alcohol > 1° alcohol
+
+-- 8 of 10 --
+
+OROMIA IFA BORU SPECIAL BOARDING SCHOOL@2016
+CHEMISTRY WORKSHEET FOR GRADE (9-11)
+[ON HYDROCARBONS, IMPORTANT INORGANIC COMPOUNDS, CHEMICAL KINETICS, CHEMICAL
+EQUILIBRIUM AND OXYGEN-CONTAINING ORGANIC COMPOUNDS]
+9
+Explanation: Reaction of HX with alcohol depends on the degree of carbonation generated due to
+heterocyclic cleavage of HX bond. If alcohol is primary alcohol then reaction will proceed through Sn2 for
+tertiary alcohol it will proceed with Sn1. For secondary alcohol it can go through both path (SN1 or SN2).
+SN1 being ionic in nature takes place very fast while SN2 is molecular in nature reacts slowly. Hence, we
+can sum up above, Rate of reaction is 3° alcohol > 2° alcohol > 1° alcohol.
+64. Which of the following is the most suitable requirement for the dehydration of ethanol to form an ether?
+A. Sulphuric acid at 413K C. Sulphuric acid at 443K
+B. Sodium hydroxide at 413K D. Sodium hydroxide at 443K
+Explanation: Alcohols undergo dehydration in the presence of protic acids to form either alkenes or ethers
+depending upon the reaction temperature conditions. At 413K, ethanol forms an ether with H2SO4.
+65. Which of the following is not favourable for the proper dehydration of alcohol to form ether?
+A. Good temperature control during reaction C. Excess of alcohol
+B. Presence of protic acids D. Presence of bulky alkyl groups in the alcohol
+Explanation: Secondary and tertiary alcohols give alkenes as major products during dehydration, because
+elimination competes over substitution. Hence, this method is mainly used for primary alcohols.
+66. What is the major product formed when ethanol is dehydrated with concentrated H2SO4 at 413K?
+A. Ethene B. Methoxymethane C. Methoxyethane D. Ethoxyethane
+Explanation: Symmetrical ethers are formed when alcohols are dehydrated with H2SO4 at controlled
+temperatures. This is an SN2 reaction involving the attack of alcohol molecule on a protonated alcohol to
+give ethers.
+67. Sodium methoxide on heating with bromoethane gives:
+A. methoxymethane B. methoxyethane C. ethoxyethane D. diethyl ether
+Explanation: This is an example of Williamson synthesis of unsymmetrical ether, where CH3ONa is
+reacted with CH3CH2Br to form CH3CH2OCH3, which is ethyl methyl ether.
+68. The reaction between tert-Butyl chloride and sodium ethoxide gives:
+A. tert-Butyl ethyl ether B. tert-Butyl methyl ether C. 2-Methylprop-1-ene D. butene
+Explanation: The reactant sodium ethoxide is a strong nucleophile as well as a strong base, and hence
+elimination predominates over SN2 to form alkene as a major product.
+69. Which of the following is the least reactive functional group?
+A. Alcohols B. Ethers C. Aldehydes D. Ketones
+Explanation: This is because the (-O-) group in ethers does not contain any active site as compared to for
+example, hydroxyl group (OH) in alcohols. However, they undergo C-O bond cleavage in drastic
+conditions.
+70. Catalytic reduction (Hydrogenation) of carbon monooxide with H2 under high pressure and temperature
+gives methyl alcohol. What is this process is known as?
+A. Baeyer’s test B. Hofmann’s reaction C. Kolb process D. BASF process
+Explanation: Currently, a Cu/ZnO/Al2O3 catalyst system has been employed industrially in MeOH
+synthesis for over half a century (a worldwide demand of 75 Mtons•year−1). It was run mostly at
+elevated pressures. (5–10 MPa) and high temperature (493–573 K) by feeding a CO (5%)-CO2 (5%) H2
+syngas stream.
+
+-- 9 of 10 --
+
+OROMIA IFA BORU SPECIAL BOARDING SCHOOL@2016
+CHEMISTRY WORKSHEET FOR GRADE (9-11)
+[ON HYDROCARBONS, IMPORTANT INORGANIC COMPOUNDS, CHEMICAL KINETICS, CHEMICAL
+EQUILIBRIUM AND OXYGEN-CONTAINING ORGANIC COMPOUNDS]
+1
+0
+71. Which of the following statements is incorrect regarding preparation of alcohols?
+A. Aldehydes and Ketones on catalytic reduction by [H] give primary alcohol and secondary alcohol
+respectively
+B. Ketones on reaction with Grignard’s reagent gives tertiary alcohol
+C. Aldehydes on reaction with Grignard’s reagent gives primary or secondary alcohol
+D. Alkyl halides on reaction alcoholic potash gives alcohol
+Explanation: Whenever an alkyl halide reacts with alcoholic potash (or alcoholic sodium hydroxide), beta-
+elimination of the halide occurs, leading to the formation of an alkene.
+72. Which of the following steps is not used in the fermentation of starch into ethyl alcohol?
+A. Hydrolysis of starch into maltose by diastase present in barley
+B. Conversion of maltose into glucose by maltase present in yeast
+C. Conversion of glucose into ethanol by zymase present in yeast
+D. Conversion of sucrose into glucose and fructose by sucrase present in yeast
+Explanation: Conversion of sucrose into glucose and fructose by sucrase present in yeast steps is not used
+in the fermentation of starch into ethyl alcohol.
+73. Which of the following compounds is an ester?
+A. C.
+B. D.
+74. Which of the following is used as catalyst for the esterification of carboxylic acid and alcohol?
+A. Nitrous acid B. Sulphuric acid C. Sulphurous acid D. Nitric acid
+Explanation: The classic synthesis is the Fischer esterification, which involves treating a carboxylic acid
+with an alcohol in the presence of a dehydrating agent: RCO2H + R′OH ⇌ RCO2R′ + H2O The equilibrium
+constant for such reactions is about 5 for typical esters, e.g., ethyl acetate. The reaction is slow in the
+absence of a catalyst. Sulfuric acid is a typical catalyst for this reaction.
+75. What will be the product for the given reaction? CH3OH + CO →?
+A. Ethyl formate B. Methyl formate C. Ethyl acetate D. Methyl acetate
+Explanation: The carbonylation of methanol yields methyl formate, which is the main commercial source
+of formic acid. CH3OH + CO → CH3OCO-H
+
+-- 10 of 10 --

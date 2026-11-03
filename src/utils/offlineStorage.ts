@@ -1,6 +1,41 @@
 import { Book, BookChapter, Exam, ExamAttempt, ExamQuestion, ChapterShortNote, Grade, Subject } from '../types';
 import { getEmbeddedBookPage } from '../data/embeddedPagesFallback';
 import { WORKSHEET_QUESTIONS } from '../../server/worksheetsCatalog';
+import { STATIC_EXAMS_CATALOG } from '../data/staticExamsCatalog';
+
+// In-memory cache for the complete pre-indexed offline questions bundle (11,002 questions)
+let offlineQuestionsBundle: Record<string, ExamQuestion[]> | null = null;
+let isBundleLoading = false;
+
+export async function loadOfflineQuestionsBundle(): Promise<Record<string, ExamQuestion[]>> {
+  if (offlineQuestionsBundle) return offlineQuestionsBundle;
+  if (isBundleLoading) {
+    while (isBundleLoading) {
+      await new Promise(r => setTimeout(r, 50));
+    }
+    return offlineQuestionsBundle || {};
+  }
+  isBundleLoading = true;
+  try {
+    const res = await fetch('/data/offline_questions.json');
+    if (res.ok) {
+      offlineQuestionsBundle = await res.json();
+      console.log('✓ [Offline Storage] Pre-indexed question bundle loaded successfully:', Object.keys(offlineQuestionsBundle || {}).length, 'exams ready.');
+    }
+  } catch (err) {
+    console.warn('[Offline Storage] Note on loading /data/offline_questions.json:', err);
+  } finally {
+    isBundleLoading = false;
+  }
+  return offlineQuestionsBundle || {};
+}
+
+// Auto-kick background preload of questions bundle on mobile/standalone startup
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    loadOfflineQuestionsBundle().catch(() => {});
+  }, 100);
+}
 
 const DB_NAME = 'EthioLearnOfflineDB';
 const DB_VERSION = 3;
@@ -130,11 +165,16 @@ export async function getAllOfflineExamIds(): Promise<string[]> {
 }
 
 export function getBundledExamQuestions(examId: string): ExamQuestion[] {
-  // 1. Direct match in worksheet questions catalog
+  // 1. Direct match in worksheet questions catalog (authentic university/boarding school papers)
   const wsMatches = WORKSHEET_QUESTIONS.filter(q => q.exam_id === examId);
   if (wsMatches.length > 0) return wsMatches;
 
-  // 2. Subject-aligned fallback from authentic question sets
+  // 2. Direct match in pre-indexed offline questions bundle (covers all 73 exams & 11,002 questions)
+  if (offlineQuestionsBundle && offlineQuestionsBundle[examId] && offlineQuestionsBundle[examId].length > 0) {
+    return offlineQuestionsBundle[examId];
+  }
+
+  // 3. Subject-aligned fallback from authentic question sets
   if (examId.includes('phys')) {
     return WORKSHEET_QUESTIONS.filter(q => q.subject_id === 'subj-phys').map((q, idx) => ({
       ...q,
@@ -160,6 +200,12 @@ export async function isExamSavedOffline(examId: string): Promise<boolean> {
   if (examId.startsWith('ws-') || getBundledExamQuestions(examId).length > 0) {
     return true;
   }
+  if (!offlineQuestionsBundle) {
+    await loadOfflineQuestionsBundle();
+    if (offlineQuestionsBundle && offlineQuestionsBundle[examId]?.length > 0) {
+      return true;
+    }
+  }
 
   try {
     const db = await openDB();
@@ -180,6 +226,10 @@ export async function isExamSavedOffline(examId: string): Promise<boolean> {
 }
 
 export async function getOfflineExam(examId: string): Promise<Exam | null> {
+  // 1. First check STATIC_EXAMS_CATALOG
+  const staticMatch = STATIC_EXAMS_CATALOG.find(e => e.id === examId);
+  if (staticMatch) return staticMatch;
+
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_EXAMS, 'readonly');
@@ -196,6 +246,10 @@ export async function getOfflineExam(examId: string): Promise<Exam | null> {
 }
 
 export async function getOfflineExamQuestions(examId: string): Promise<ExamQuestion[]> {
+  if (!offlineQuestionsBundle) {
+    await loadOfflineQuestionsBundle();
+  }
+
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_EXAM_QUESTIONS, 'readonly');
@@ -225,11 +279,22 @@ export async function getAllOfflineExams(): Promise<Exam[]> {
     const req = store.getAll();
 
     return new Promise((resolve) => {
-      req.onsuccess = () => resolve(req.result || []);
-      req.onerror = () => resolve([]);
+      req.onsuccess = () => {
+        const dbExams: Exam[] = req.result || [];
+        const combined = [...STATIC_EXAMS_CATALOG];
+        const existingIds = new Set(combined.map(e => e.id));
+        dbExams.forEach(e => {
+          if (!existingIds.has(e.id)) {
+            combined.push(e);
+            existingIds.add(e.id);
+          }
+        });
+        resolve(combined);
+      };
+      req.onerror = () => resolve(STATIC_EXAMS_CATALOG);
     });
   } catch {
-    return [];
+    return STATIC_EXAMS_CATALOG;
   }
 }
 
