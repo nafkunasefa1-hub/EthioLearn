@@ -34,6 +34,40 @@ interface PracticeModeViewProps {
   onNavigate: (route: string, params?: Record<string, any>) => void;
 }
 
+function resolveQuestionText(q: any): string {
+  if (!q) return '';
+  return String(q.question_text || q.text || q.question || q.prompt || q.title || '');
+}
+
+function resolveOptionText(optKey: 'A' | 'B' | 'C' | 'D', q: any): string {
+  if (!q) return '';
+  const lower = optKey.toLowerCase();
+  if (q[`option_${lower}`]) return String(q[`option_${lower}`]);
+  if (q[`opt_${lower}`]) return String(q[`opt_${lower}`]);
+  if (q[lower] && typeof q[lower] === 'string') return String(q[lower]);
+  if (q[`option${optKey}`]) return String(q[`option${optKey}`]);
+
+  const idx = optKey.charCodeAt(0) - 65;
+  if (Array.isArray(q.options) && q.options[idx] !== undefined) {
+    const val = q.options[idx];
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object' && val !== null) {
+      return String(val.text || val.option || val.value || val.label || '');
+    }
+  }
+
+  if (q.options && typeof q.options === 'object' && !Array.isArray(q.options)) {
+    const val = q.options[lower] || q.options[optKey];
+    if (val) return String(typeof val === 'object' ? (val.text || val.value || '') : val);
+  }
+  if (q.choices && typeof q.choices === 'object') {
+    const val = q.choices[lower] || q.choices[optKey];
+    if (val) return String(typeof val === 'object' ? (val.text || val.value || '') : val);
+  }
+
+  return '';
+}
+
 export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
   examId,
   topicId,
@@ -85,9 +119,10 @@ export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
       }
 
       // If online fetch returned empty or failed, attempt offline retrieval
-      if (qList.length === 0 && examId) {
+      if (qList.length === 0) {
         try {
-          const offlineQs = await getOfflineExamQuestions(examId);
+          const targetExam = examId || 'exam-entrance-1789625998133';
+          const offlineQs = await getOfflineExamQuestions(targetExam);
           if (offlineQs && offlineQs.length > 0) {
             qList = offlineQs;
           }
@@ -539,7 +574,7 @@ export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
 
         {/* Question Text */}
         <div className="text-base sm:text-lg text-white font-medium leading-relaxed">
-          <FormattedQuestionText text={currentQ.question_text || currentQ.text || ''} />
+          <FormattedQuestionText text={resolveQuestionText(currentQ)} />
         </div>
 
         {/* Official Question Diagram or Vector Graphic if present */}
@@ -555,10 +590,10 @@ export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
         {/* Options with IMMEDIATE Green/Red Evaluation */}
         <div className="space-y-3 pt-2">
           {[
-            { opt: 'A' as const, text: currentQ.option_a || (Array.isArray(currentQ.options) ? currentQ.options[0] : '') || '' },
-            { opt: 'B' as const, text: currentQ.option_b || (Array.isArray(currentQ.options) ? currentQ.options[1] : '') || '' },
-            { opt: 'C' as const, text: currentQ.option_c || (Array.isArray(currentQ.options) ? currentQ.options[2] : '') || '' },
-            { opt: 'D' as const, text: currentQ.option_d || (Array.isArray(currentQ.options) ? currentQ.options[3] : '') || '' },
+            { opt: 'A' as const, text: resolveOptionText('A', currentQ) },
+            { opt: 'B' as const, text: resolveOptionText('B', currentQ) },
+            { opt: 'C' as const, text: resolveOptionText('C', currentQ) },
+            { opt: 'D' as const, text: resolveOptionText('D', currentQ) },
           ].map(choice => {
             const hasAnswered = !!currentFeedback;
             const isStudentChoice = currentFeedback?.selected_answer === choice.opt;
@@ -592,7 +627,9 @@ export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
                   }`}>
                     {choice.opt}
                   </span>
-                  <span className="mt-0.5 min-w-0 flex-1 break-words [overflow-wrap:anywhere] leading-snug">{renderRichInline(choice.text || '')}</span>
+                  <span className="mt-0.5 min-w-0 flex-1 break-words [overflow-wrap:anywhere] leading-snug">
+                    {choice.text ? renderRichInline(choice.text) : <span className="text-slate-400 font-medium italic">Option {choice.opt}</span>}
+                  </span>
                 </div>
 
                 {/* Instant Feedback Badges */}

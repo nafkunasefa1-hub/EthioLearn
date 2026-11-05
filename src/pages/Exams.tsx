@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   Award,
@@ -64,7 +64,19 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
   const { user, hasGradeAccess } = useAuth();
   const [activeCategory, setActiveCategory] = useState<'ALL' | 'ENTRANCE' | 'MODEL' | 'COLLECTION' | 'BY_CATEGORY' | 'GRADE_9' | 'GRADE_10' | 'GRADE_11_NATURAL' | 'AI_GENERATED' | 'WORKSHEET'>('ALL');
   const [selectedSeries, setSelectedSeries] = useState<string>('all');
-  const [exams, setExams] = useState<Exam[]>([]);
+  const [examsRaw, setExamsRaw] = useState<Exam[]>(STATIC_EXAMS_CATALOG);
+  const exams = useMemo(() => (Array.isArray(examsRaw) && examsRaw.length > 0 ? examsRaw : STATIC_EXAMS_CATALOG), [examsRaw]);
+  const setExams = (val: any) => {
+    if (typeof val === 'function') {
+      setExamsRaw(prev => {
+        const safePrev = Array.isArray(prev) && prev.length > 0 ? prev : STATIC_EXAMS_CATALOG;
+        const next = val(safePrev);
+        return Array.isArray(next) && next.length > 0 ? next : STATIC_EXAMS_CATALOG;
+      });
+    } else {
+      setExamsRaw(Array.isArray(val) && val.length > 0 ? val : STATIC_EXAMS_CATALOG);
+    }
+  };
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [selectedSubject, setSelectedSubject] = useState<string>('all');
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
@@ -655,14 +667,17 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
     'grade-12-social': ['subj-math', 'subj-eng', 'subj-sat', 'subj-apt', 'subj-econ', 'subj-hist', 'subj-geog', 'subj-agri', 'subj-civ', 'subj-it']
   };
 
-  const filteredSubjects = subjects.filter(s => {
+  const safeSubjects = Array.isArray(subjects) ? subjects : [];
+  const safeExams = Array.isArray(exams) ? exams : [];
+
+  const filteredSubjects = safeSubjects.filter(s => {
     if (GRADE_SUBJECT_MAP[selectedGrade]) {
       return GRADE_SUBJECT_MAP[selectedGrade].includes(s.id);
     }
     return true;
   });
 
-  const filteredExams = exams.filter(e => {
+  const filteredExams = safeExams.filter(e => {
     if (activeCategory !== 'ALL' && activeCategory !== 'BY_CATEGORY') {
       if (activeCategory === 'GRADE_9') {
         if (e.category === 'COLLECTION' || e.exam_series === 'Exam Collection') return false;

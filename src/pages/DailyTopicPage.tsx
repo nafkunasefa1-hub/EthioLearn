@@ -19,12 +19,8 @@ import {
   BookmarkCheck,
   GraduationCap
 } from 'lucide-react';
-import ReactMarkdown from 'react-markdown';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
-import remarkGfm from 'remark-gfm';
+import { MathMarkdownRenderer } from '../components/MathMarkdownRenderer';
 import { ExamQuestion } from '../types';
-import { LockedFeaturePaywall } from '../components/LockedFeaturePaywall';
 
 interface LoggedTopic {
   id: string;
@@ -69,7 +65,13 @@ export const DailyTopicPage: React.FC<DailyTopicPageProps> = ({ onNavigate }) =>
       if (savedHistory) {
         const parsed = JSON.parse(savedHistory);
         if (Array.isArray(parsed)) {
-          setPastTopics(parsed);
+          const valid = parsed.filter((p: any) => p && typeof p === 'object' && p.topic_name);
+          setPastTopics(valid.length > 0 ? valid : [
+            { id: 'dt-1', topic_name: 'Faraday\'s Laws of Electrolysis', subject_name: 'Chemistry', date: 'Yesterday', score: 3, total_questions: 3 },
+            { id: 'dt-2', topic_name: 'Mendelian Laws of Inheritance', subject_name: 'Biology', date: '2 days ago', score: 3, total_questions: 3 },
+            { id: 'dt-3', topic_name: '1D Kinematics and Acceleration', subject_name: 'Physics', date: '3 days ago', score: 2, total_questions: 3 },
+            { id: 'dt-4', topic_name: 'Battle of Adwa & Treaty of Wuchale', subject_name: 'History', date: '4 days ago', score: 3, total_questions: 3 }
+          ]);
         }
       } else {
         setPastTopics([
@@ -309,22 +311,7 @@ In the Ethiopian Secondary School Curriculum (${user?.grade || 'Grade 12'}), mas
     { title: 'The Victory of Adwa (1896)', sub: 'History' }
   ];
 
-  // Paywall guard
-  const isPaid = Boolean(
-    user?.role === 'admin' ||
-    user?.is_premium ||
-    (user?.unlocked_grades && user.unlocked_grades.length > 0)
-  );
-  if (!isPaid) {
-    return (
-      <LockedFeaturePaywall
-        title="Daily Topic Hub — Premium Feature"
-        description="The Daily Topic Hub with AI-curated study topics, daily streaks, and topic practice sessions is available to subscribed students only. Subscribe to stay on track every day!"
-        userGrade={user?.grade || 'Grade 12'}
-        onNavigate={onNavigate!}
-      />
-    );
-  }
+
 
   return (
     <div className="flex-1 bg-slate-950 text-slate-100 min-h-screen p-4 sm:p-8 flex flex-col items-center">
@@ -459,19 +446,8 @@ In the Ethiopian Secondary School Curriculum (${user?.grade || 'Grade 12'}), mas
               </div>
 
               {/* Formatted Markdown */}
-              <div className="markdown-body font-sans text-xs sm:text-sm text-slate-200 leading-relaxed space-y-3">
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkMath]}
-                  rehypePlugins={[rehypeKatex]}
-                  components={{
-                    h3: ({ node, ...props }) => <h3 className="text-base font-bold text-emerald-400 mt-4 mb-2" {...props} />,
-                    h4: ({ node, ...props }) => <h4 className="text-sm font-semibold text-amber-300 mt-3 mb-1" {...props} />,
-                    p: ({ node, ...props }) => <p className="leading-relaxed my-2" {...props} />,
-                    ul: ({ node, ...props }) => <ul className="list-disc list-inside space-y-1.5 my-2" {...props} />
-                  }}
-                >
-                  {topicData.explanation}
-                </ReactMarkdown>
+              <div className="font-sans text-xs sm:text-sm text-slate-200 leading-relaxed">
+                <MathMarkdownRenderer content={topicData.explanation} />
               </div>
 
               {/* Key Formula / Points Pill */}
@@ -627,23 +603,23 @@ In the Ethiopian Secondary School Curriculum (${user?.grade || 'Grade 12'}), mas
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {(Array.isArray(pastTopics) ? pastTopics : []).map((pt) => (
+            {(Array.isArray(pastTopics) ? pastTopics.filter(Boolean) : []).map((pt, idx) => (
               <div
-                key={pt.id}
+                key={pt?.id || `pt-${idx}`}
                 className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-3"
               >
                 <div>
                   <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider block">
-                    {pt.subject_name} • {pt.date}
+                    {pt?.subject_name || 'General'} • {pt?.date || 'Past'}
                   </span>
                   <span className="font-bold text-white text-xs block line-clamp-1">
-                    {pt.topic_name}
+                    {pt?.topic_name || 'Study Topic'}
                   </span>
                 </div>
 
                 <div className="text-right shrink-0">
                   <span className="px-2 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-400 font-mono font-bold text-xs">
-                    {pt.score}/{pt.total_questions}
+                    {pt?.score ?? 0}/{pt?.total_questions ?? 3}
                   </span>
                 </div>
               </div>

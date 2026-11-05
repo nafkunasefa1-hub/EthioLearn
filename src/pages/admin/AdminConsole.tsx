@@ -1477,7 +1477,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
               </p>
             </div>
             <span className="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">
-              Pending: {deviceTransfers.filter(t => t.status === 'pending').length}
+              Pending: {(Array.isArray(deviceTransfers) ? deviceTransfers : []).filter(t => t.status === 'pending').length}
             </span>
           </div>
 
@@ -2190,12 +2190,13 @@ If Δ < 0: no real roots.`}
 
       {/* TAB 4: ENTRANCE EXAM & QUESTION BANK MANAGEMENT */}
       {activeTab === 'exams' && (() => {
-        const totalExamsCount = exams.length;
-        const entranceExamsCount = exams.filter(e => e.category !== 'MODEL').length;
-        const modelExamsCount = exams.filter(e => e.category === 'MODEL').length;
-        const uploadedExamsCount = exams.filter(e => e.source_type === 'USER_UPLOADED' || e.id.startsWith('exam-entrance-1789')).length;
+        const safeExams = Array.isArray(exams) ? exams : [];
+        const totalExamsCount = safeExams.length;
+        const entranceExamsCount = safeExams.filter(e => e.category !== 'MODEL').length;
+        const modelExamsCount = safeExams.filter(e => e.category === 'MODEL').length;
+        const uploadedExamsCount = safeExams.filter(e => e.source_type === 'USER_UPLOADED' || e.id.startsWith('exam-entrance-1789')).length;
 
-        const filteredAdminExams = exams.filter(ex => {
+        const filteredAdminExams = safeExams.filter(ex => {
           // Category Tab filter
           if (examCategoryTab === 'ENTRANCE') {
             if (ex.category === 'MODEL') return false;

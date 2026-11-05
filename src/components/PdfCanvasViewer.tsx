@@ -25,6 +25,7 @@ interface PdfCanvasViewerProps {
   bookVersion?: string | number;
   onOpenUploadModal?: () => void;
   onPageChange?: (page: number) => void;
+  onSwitchToDigitalReader?: () => void;
 }
 
 declare global {
@@ -40,7 +41,8 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
   pageOffset = 0,
   bookVersion,
   onOpenUploadModal,
-  onPageChange
+  onPageChange,
+  onSwitchToDigitalReader
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const pageCanvasRefs = useRef<Record<number, HTMLCanvasElement | null>>({});
@@ -526,20 +528,36 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
 
         {error && !loading && (
           <div className="flex flex-col items-center justify-center my-auto p-8 max-w-md mx-auto text-center space-y-4">
-            <AlertCircle className="w-12 h-12 text-rose-400" />
-            <div className="space-y-1">
-              <h3 className="text-base font-semibold text-white">Textbook PDF Unavailable</h3>
-              <p className="text-xs text-slate-400">{error}</p>
+            <AlertCircle className="w-12 h-12 text-amber-400" />
+            <div className="space-y-1.5">
+              <h3 className="text-base font-bold text-white">Scanned PDF Streaming Notice</h3>
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Streaming the original scanned physical PDF requires an active internet connection.
+                All 59 textbooks, verified equations, and curriculum notes are 100% saved offline on your device in Digital Reader mode.
+              </p>
             </div>
-            {onOpenUploadModal && (
-              <button
-                onClick={onOpenUploadModal}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold shadow transition flex items-center gap-2"
-              >
-                <Upload className="w-4 h-4" />
-                Upload PDF File Now
-              </button>
-            )}
+            <div className="flex flex-col sm:flex-row items-center gap-2 pt-2">
+              {onSwitchToDigitalReader && (
+                <button
+                  type="button"
+                  onClick={onSwitchToDigitalReader}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-lg transition flex items-center justify-center gap-2"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>Open Offline Digital Reader</span>
+                </button>
+              )}
+              {onOpenUploadModal && (
+                <button
+                  type="button"
+                  onClick={onOpenUploadModal}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-2"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Upload PDF Document</span>
+                </button>
+              )}
+            </div>
           </div>
         )}
 

@@ -223,44 +223,46 @@ async function callLiveGemini(prompt: string, history: any[] = [], subjectId?: s
   });
 
   let attempts = 0;
-  const maxAttempts = Math.min(5, GEMINI_CLIENT_KEY_POOL.length);
+  const maxAttempts = Math.min(6, GEMINI_CLIENT_KEY_POOL.length);
+  const candidateModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-2.5-flash'];
 
   while (attempts < maxAttempts) {
     const key = GEMINI_CLIENT_KEY_POOL[geminiKeyIndex % GEMINI_CLIENT_KEY_POOL.length];
     geminiKeyIndex = (geminiKeyIndex + 1) % GEMINI_CLIENT_KEY_POOL.length;
     attempts++;
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 9000);
+    for (const model of candidateModels) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 9000);
 
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`;
-      const res = await nativeFetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: systemInstruction }] },
-          contents,
-          generationConfig: {
-            temperature: 0.3,
-            maxOutputTokens: 2048
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+        const res = await nativeFetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: systemInstruction }] },
+            contents,
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 2048
+            }
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const data = await res.json();
+          const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (candidate && candidate.trim().length > 0) {
+            return candidate.trim();
           }
-        }),
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      if (res.ok) {
-        const data = await res.json();
-        const candidate = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (candidate && candidate.trim().length > 0) {
-          return candidate.trim();
         }
+      } catch (e) {
+        // Try next model or next key
       }
-      console.warn(`[EthioLearn AI] Key attempt ${attempts} returned status ${res.status}`);
-    } catch (e) {
-      console.warn(`[EthioLearn AI] Attempt ${attempts} failed:`, e);
     }
   }
 
@@ -360,11 +362,11 @@ async function handleOfflineApiRequest(
   if (path === '/api/auth/phone-login' || path === '/api/auth/login') {
     let body: any = {};
     try { body = rawBody ? JSON.parse(rawBody) : {}; } catch (_) {}
-    const rawPhone = String(body.phone || '').trim();
+    const rawPhone = String(body.phone || body.phone_number || body.phoneNumber || '').trim();
     const cleanPhone = rawPhone.replace(/[\s\-\(\)]/g, '');
     const password = String(body.password || '').trim();
 
-    // Lead Admin recognition
+    // Lead Admin recognition (phone ending with 994847287 or admin keywords)
     const isAdmin =
       cleanPhone.includes('994847287') ||
       cleanPhone.includes('251994847287') ||
@@ -379,7 +381,7 @@ async function handleOfflineApiRequest(
     const user = {
       id: isAdmin ? 'admin-lead-nafkun' : `student-${cleanPhone || 'local'}`,
       phone: isAdmin ? '+251994847287' : (cleanPhone || '+251900000000'),
-      name: isAdmin ? 'Nafkun Asefa (Lead Admin)' : (body.name || 'Ethiopian Scholar'),
+      name: isAdmin ? 'Nafkun Asefa (Lead Admin)' : (body.name || body.full_name || body.fullName || 'Ethiopian Scholar'),
       role: isAdmin ? 'admin' : 'student',
       grade_id: body.grade_id || 'grade-12',
       stream: body.stream || 'NATURAL',
@@ -388,13 +390,33 @@ async function handleOfflineApiRequest(
       is_premium: true
     };
 
+    const profile = {
+      id: user.id,
+      phone_number: user.phone,
+      email: isAdmin ? 'nafkunasefa28@gmail.com' : `${user.phone.replace('+', '')}@student.ethiolearn.edu.et`,
+      full_name: user.name,
+      role: user.role,
+      grade: 'Grade 12 - Natural Science',
+      grade_id: user.grade_id,
+      is_premium: true,
+      is_verified: true,
+      created_at: user.created_at
+    };
+
     try {
       localStorage.setItem('ethiolearn_user', JSON.stringify(user));
+      localStorage.setItem('ethiolearn_user_profile', JSON.stringify(profile));
+      localStorage.setItem('ethiolearn_user_id', user.id);
+      localStorage.setItem('ethiolearn_phone_session', 'verified');
+      localStorage.setItem('ethiolearn_phone', user.phone);
       localStorage.setItem('ethiolearn_token', isAdmin ? 'lead-admin-token-2026' : 'student-token-2026');
     } catch (_) {}
 
     return jsonResponse({
+      success: true,
       user,
+      profile,
+      is_admin: isAdmin,
       token: isAdmin ? 'lead-admin-token-2026' : 'student-token-2026',
       message: isAdmin ? 'Welcome Lead Admin Nafkun Asefa' : 'Login successful'
     });
@@ -412,11 +434,34 @@ async function handleOfflineApiRequest(
       created_at: '2024-01-01T00:00:00.000Z',
       is_premium: true
     };
+    const profile = {
+      id: user.id,
+      phone_number: user.phone,
+      email: 'nafkunasefa28@gmail.com',
+      full_name: user.name,
+      role: 'admin',
+      grade: 'Grade 12 - Natural Science',
+      grade_id: 'grade-12-natural',
+      is_premium: true,
+      is_verified: true,
+      created_at: user.created_at
+    };
     try {
       localStorage.setItem('ethiolearn_user', JSON.stringify(user));
+      localStorage.setItem('ethiolearn_user_profile', JSON.stringify(profile));
+      localStorage.setItem('ethiolearn_user_id', user.id);
+      localStorage.setItem('ethiolearn_phone_session', 'verified');
+      localStorage.setItem('ethiolearn_phone', user.phone);
       localStorage.setItem('ethiolearn_token', 'lead-admin-token-2026');
     } catch (_) {}
-    return jsonResponse({ user, token: 'lead-admin-token-2026' });
+    return jsonResponse({
+      success: true,
+      user,
+      profile,
+      is_admin: true,
+      token: 'lead-admin-token-2026',
+      message: 'Welcome Lead Admin Nafkun Asefa'
+    });
   }
 
   if (path === '/api/auth/me') {
@@ -526,13 +571,38 @@ async function handleOfflineApiRequest(
   if (bookMatch) {
     const bookId = bookMatch[1];
     const books = meta?.books?.length ? meta.books : STATIC_BOOKS_CATALOG;
-    const book = books.find(b => b.id === bookId);
+    const book = books.find(b => b.id === bookId) || STATIC_BOOKS_CATALOG.find(b => b.id === bookId);
     if (!book) {
       return jsonResponse({ error: 'Book not found' }, 404);
     }
     // Attach chapters
     const chapters = (meta?.book_chapters || []).filter(c => c.book_id === bookId);
-    return jsonResponse({ ...book, chapters: chapters.length > 0 ? chapters : book.chapters || [] });
+    const resolvedChapters = chapters.length > 0 ? chapters : (book.chapters || []);
+    return jsonResponse({
+      ...book,
+      book: { ...book, chapters: resolvedChapters },
+      chapters: resolvedChapters
+    });
+  }
+
+  // Match /api/books/:id/pdf (Streams online scanned original PDF, or signals offline mode)
+  const bookPdfMatch = path.match(/^\/api\/books\/([^\/]+)\/pdf$/);
+  if (bookPdfMatch) {
+    const bookId = bookPdfMatch[1];
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      try {
+        const streamUrl = `https://ethiolearn.onrender.com/api/books/${bookId}/pdf`;
+        const res = await nativeFetch(streamUrl);
+        if (res.ok) {
+          return res;
+        }
+      } catch (_) {}
+    }
+    return jsonResponse({
+      error: 'OFFLINE_STREAM_REQUIRED',
+      offline: true,
+      message: 'Scanned booklet requires internet data. All verified curriculum content is ready in Digital Reader mode.'
+    }, 404);
   }
 
   // Match /api/books/:id/chapters
@@ -571,7 +641,10 @@ async function handleOfflineApiRequest(
       pageObj = getEmbeddedBookPage(bookId, pageNum);
     }
 
-    return jsonResponse({
+    const books = meta?.books?.length ? meta.books : STATIC_BOOKS_CATALOG;
+    const book = books.find(b => b.id === bookId) || STATIC_BOOKS_CATALOG.find(b => b.id === bookId);
+
+    const pageData = {
       id: pageObj?.id || `page-${bookId}-${pageNum}`,
       book_id: bookId,
       printed_page_number: pageNum,
@@ -579,6 +652,13 @@ async function handleOfflineApiRequest(
       extracted_text: pageObj?.extracted_text || pageObj?.final_text || '',
       final_text: pageObj?.final_text || pageObj?.extracted_text || '',
       confidence: 99
+    };
+
+    return jsonResponse({
+      ...pageData,
+      page: pageData,
+      book: book || null,
+      printed_page_number: pageNum
     });
   }
 

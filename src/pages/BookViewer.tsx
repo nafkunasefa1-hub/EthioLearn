@@ -252,18 +252,21 @@ export const BookViewer: React.FC<BookViewerProps> = ({
         return;
       }
       const data = await res.json();
-      setBook(data.book);
-      setCurrentPageData(data.page);
-      setPrintedPage(data.printed_page_number);
-      setPdfPageIndex(data.pdf_page_index || data.printed_page_number);
-      setPageNumberInput(data.printed_page_number.toString());
-      if (data.page) {
-        saveOfflineBookPage(bookId, data.printed_page_number, data.page).catch(() => {});
+      const resolvedBook = data.book || (data.title ? data : (getStaticBookById(bookId) || null));
+      const resolvedPage = data.page || (data.extracted_text || data.final_text ? data : null);
+      if (resolvedBook) setBook(resolvedBook);
+      if (resolvedPage) setCurrentPageData(resolvedPage);
+      const curPageNum = data.printed_page_number || resolvedPage?.printed_page_number || page;
+      setPrintedPage(curPageNum);
+      setPdfPageIndex(data.pdf_page_index || resolvedPage?.pdf_page_index || curPageNum);
+      setPageNumberInput(String(curPageNum));
+      if (resolvedPage) {
+        saveOfflineBookPage(bookId, curPageNum, resolvedPage).catch(() => {});
       }
       try {
-        localStorage.setItem(`ethio_saved_page_${bookId}`, data.printed_page_number.toString());
+        localStorage.setItem(`ethio_saved_page_${bookId}`, curPageNum.toString());
         localStorage.setItem('ethio_last_viewed_book', bookId);
-        localStorage.setItem('ethio_last_viewed_page', data.printed_page_number.toString());
+        localStorage.setItem('ethio_last_viewed_page', curPageNum.toString());
       } catch {}
     } catch (err) {
       console.warn('Network error loading page, checking offline cache & embedded fallback:', err);
@@ -292,16 +295,19 @@ export const BookViewer: React.FC<BookViewerProps> = ({
     })
       .then(res => (res.ok ? res.json() : null))
       .then(async (data) => {
-        if (data?.book) {
-          setBook(data.book);
-          if (typeof data.book.total_pages === 'number' && data.book.total_pages > 0) {
+        const resolvedBook = data?.book || (data?.title ? data : (getStaticBookById(bookId) || null));
+        if (resolvedBook) {
+          setBook(resolvedBook);
+          if (typeof resolvedBook.total_pages === 'number' && resolvedBook.total_pages > 0) {
             try {
-              localStorage.setItem('ethio_book_pages_' + bookId, String(data.book.total_pages));
+              localStorage.setItem('ethio_book_pages_' + bookId, String(resolvedBook.total_pages));
             } catch {}
           }
         }
         if (data?.chapters && data.chapters.length > 0) {
           setChapters(data.chapters);
+        } else if (resolvedBook?.chapters && resolvedBook.chapters.length > 0) {
+          setChapters(resolvedBook.chapters);
         } else {
           const offlineData = await getOfflineBookFull(bookId);
           if (offlineData?.chapters && offlineData.chapters.length > 0) {

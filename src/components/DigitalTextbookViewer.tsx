@@ -320,6 +320,7 @@ export const DigitalTextbookViewer: React.FC<DigitalTextbookViewerProps> = ({
             initialPage={targetPdfPage}
             pageOffset={offset}
             bookVersion={(book as any).updated_at || book.total_pages}
+            onSwitchToDigitalReader={() => setDisplayMode('smart')}
             onPageChange={(physicalPage) => {
               const convertedPrinted = Math.max(1, physicalPage - offset);
               if (convertedPrinted !== printedPage) {

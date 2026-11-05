@@ -1,20 +1,29 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+---
+title: EthioLearn AI Platform
+emoji: 🎓
+colorFrom: green
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
 
-# Run and deploy your AI Studio app
+# EthioLearn AI - Ethiopian National Education Platform
 
-This contains everything you need to run your app locally.
+Official digital curriculum platform for Grades 9–12 across Ethiopia with AI tutoring, 59 curriculum textbooks, and 73 entrance examinations.
 
-View your app in AI Studio: https://ai.studio/apps/c1058bba-2356-4903-bcae-3e9b8f7cd3ee
+## Web Deployment (Hugging Face Spaces - 16 GB Free RAM)
+This repository is configured with Docker for instant zero-cost hosting on Hugging Face Spaces:
+- **RAM**: 16 GB RAM (Free CPU Basic Tier)
+- **CPU**: 2 vCPUs
+- **Disk**: 50 GB free container storage
+- **Credit Card / Payment Required**: **Zero ($0 forever, no credit or debit card required)**
+- **Public URL**: `https://<hf-username>-ethiolearn.hf.space`
 
-## Run Locally
+## Local Development
+1. `npm install`
+2. `npm run dev` (starts on port 3000)
 
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Production Build
+1. `npm run build`
+2. `npm start`

@@ -38,7 +38,7 @@ if (typeof window !== 'undefined') {
 }
 
 const DB_NAME = 'EthioLearnOfflineDB';
-const DB_VERSION = 3;
+const DB_VERSION = 5;
 
 const STORE_PDFS = 'textbook_pdfs';
 const STORE_PAGES = 'textbook_pages';
@@ -72,6 +72,14 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_EXAMS)) {
         db.createObjectStore(STORE_EXAMS, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(STORE_EXAM_QUESTIONS)) {
+        db.createObjectStore(STORE_EXAM_QUESTIONS, { keyPath: 'examId' });
+      } else {
+        // Upgrade from older versions: wipe stale cache to force fresh authentic questions
+        try {
+          req.transaction?.objectStore(STORE_EXAM_QUESTIONS).clear();
+        } catch (_) {}
       }
       if (!db.objectStoreNames.contains(STORE_EXAM_QUESTIONS)) {
         db.createObjectStore(STORE_EXAM_QUESTIONS, { keyPath: 'examId' });
@@ -250,6 +258,24 @@ export async function getOfflineExamQuestions(examId: string): Promise<ExamQuest
     await loadOfflineQuestionsBundle();
   }
 
+  // 1. Authoritative: Pre-indexed verified offline bundle (covers all 73 exams & 11,002 questions)
+  const bundled = offlineQuestionsBundle?.[examId];
+  if (Array.isArray(bundled) && bundled.length > 0) {
+    const first = bundled[0];
+    const hasValidOpts = (first.option_a && first.option_a.trim().length > 0) ||
+      (Array.isArray(first.options) && first.options.some((o: any) => typeof o === 'string' && o.trim().length > 0));
+    if (hasValidOpts) {
+      return bundled;
+    }
+  }
+
+  // 2. Fallback to worksheet questions
+  const ws = getBundledExamQuestions(examId);
+  if (ws && ws.length > 0) {
+    return ws;
+  }
+
+  // 3. Fallback to IndexedDB (for user custom saved exams)
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_EXAM_QUESTIONS, 'readonly');
@@ -259,10 +285,15 @@ export async function getOfflineExamQuestions(examId: string): Promise<ExamQuest
     return new Promise((resolve) => {
       req.onsuccess = () => {
         if (req.result && Array.isArray(req.result.questions) && req.result.questions.length > 0) {
-          resolve(req.result.questions);
-        } else {
-          resolve(getBundledExamQuestions(examId));
+          const first = req.result.questions[0];
+          const hasValidOpts = (first.option_a && first.option_a.trim().length > 0) ||
+            (Array.isArray(first.options) && first.options.some((o: any) => typeof o === 'string' && o.trim().length > 0));
+          if (hasValidOpts) {
+            resolve(req.result.questions);
+            return;
+          }
         }
+        resolve(getBundledExamQuestions(examId));
       };
       req.onerror = () => resolve(getBundledExamQuestions(examId));
     });

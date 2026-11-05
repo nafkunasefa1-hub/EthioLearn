@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { MathMarkdownRenderer } from '../components/MathMarkdownRenderer';
 import {
@@ -96,6 +96,25 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
   const [chatLoading, setChatLoading] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+  const resultRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (currentResult && !loading) {
+      const scrollDown = () => {
+        if (resultRef.current) {
+          resultRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        if (typeof window !== 'undefined' && resultRef.current) {
+          const topPos = resultRef.current.offsetTop - 70;
+          if (topPos > 0) {
+            window.scrollTo({ top: topPos, behavior: 'smooth' });
+          }
+        }
+      };
+      setTimeout(scrollDown, 80);
+      setTimeout(scrollDown, 300);
+    }
+  }, [currentResult, loading]);
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -708,27 +727,29 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
               </div>
             </div>
 
-            {/* Suggested Quick Questions */}
-            <div className="pt-2 border-t border-slate-700/60">
-              <div className="text-[11px] font-semibold text-slate-400 mb-1.5 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-emerald-400" />
-                <span>Try asking about these key secondary exam topics:</span>
+            {/* Suggested Quick Questions (Shown when no answer is active to maximize screen space for the solution) */}
+            {!currentResult && (
+              <div className="pt-2 border-t border-slate-700/60">
+                <div className="text-[11px] font-semibold text-slate-400 mb-1.5 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-emerald-400" />
+                  <span>Try asking about these key secondary exam topics:</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {sampleQuestions.map((q, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        setQuestionInput(q.text);
+                        handleAsk(q.text, q.subject);
+                      }}
+                      className="px-2.5 py-1 bg-slate-900 hover:bg-slate-700 border border-slate-700/60 text-slate-300 rounded-lg text-xs transition text-left"
+                    >
+                      {q.text}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {sampleQuestions.map((q, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      setQuestionInput(q.text);
-                      handleAsk(q.text, q.subject);
-                    }}
-                    className="px-2.5 py-1 bg-slate-900 hover:bg-slate-700 border border-slate-700/60 text-slate-300 rounded-lg text-xs transition text-left"
-                  >
-                    {q.text}
-                  </button>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Error Message */}
@@ -761,7 +782,7 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
 
           {/* AI Structured Answer Result */}
           {currentResult && !loading && (
-            <div className="bg-slate-800 border border-slate-700/80 rounded-2xl p-6 sm:p-8 space-y-6 shadow-md">
+            <div ref={resultRef} className="bg-slate-800 border border-slate-700/80 rounded-2xl p-6 sm:p-8 space-y-6 shadow-md animate-fadeIn">
               {/* ... Answer Content ... */}
               <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-700">
                 <div className="flex items-center gap-2">

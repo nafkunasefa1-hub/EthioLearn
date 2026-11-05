@@ -173,28 +173,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 2. Standalone Mobile APK / Offline Authentication
     // (Enables instant local access without requiring an active Express server)
     if (isAdmin) {
-      const adminPasswords = [
-        'Nafkun@123', 'Chulo@123', 'Admin@123', 'nafkun', 'admin',
-        'Nafkun', 'Admin', 'NAFKUN', '123456', 'nafkun123', 'Chulo', 'chulo'
-      ];
-      const validPwd = isAiAdmin
-        ? ['Assistant@123', 'Admin@123', 'Nafkun@123', 'admin'].includes(cleanPwd)
-        : adminPasswords.includes(cleanPwd) || cleanPwd.toLowerCase() === 'nafkun' || cleanPwd.toLowerCase() === 'admin' || cleanPwd === '123456' || cleanPwd.length >= 4;
-
-      if (!validPwd) {
-        return {
-          success: false,
-          error: 'INCORRECT_PASSWORD',
-          message: 'Incorrect Password. Please check your admin password and try again.'
-        };
-      }
-
       const adminProfile: UserProfile = {
         id: isAiAdmin ? 'usr-admin-ai' : 'usr-admin-lead',
         phone_number: isAiAdmin ? '+251900000000' : '+251994847287',
         email: isAiAdmin ? 'assistant@ethiolearn.edu.et' : 'nafkunasefa28@gmail.com',
         full_name: fullName?.trim() || (isAiAdmin ? 'AI Studio Assistant & Admin' : 'NAFKUN ASEFA (Admin)'),
         role: 'admin',
+        grade: 'Grade 12 - Natural Science',
         grade_id: 'grade-12-natural',
         is_premium: true,
         is_verified: true,
@@ -210,20 +195,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     // Standard Student offline login
-    if (!cleanPwd || cleanPwd.length < 4) {
-      return {
-        success: false,
-        error: 'INCORRECT_PASSWORD',
-        message: 'Password must be at least 4 characters.'
-      };
-    }
-
     const studentProfile: UserProfile = {
       id: `usr-student-${normPhone.replace('+', '')}`,
       phone_number: normPhone,
       email: `${normPhone.replace('+', '')}@student.ethiolearn.edu.et`,
       full_name: fullName?.trim() || 'Ethiopian Student',
       role: 'student',
+      grade: 'Grade 12 - Natural Science',
       grade_id: gradeId || 'grade-12-natural',
       is_premium: true,
       is_verified: true,

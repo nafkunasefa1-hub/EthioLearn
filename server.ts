@@ -33,7 +33,7 @@ import { sendSmsOtp } from './server/smsService';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Helper to determine if an account is in either of the two premium states:
 // 1. Full/Lifetime Premium (all grades unlocked or is_premium: true)

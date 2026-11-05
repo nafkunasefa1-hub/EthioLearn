@@ -174,16 +174,6 @@ function AppContent() {
 
       case 'daily-topic':
       case 'daily-topics':
-        if (!isPaidUser) {
-          return (
-            <LockedFeaturePaywall
-              title="Daily Topic Hub — Premium Feature"
-              description="The Daily Topic Hub with structured curriculum masterclasses, daily practice sets, and memory anchors is available exclusively to subscribed students."
-              userGrade={user?.grade}
-              onNavigate={handleNavigate}
-            />
-          );
-        }
         return <DailyTopicPage onNavigate={handleNavigate} />;
 
       case 'module':
