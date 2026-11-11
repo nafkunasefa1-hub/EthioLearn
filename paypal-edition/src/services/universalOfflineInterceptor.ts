@@ -1011,7 +1011,7 @@ async function handleOfflineApiRequest(
       id: 'usr-devpost-judge',
       phone_number: '+251911002026',
       email: 'judge@paypal-devpost.ethiolearn.edu.et',
-      full_name: 'Dr. Dawit Haile (Devpost Judge)',
+      full_name: 'Devpost Judge',
       role: 'student',
       grade: 'Grade 12 - Natural Science',
       grade_id: 'grade-12-natural',
@@ -3163,15 +3163,16 @@ How can I help you excel today? You can ask me any question or explore these cor
     } catch (_) {}
     const deletedSet = new Set(deletedList.map(s => String(s).toLowerCase().trim()));
 
+    // ONLY Admin and Devpost Judge are seeded by default (no other sample numbers!)
     const DEFAULT_STUDENTS = [
       {
-        id: 'usr-nafkun-student',
+        id: 'usr-nafkun-admin',
         phone_number: '+251975949200',
         email: 'nafkun@ethiolearn.edu.et',
-        full_name: 'Nafkun Asefa',
+        full_name: 'Nafkun Asefa (Admin)',
         grade: 'Grade 12 - Natural Science',
         grade_id: 'grade-12-natural',
-        role: 'student',
+        role: 'admin',
         is_premium: true,
         unlocked_grades: ['all'],
         payment_tier: 'all',
@@ -3180,40 +3181,10 @@ How can I help you excel today? You can ask me any question or explore these cor
         updated_at: new Date().toISOString()
       },
       {
-        id: 'usr-student-premium',
-        phone_number: '+251911223344',
-        email: 'student@ethiolearn.edu.et',
-        full_name: 'Abebe Kebede',
-        grade: 'Grade 12 - Natural Science',
-        grade_id: 'grade-12-natural',
-        role: 'student',
-        is_premium: true,
-        unlocked_grades: ['grade-12-natural'],
-        payment_tier: 'single',
-        device_id: 'dev-ethio-abebe-phone-412',
-        created_at: '2026-09-10T08:30:00Z',
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: 'usr-student-free',
-        phone_number: '+251922334455',
-        email: 'free@ethiolearn.edu.et',
-        full_name: 'Sara Tesfaye',
-        grade: 'Grade 10',
-        grade_id: 'grade-10',
-        role: 'student',
-        is_premium: false,
-        unlocked_grades: [],
-        payment_tier: 'free',
-        device_id: 'dev-ethio-sara-android-77',
-        created_at: '2026-10-02T14:15:00Z',
-        updated_at: new Date().toISOString()
-      },
-      {
         id: 'usr-devpost-judge',
         phone_number: '+251911002026',
         email: 'judge@paypal-devpost.ethiolearn.edu.et',
-        full_name: 'Dr. Dawit Haile (Devpost Judge)',
+        full_name: 'Devpost Judge',
         grade: 'Grade 12 - Natural Science',
         grade_id: 'grade-12-natural',
         role: 'student',
@@ -3231,6 +3202,16 @@ How can I help you excel today? You can ask me any question or explore these cor
       const stored = localStorage.getItem('ethiolearn_admin_students');
       if (stored) currentList = JSON.parse(stored);
     } catch (_) {}
+
+    // Auto-purge any stale sample numbers previously saved in localStorage (+251911223344, +251922334455)
+    const STALE_SAMPLE_PHONES = new Set(['+251911223344', '+251922334455', '0911223344', '0922334455', 'usr-student-premium', 'usr-student-free']);
+    if (Array.isArray(currentList)) {
+      currentList = currentList.filter(s => {
+        const p = String(s.phone_number || '').trim();
+        const id = String(s.id || '').trim();
+        return !STALE_SAMPLE_PHONES.has(p) && !STALE_SAMPLE_PHONES.has(id);
+      });
+    }
 
     if (!Array.isArray(currentList) || currentList.length === 0) {
       currentList = DEFAULT_STUDENTS.filter(ds => 
@@ -3259,6 +3240,8 @@ How can I help you excel today? You can ask me any question or explore these cor
           for (const rs of regList) {
             const cleanPhone = String(rs.phone || '').replace(/[^\d+]/g, '');
             if (
+              STALE_SAMPLE_PHONES.has(cleanPhone) ||
+              STALE_SAMPLE_PHONES.has(String(rs.phone)) ||
               (rs.id && deletedSet.has(String(rs.id).toLowerCase())) ||
               (cleanPhone && deletedSet.has(cleanPhone.toLowerCase())) ||
               (rs.phone && deletedSet.has(String(rs.phone).toLowerCase()))
@@ -3385,50 +3368,77 @@ How can I help you excel today? You can ask me any question or explore these cor
 
   const studentDeleteMatch = path.match(/^\/api\/admin\/students\/([^\/]+)$/);
   if (studentDeleteMatch && method === 'DELETE') {
-    const studentId = studentDeleteMatch[1];
+    const rawParam = decodeURIComponent(studentDeleteMatch[1]).trim();
+    const cleanDigits = rawParam.replace(/[^\d]/g, '');
+
     let list = getAdminStudentsList();
-    const targetStudent = list.find(s => s.id === studentId || s.phone_number === studentId);
+    const targetStudent = list.find(s => {
+      const sId = String(s.id || '').trim();
+      const sPhone = String(s.phone_number || '').trim();
+      const sDigits = sPhone.replace(/[^\d]/g, '');
+      return sId === rawParam || sPhone === rawParam || (cleanDigits.length >= 9 && sDigits.includes(cleanDigits));
+    });
 
     let deletedList: string[] = [];
     try {
       const delStr = localStorage.getItem('ethiolearn_deleted_students');
       if (delStr) deletedList = JSON.parse(delStr);
     } catch (_) {}
-    deletedList.push(studentId.toLowerCase());
+    deletedList.push(rawParam.toLowerCase());
+    if (cleanDigits) deletedList.push(cleanDigits);
+    if (targetStudent?.id) deletedList.push(String(targetStudent.id).toLowerCase());
     if (targetStudent?.phone_number) {
       deletedList.push(String(targetStudent.phone_number).toLowerCase());
-      const cleanPhone = String(targetStudent.phone_number).replace(/[^\d+]/g, '').toLowerCase();
-      if (cleanPhone) deletedList.push(cleanPhone);
+      const pDigits = String(targetStudent.phone_number).replace(/[^\d]/g, '');
+      if (pDigits) deletedList.push(pDigits);
     }
     const uniqueDeleted = Array.from(new Set(deletedList));
     try {
       localStorage.setItem('ethiolearn_deleted_students', JSON.stringify(uniqueDeleted));
     } catch (_) {}
 
-    list = list.filter(s => s.id !== studentId && s.phone_number !== studentId);
+    // Filter out of ethiolearn_admin_students
+    list = list.filter(s => {
+      const sId = String(s.id || '').trim().toLowerCase();
+      const sPhone = String(s.phone_number || '').trim().toLowerCase();
+      const sDigits = sPhone.replace(/[^\d]/g, '');
+      const match = sId === rawParam.toLowerCase() || sPhone === rawParam.toLowerCase() ||
+        (cleanDigits.length >= 9 && sDigits.includes(cleanDigits)) ||
+        (targetStudent && (sId === String(targetStudent.id).toLowerCase() || sPhone === String(targetStudent.phone_number).toLowerCase()));
+      return !match;
+    });
     try {
       localStorage.setItem('ethiolearn_admin_students', JSON.stringify(list));
     } catch (_) {}
 
+    // Filter out of ethiolearn_registered_students
     try {
       const regStr = localStorage.getItem('ethiolearn_registered_students');
       if (regStr) {
         let regList = JSON.parse(regStr);
         if (Array.isArray(regList)) {
           regList = regList.filter((rs: any) => {
-            const cleanPhone = String(rs.phone || '').replace(/[^\d+]/g, '');
-            return rs.id !== studentId && rs.phone !== studentId && cleanPhone !== studentId &&
-              (!targetStudent?.phone_number || (rs.phone !== targetStudent.phone_number && cleanPhone !== targetStudent.phone_number));
+            const rId = String(rs.id || '').trim().toLowerCase();
+            const rPhone = String(rs.phone || '').trim().toLowerCase();
+            const rDigits = rPhone.replace(/[^\d]/g, '');
+            const match = rId === rawParam.toLowerCase() || rPhone === rawParam.toLowerCase() ||
+              (cleanDigits.length >= 9 && rDigits.includes(cleanDigits)) ||
+              (targetStudent && (rId === String(targetStudent.id).toLowerCase() || rPhone === String(targetStudent.phone_number).toLowerCase()));
+            return !match;
           });
           localStorage.setItem('ethiolearn_registered_students', JSON.stringify(regList));
         }
       }
     } catch (_) {}
 
+    // Clear active session if this student is currently logged in
     try {
       const curId = localStorage.getItem('ethiolearn_user_id');
       const curPhone = localStorage.getItem('ethiolearn_phone');
-      if (curId === studentId || curPhone === studentId || (targetStudent?.phone_number && curPhone === targetStudent.phone_number)) {
+      if (
+        curId === rawParam || curPhone === rawParam ||
+        (targetStudent && (curId === targetStudent.id || curPhone === targetStudent.phone_number))
+      ) {
         localStorage.removeItem('ethiolearn_user_id');
         localStorage.removeItem('ethiolearn_phone');
         localStorage.removeItem('ethiolearn_user_profile');
@@ -3520,9 +3530,9 @@ How can I help you excel today? You can ask me any question or explore these cor
     const DEFAULT_PAYMENTS = [
       {
         id: 'rcpt-telebirr-7721',
-        user_id: 'usr-nafkun-student',
+        user_id: 'usr-nafkun-admin',
         student_phone: '+251975949200',
-        student_name: 'Nafkun Asefa',
+        student_name: 'Nafkun Asefa (Admin)',
         payment_method: 'telebirr',
         transaction_id: 'TB-2026-994847287',
         amount_birr: 300,
@@ -3537,26 +3547,6 @@ How can I help you excel today? You can ask me any question or explore these cor
         reviewed_at: new Date(Date.now() - 1800000).toISOString(),
         reviewed_by: 'admin@ethiolearn.edu.et',
         created_at: new Date(Date.now() - 3600000).toISOString()
-      },
-      {
-        id: 'rcpt-cbe-9812',
-        user_id: 'usr-student-premium',
-        student_phone: '+251911223344',
-        student_name: 'Abebe Kebede',
-        payment_method: 'cbe',
-        transaction_id: 'CBE-FT2609014',
-        amount_birr: 200,
-        amount: 200,
-        tier: 'single',
-        target_grade_id: 'grade-12-natural',
-        upgrade_all_grades: false,
-        receipt_storage_path: 'https://images.unsplash.com/photo-1554224154-26032ffc0d07?w=600&auto=format&fit=crop&q=80',
-        receipt_filename: 'cbe_slip_9812.png',
-        status: 'approved',
-        submitted_at: new Date(Date.now() - 86400000).toISOString(),
-        reviewed_at: new Date(Date.now() - 43200000).toISOString(),
-        reviewed_by: 'admin@ethiolearn.edu.et',
-        created_at: new Date(Date.now() - 86400000).toISOString()
       }
     ];
 
@@ -3565,6 +3555,12 @@ How can I help you excel today? You can ask me any question or explore these cor
       const stored = localStorage.getItem('ethiolearn_admin_payments');
       if (stored) payments = JSON.parse(stored);
     } catch (_) {}
+
+    // Auto-purge any stale sample payments (+251911223344, Abebe Kebede)
+    const STALE_PAY_PHONES = new Set(['+251911223344', '+251922334455', 'usr-student-premium', 'usr-student-free']);
+    if (Array.isArray(payments)) {
+      payments = payments.filter(p => !STALE_PAY_PHONES.has(p.student_phone) && !STALE_PAY_PHONES.has(p.user_id));
+    }
 
     if (!Array.isArray(payments) || payments.length === 0) {
       payments = DEFAULT_PAYMENTS;
@@ -3897,7 +3893,7 @@ How can I help you excel today? You can ask me any question or explore these cor
         ...customList,
         {
           id: 'seed-sp-1',
-          payer_name: 'Dr. Dawit Haile (Washington D.C.)',
+          payer_name: 'Devpost Judge (Washington D.C.)',
           amount: '15.00',
           currency: 'USD',
           student_name: 'Selamawit Tadesse (Bole Sec. School)',

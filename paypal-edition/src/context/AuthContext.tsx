@@ -456,7 +456,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: 'usr-devpost-judge',
           phone_number: '+251911002026',
           email: 'judge@paypal-devpost.ethiolearn.edu.et',
-          full_name: 'Dr. Dawit Haile (Devpost Judge)',
+          full_name: 'Devpost Judge',
           grade: 'Grade 12 - Natural Science',
           grade_id: 'grade-12-natural',
           role: 'student',
