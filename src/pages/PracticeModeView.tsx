@@ -138,10 +138,11 @@ export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
         let filtered = qList;
         if (questionIds && questionIds.length > 0) {
           const idSet = new Set(questionIds);
-          filtered = qList.filter(q => idSet.has(q.id));
-        } else if (categoryName || topicTitle) {
+          const matched = qList.filter(q => idSet.has(q.id));
+          if (matched.length > 0) filtered = matched;
+        } else if (!topicId && (categoryName || topicTitle)) {
           const targetName = (categoryName || topicTitle || '').toLowerCase().trim();
-          filtered = qList.filter(q => {
+          const subFiltered = qList.filter(q => {
             const qCat = (q.instruction_category || '').toLowerCase().trim();
             const qTopic = (q.topic_name || '').toLowerCase().trim();
             const qRef = typeof q.textbook_reference === 'string'
@@ -158,6 +159,9 @@ export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
               qRef.includes(targetName)
             );
           });
+          if (subFiltered.length > 0) {
+            filtered = subFiltered;
+          }
         }
 
         // Year cross-referencing check
@@ -596,8 +600,9 @@ export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
             { opt: 'D' as const, text: resolveOptionText('D', currentQ) },
           ].map(choice => {
             const hasAnswered = !!currentFeedback;
+            const correctAnsLetter = (currentFeedback?.correct_answer || currentQ?.correct_answer || (currentQ as any)?.correct_option || 'B').toString().trim().toUpperCase();
             const isStudentChoice = currentFeedback?.selected_answer === choice.opt;
-            const isCorrectTarget = currentFeedback?.correct_answer === choice.opt;
+            const isCorrectTarget = correctAnsLetter === choice.opt;
 
             let cardStyle = 'bg-slate-800/80 border-slate-700 text-slate-200 hover:bg-slate-800 cursor-pointer';
 
@@ -677,7 +682,7 @@ export const PracticeModeView: React.FC<PracticeModeViewProps> = ({
                 ) : (
                   <>
                     <XCircle className="w-5 h-5 text-red-400" />
-                    <span>Incorrect Choice. The correct answer is ({currentFeedback.correct_answer}).</span>
+                    <span>Incorrect Choice. The correct answer is ({(currentFeedback.correct_answer || currentQ?.correct_answer || (currentQ as any)?.correct_option || 'B').toString().trim().toUpperCase()}).</span>
                   </>
                 )}
               </div>

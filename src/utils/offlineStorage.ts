@@ -18,9 +18,25 @@ export async function loadOfflineQuestionsBundle(): Promise<Record<string, ExamQ
   isBundleLoading = true;
   try {
     const res = await fetch('/data/offline_questions.json');
-    if (res.ok) {
+    if (res.ok && !(res.headers.get('content-type') || '').includes('text/html')) {
       offlineQuestionsBundle = await res.json();
       console.log('✓ [Offline Storage] Pre-indexed question bundle loaded successfully:', Object.keys(offlineQuestionsBundle || {}).length, 'exams ready.');
+    } else {
+      const chunks = await Promise.all(
+        [1, 2, 3, 4].map(async (n) => {
+          try {
+            const cr = await fetch(`/data/offline_questions_${n}.json`);
+            if (cr.ok && !(cr.headers.get('content-type') || '').includes('text/html')) {
+              return await cr.json();
+            }
+          } catch {}
+          return null;
+        })
+      );
+      const merged = Object.assign({}, ...chunks.filter(Boolean));
+      if (Object.keys(merged).length > 0) {
+        offlineQuestionsBundle = merged;
+      }
     }
   } catch (err) {
     console.warn('[Offline Storage] Note on loading /data/offline_questions.json:', err);
@@ -38,7 +54,7 @@ if (typeof window !== 'undefined') {
 }
 
 const DB_NAME = 'EthioLearnOfflineDB';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 const STORE_PDFS = 'textbook_pdfs';
 const STORE_PAGES = 'textbook_pages';
@@ -63,6 +79,11 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_PAGES)) {
         db.createObjectStore(STORE_PAGES, { keyPath: 'pageId' });
+      } else {
+        // Upgrade from older versions: wipe stale fallback cache to force fresh authentic pages
+        try {
+          req.transaction?.objectStore(STORE_PAGES).clear();
+        } catch (_) {}
       }
       if (!db.objectStoreNames.contains(STORE_META)) {
         db.createObjectStore(STORE_META, { keyPath: 'bookId' });

@@ -93,6 +93,9 @@ export const DailyTopicPage: React.FC<DailyTopicPageProps> = ({ onNavigate }) =>
         setStreakCount(parseInt(savedStreak, 10) || 5);
       }
     } catch {}
+
+    // Auto-load featured daily topic on initial mount so the hub is immediately active and informative
+    handleFetchTopicExplanation('Faraday\'s Laws of Electrolysis', 'Chemistry');
   }, [user?.id]);
 
   // Converts the server payload ({ success, analysis: { summary, keyConcepts, ... practiceQuestions } })

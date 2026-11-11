@@ -8,14 +8,16 @@ import {
   RotateCcw,
   FileText,
   Upload,
-  RefreshCw,
   Layers,
-  Sparkles,
-  AlertCircle
+  AlertCircle,
+  BookOpen,
+  ExternalLink
 } from 'lucide-react';
-import { apiFetch } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
-import { getOfflinePdfBlob, deleteOfflineBook } from '../utils/offlineStorage';
+import {
+  loadAuthenticBookPdfBlob,
+  GITHUB_RAW_PDFJS_FONTS_URL
+} from '../utils/authenticPdfSource';
 
 interface PdfCanvasViewerProps {
   bookId: string;
@@ -49,23 +51,38 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
   const renderedPagesRef = useRef<Set<number>>(new Set());
   const activeContinuousTasksRef = useRef<Map<number, any>>(new Map());
   const mountVersionRef = useRef<number>(Date.now());
+  const createdBlobUrlRef = useRef<string | null>(null);
 
   const [viewerType, setViewerType] = useState<'scroll' | 'native'>('scroll');
   const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const [nativeViewerUrl, setNativeViewerUrl] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(initialPage);
   const [totalPages, setTotalPages] = useState<number>(1);
   const [scale, setScale] = useState<number>(1.2);
   const [loading, setLoading] = useState<boolean>(true);
+  const [loadingStatus, setLoadingStatus] = useState<string>('Preparing high-definition canvas renderer');
   const [error, setError] = useState<string | null>(null);
   const [pageInput, setPageInput] = useState<string>(String(initialPage));
   const { user } = useAuth();
-  const currentUserId = user?.id || localStorage.getItem('auth_token') || 'usr-student-premium';
+  const currentUserId =
+    user?.id ||
+    (typeof localStorage !== 'undefined'
+      ? localStorage.getItem('ethiolearn_user_id') || localStorage.getItem('auth_token')
+      : null) ||
+    'usr-student-premium';
 
   const versionTag = bookVersion ? `${bookVersion}_${mountVersionRef.current}` : String(mountVersionRef.current);
   const pdfUrl = `/api/books/${bookId}/pdf?userId=${encodeURIComponent(currentUserId)}&v=${encodeURIComponent(versionTag)}`;
-  const STANDARD_FONT_DATA_URL = typeof window !== 'undefined'
-    ? `${window.location.origin}/vendor/pdfjs/standard_fonts/`
-    : '/vendor/pdfjs/standard_fonts/';
+
+  const isHfStaticHost =
+    typeof window !== 'undefined' && window.location.hostname.endsWith('.hf.space');
+
+  const STANDARD_FONT_DATA_URL = isHfStaticHost
+    ? GITHUB_RAW_PDFJS_FONTS_URL
+    : typeof window !== 'undefined'
+      ? `${window.location.origin}/vendor/pdfjs/standard_fonts/`
+      : '/vendor/pdfjs/standard_fonts/';
+
   const CMAP_URL = typeof window !== 'undefined'
     ? `${window.location.origin}/vendor/pdfjs/cmaps/`
     : '/vendor/pdfjs/cmaps/';
@@ -94,7 +111,7 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
         if (window.pdfjsLib) {
           clearInterval(interval);
           resolve(setupLib(window.pdfjsLib));
-        } else if (count > 60) {
+        } else if (count > 80) {
           clearInterval(interval);
           resolve(setupLib(window.pdfjsLib) || null);
         }
@@ -115,12 +132,21 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
     }
   }, [initialPage, pdfDoc, totalPages, viewerType]);
 
-  // Load PDF ArrayBuffer securely via authorized apiFetch
+  // Load authentic scanned PDF via Express Byte-Range stream (when available) or verified GitHub Raw CDN + IndexedDB
   useEffect(() => {
     let isMounted = true;
     setLoading(true);
+    setLoadingStatus('Preparing high-definition canvas renderer');
     setError(null);
+    setNativeViewerUrl(null);
     renderedPagesRef.current.clear();
+
+    if (createdBlobUrlRef.current) {
+      try {
+        URL.revokeObjectURL(createdBlobUrlRef.current);
+      } catch {}
+      createdBlobUrlRef.current = null;
+    }
 
     const loadPdf = async () => {
       try {
@@ -134,95 +160,66 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
         }
 
         let doc: any = null;
-        let lastError: any = null;
-        const isOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+        let resolvedNativeUrl: string | null = null;
+        let hasLiveExpressPdf = false;
 
-        // When online, ALWAYS load the authoritative PDF from the server first so newly uploaded textbooks appear immediately
-        if (isOnline) {
-          for (let attempt = 1; attempt <= 3; attempt++) {
-            try {
-              // Attempt 1: Direct Range streaming (efficient for 20MB–150MB textbooks)
-              try {
-                const streamingTask = pdfjs.getDocument({
-                  url: pdfUrl,
-                  withCredentials: false,
-                  httpHeaders: {
-                    'x-user-id': currentUserId,
-                    'Cache-Control': 'no-cache'
-                  },
-                  rangeChunkSize: 524288, // 512KB chunks for smooth high-speed seeking
-                  disableAutoFetch: true,
-                  disableStream: false,
-                  standardFontDataUrl: STANDARD_FONT_DATA_URL,
-                  cMapUrl: CMAP_URL,
-                  cMapPacked: true
-                });
-                doc = await streamingTask.promise;
-                if (doc) break;
-              } catch (streamErr) {
-                console.warn(`[Attempt ${attempt}/3] Range streaming notice:`, streamErr);
-              }
-
-              // Attempt 2: Direct URL fetch with arrayBuffer fallback (cache: 'no-store')
-              const res = await apiFetch(pdfUrl, {
-                cache: 'no-store',
-                headers: {
+        // 1. Check if a live Express backend serves Byte-Range PDF directly (e.g. localhost:3000)
+        if (!isHfStaticHost && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+          try {
+            const headRes = await fetch(pdfUrl, { method: 'HEAD' });
+            const ct = (headRes.headers.get('content-type') || '').toLowerCase();
+            const isInterceptor = headRes.headers.get('x-ethiolearn-source') === 'Offline-Interceptor-v1';
+            if (headRes.ok && ct.includes('application/pdf') && !isInterceptor) {
+              hasLiveExpressPdf = true;
+              resolvedNativeUrl = pdfUrl;
+              if (isMounted) setNativeViewerUrl(pdfUrl);
+              const streamingTask = pdfjs.getDocument({
+                url: pdfUrl,
+                withCredentials: false,
+                httpHeaders: {
                   'x-user-id': currentUserId,
                   'Cache-Control': 'no-cache'
-                }
-              });
-              if (!res.ok) {
-                const errJson = await res.json().catch(() => null);
-                const errMsg = errJson?.error || `Server returned status ${res.status}`;
-                throw new Error(errMsg);
-              }
-              const pdfBuffer = await res.arrayBuffer();
-              // Purge stale synthetic IndexedDB blob if server returned a larger authentic PDF
-              try {
-                const oldBlob = await getOfflinePdfBlob(bookId);
-                if (oldBlob && oldBlob.size !== pdfBuffer.byteLength) {
-                  await deleteOfflineBook(bookId);
-                }
-              } catch {}
-              const bufferTask = pdfjs.getDocument({
-                data: new Uint8Array(pdfBuffer.slice(0)),
+                },
+                rangeChunkSize: 524288,
+                disableAutoFetch: true,
+                disableStream: false,
                 standardFontDataUrl: STANDARD_FONT_DATA_URL,
                 cMapUrl: CMAP_URL,
                 cMapPacked: true
               });
-              doc = await bufferTask.promise;
-              if (doc) break;
-            } catch (retryErr) {
-              lastError = retryErr;
-              console.warn(`[Attempt ${attempt}/3] PDF load attempt notice:`, retryErr);
-              if (attempt < 3) {
-                await new Promise(r => setTimeout(r, 400 * attempt));
-              }
+              doc = await streamingTask.promise;
             }
+          } catch (liveErr) {
+            console.warn('Live Express PDF stream check notice:', liveErr);
           }
         }
 
-        // Fallback to offline IndexedDB blob when offline or if server was unreachable
+        // 2. Load authentic scanned Ministry of Education PDF from IndexedDB / GitHub Raw CDN
         if (!doc) {
-          try {
-            const offlineBlob = await getOfflinePdfBlob(bookId);
-            if (offlineBlob) {
-              const pdfBuffer = await offlineBlob.arrayBuffer();
-              const offlineTask = pdfjs.getDocument({
-                data: new Uint8Array(pdfBuffer),
-                standardFontDataUrl: STANDARD_FONT_DATA_URL,
-                cMapUrl: CMAP_URL,
-                cMapPacked: true
-              });
-              doc = await offlineTask.promise;
-            }
-          } catch (e) {
-            console.warn('Offline blob retrieval notice:', e);
-          }
+          const pdfBlob = await loadAuthenticBookPdfBlob(bookId, bookTitle, (msg) => {
+            if (isMounted) setLoadingStatus(msg);
+          });
+
+          if (!isMounted) return;
+
+          const blobUrl = URL.createObjectURL(pdfBlob);
+          createdBlobUrlRef.current = blobUrl;
+          resolvedNativeUrl = hasLiveExpressPdf ? pdfUrl : blobUrl;
+          setNativeViewerUrl(resolvedNativeUrl);
+
+          setLoadingStatus('Rendering scanned textbook pages...');
+          const ab = await pdfBlob.arrayBuffer();
+          const bufferTask = pdfjs.getDocument({
+            data: new Uint8Array(ab.slice(0)),
+            standardFontDataUrl: STANDARD_FONT_DATA_URL,
+            cMapUrl: CMAP_URL,
+            cMapPacked: true
+          });
+          doc = await bufferTask.promise;
         }
 
         if (!doc) {
-          throw lastError || new Error('Failed to load textbook PDF after multiple attempts.');
+          throw new Error('Failed to load textbook PDF.');
         }
 
         if (!isMounted) return;
@@ -256,6 +253,12 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
         } catch {}
       });
       activeContinuousTasksRef.current.clear();
+      if (createdBlobUrlRef.current) {
+        try {
+          URL.revokeObjectURL(createdBlobUrlRef.current);
+        } catch {}
+        createdBlobUrlRef.current = null;
+      }
     };
   }, [bookId, pdfUrl]);
 
@@ -307,10 +310,14 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
     [pdfDoc, scale, totalPages]
   );
 
-  // Eagerly render initial window of pages for continuous mode
+  // Clear rendered cache when document, zoom scale, or viewer mode changes
+  useEffect(() => {
+    renderedPagesRef.current.clear();
+  }, [pdfDoc, scale, viewerType]);
+
+  // Eagerly render window of pages around currentPage for continuous mode
   useEffect(() => {
     if (viewerType === 'scroll' && pdfDoc && !loading) {
-      renderedPagesRef.current.clear();
       const start = Math.max(1, currentPage - 1);
       const end = Math.min(totalPages, currentPage + 4);
       for (let p = start; p <= end; p++) {
@@ -335,7 +342,7 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
           }
         });
       },
-      { root: scrollContainerRef.current, rootMargin: '400px 0px' }
+      { root: scrollContainerRef.current, rootMargin: '600px 0px' }
     );
 
     const container = scrollContainerRef.current;
@@ -395,6 +402,11 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
   const handleZoomOut = () => setScale((s) => Math.max(0.6, +(s - 0.2).toFixed(1)));
   const handleResetZoom = () => setScale(1.2);
 
+  const downloadHref =
+    nativeViewerUrl && nativeViewerUrl.startsWith('blob:')
+      ? nativeViewerUrl
+      : `${pdfUrl}&download=true`;
+
   return (
     <div className="flex-1 flex flex-col bg-slate-950 overflow-hidden text-slate-100">
       {/* Top Toolbar */}
@@ -408,7 +420,11 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
             <div className="font-semibold text-slate-200 line-clamp-1 max-w-xs md:max-w-md">{bookTitle}</div>
             <div className="text-[10px] text-emerald-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Full Textbook Reader (Continuous Canvas Mode)</span>
+              <span>
+                {viewerType === 'scroll'
+                  ? 'Full Textbook Reader (Continuous Canvas Mode)'
+                  : 'Full Textbook Reader (Native Browser PDF Mode)'}
+              </span>
             </div>
           </div>
         </div>
@@ -491,9 +507,22 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
             </button>
           </div>
 
+          {nativeViewerUrl && (
+            <a
+              href={`${nativeViewerUrl}#page=${currentPage}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg font-semibold flex items-center gap-1.5 transition"
+              title="Open PDF in full browser tab"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="hidden xl:inline">Open Tab</span>
+            </a>
+          )}
+
           {/* Download PDF */}
           <a
-            href={`${pdfUrl}&download=true`}
+            href={downloadHref}
             download={`${bookTitle}.pdf`}
             className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg font-semibold flex items-center gap-1.5 transition"
             title="Download PDF to your computer"
@@ -518,11 +547,11 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
 
       {/* Main Content Area */}
       <div className="flex-1 bg-slate-950 relative overflow-hidden flex flex-col">
-        {loading && (
+        {loading && !(viewerType === 'native' && nativeViewerUrl) && (
           <div className="flex flex-col items-center justify-center my-auto p-8 space-y-3">
             <div className="w-10 h-10 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
             <p className="text-sm text-slate-300 font-medium">Loading textbook pages...</p>
-            <p className="text-xs text-slate-500">Preparing high-definition canvas renderer</p>
+            <p className="text-xs text-emerald-400 font-mono">{loadingStatus}</p>
           </div>
         )}
 
@@ -590,12 +619,12 @@ export const PdfCanvasViewer: React.FC<PdfCanvasViewerProps> = ({
           </div>
         )}
 
-        {viewerType === 'native' && (
+        {viewerType === 'native' && nativeViewerUrl && !error && (
           /* Native Browser PDF View */
           <div className="flex-1 flex flex-col bg-slate-900 overflow-hidden">
             <iframe
-              key={`${bookId}-native-${currentPage}`}
-              src={`${pdfUrl}#page=${currentPage}`}
+              key={`${bookId}-native-${currentPage}-${nativeViewerUrl}`}
+              src={`${nativeViewerUrl}#page=${currentPage}`}
               className="w-full flex-1 min-h-[72vh] border-0 bg-white"
               title={`${bookTitle} - PDF Page ${currentPage}`}
             />

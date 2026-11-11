@@ -35,9 +35,33 @@ const GRADES_OPTIONS = [
 ];
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
-  const { loginWithPhone, sendVerificationCode, verifyAndRegister, requestDeviceTransfer, loginAsAdmin, deviceId } = useAuth();
+  const { loginWithPhone, sendVerificationCode, verifyAndRegister, requestDeviceTransfer, loginAsAdmin, loginAsJudgeDemo, deviceId } = useAuth();
+
+  
+  const handleJudgeDemoAccess = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      await loginAsJudgeDemo();
+      if (onSuccess) {
+        onSuccess(false);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to launch Judge Demo session');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAdminQuickLogin = async (type: 'nafkun' | 'chulo' | 'ai_assistant') => {
+    setMode('signin');
+    setPhone(type === 'ai_assistant' ? '900000000' : '994847287');
+    setPassword('');
+    setErrorMsg(null);
+    setInfoMsg('Admin phone pre-filled. Please enter your Admin password to sign in.');
+    return;
+  };
+  const _unusedLegacyAdminQuick = async (type: 'nafkun' | 'chulo' | 'ai_assistant') => {
     setLoading(true);
     setErrorMsg(null);
     try {
@@ -383,6 +407,31 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
           {/* Subtle top accent gradient */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500" />
+
+
+          {/* Devpost PayPal AI Hackathon — 1-Click Judge Instant Demo Access */}
+          <div className="mb-6 p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/90 via-blue-950/80 to-emerald-950/80 border border-indigo-400/40 shadow-lg shadow-indigo-950/40">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-amber-300 bg-amber-500/15 border border-amber-400/30 px-2.5 py-0.5 rounded-full">
+                <Sparkles className="w-3 h-3 text-amber-300" />
+                <span>Devpost PayPal AI Hackathon</span>
+              </span>
+              <span className="text-[10px] font-semibold text-emerald-300">All 59 Books &amp; 73 Exams Unlocked</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleJudgeDemoAccess}
+              disabled={loading}
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-500 via-blue-500 to-emerald-500 hover:from-indigo-400 hover:via-blue-400 hover:to-emerald-400 text-white font-extrabold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition transform active:scale-[0.99] disabled:opacity-60"
+            >
+              <Sparkles className="w-4 h-4 text-amber-200 shrink-0" />
+              <span>⚡ Devpost Judge / 1-Click Instant Demo Access</span>
+              <ArrowRight className="w-4 h-4 shrink-0" />
+            </button>
+            <p className="text-[10px] text-slate-300/90 text-center mt-1.5">
+              Logs in instantly as <span className="font-bold text-white">Dr. Dawit Haile (Devpost Judge)</span> — test PayPal MCP tools, AI Tutor &amp; Curriculum with zero setup.
+            </p>
+          </div>
 
           {/* Mode Switcher Tabs (Sign In vs Sign Up) */}
           <div className="flex items-center p-1 bg-slate-950/80 border border-slate-800 rounded-xl mb-6">

@@ -54,6 +54,7 @@ import {
 } from 'lucide-react';
 import { MathMarkdownRenderer } from '../components/MathMarkdownRenderer';
 import { InteractiveFloatingBubblesCanvas } from '../components/InteractiveFloatingBubblesCanvas';
+import { useAuth } from '../context/AuthContext';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -173,6 +174,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onSignIn,
   onExploreDemo
 }) => {
+  const { loginAsJudgeDemo } = useAuth();
   const [activeFeatureTab, setActiveFeatureTab] = useState<'textbooks' | 'exams' | 'ai_tutor' | 'competition' | 'retention'>('textbooks');
   const [interactiveSelectedAnswer, setInteractiveSelectedAnswer] = useState<string | null>(null);
   const [previewGrade, setPreviewGrade] = useState<'9' | '10' | '11' | '12'>('12');
@@ -506,6 +508,18 @@ $$\\mathbf{a = g (\\sin\\theta - \\mu_k \\cos\\theta)}$$
 
         <div className="flex items-center gap-2.5">
           <button
+            type="button"
+            onClick={async () => {
+              await loginAsJudgeDemo();
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-black text-white bg-gradient-to-r from-indigo-500 via-blue-500 to-emerald-500 hover:opacity-90 rounded-xl shadow-md transition transform active:scale-95"
+            title="Instant 1-Click Access for Devpost Hackathon Judges"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+            <span className="hidden sm:inline">⚡ Devpost Judge</span>
+            <span>1-Click Demo</span>
+          </button>
+          <button
             onClick={onSignIn}
             className="px-3.5 py-2 text-xs font-bold text-slate-200 hover:text-white bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 rounded-xl transition flex items-center gap-1.5 shadow-sm"
           >
@@ -551,6 +565,15 @@ $$\\mathbf{a = g (\\sin\\theta - \\mu_k \\cos\\theta)}$$
             <span>Create Free Student Account</span>
             <ArrowRight className="w-4 h-4" />
           </motion.button>
+
+          <a
+            href="/EthioLearn-AI-Final.apk"
+            download="EthioLearn-AI-Final.apk"
+            className="px-5 py-3 bg-gradient-to-r from-emerald-600/20 to-teal-600/20 hover:from-emerald-600/30 hover:to-teal-600/30 text-emerald-300 hover:text-white border border-emerald-500/40 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm"
+          >
+            <Smartphone className="w-4 h-4 text-emerald-400" />
+            <span>Download Android App (.APK)</span>
+          </a>
 
           <a
             href="#pricing-plans"
@@ -1769,10 +1792,18 @@ $$\\mathbf{a = g (\\sin\\theta - \\mu_k \\cos\\theta)}$$
             <div className="w-10 h-10 rounded-xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400">
               <HardDrive className="w-5 h-5" />
             </div>
-            <h4 className="font-bold text-white text-base">100% Offline Capability (PWA)</h4>
+            <h4 className="font-bold text-white text-base">100% Offline Capability (Android APK & PWA)</h4>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Install as a Progressive Web App on Android, iOS, or PC. Save textbooks, notes, and exams for continuous offline studying.
+              Install as a native Android App (.apk) or Progressive Web App. All 73 entrance exams, 11,002 questions, digitized textbook pages, and unit short notes are stored locally for continuous offline studying without internet.
             </p>
+            <a
+              href="/EthioLearn-AI-Final.apk"
+              download="EthioLearn-AI-Final.apk"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 hover:text-white border border-sky-500/40 rounded-xl text-xs font-bold transition mt-2"
+            >
+              <Smartphone className="w-4 h-4" />
+              <span>Download Standalone Android APK (48 MB)</span>
+            </a>
           </motion.div>
         </div>
       </section>
@@ -1815,6 +1846,14 @@ $$\\mathbf{a = g (\\sin\\theta - \\mu_k \\cos\\theta)}$$
             >
               Sign In to Your Account
             </motion.button>
+            <a
+              href="/EthioLearn-AI-Final.apk"
+              download="EthioLearn-AI-Final.apk"
+              className="px-7 py-3.5 bg-gradient-to-r from-emerald-600/20 to-teal-600/20 hover:bg-slate-800 text-emerald-300 hover:text-white font-bold text-sm rounded-2xl border border-emerald-500/40 transition flex items-center gap-2 shadow-lg"
+            >
+              <Smartphone className="w-4 h-4" />
+              <span>Download Android APK (48 MB)</span>
+            </a>
           </div>
         </motion.div>
       </section>

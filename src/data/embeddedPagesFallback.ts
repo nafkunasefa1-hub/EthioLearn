@@ -75,54 +75,54 @@ function synthesizeUniversalPageContent(bookId: string, pageNumber: number): str
   // Approximate unit number based on 6-unit average standard
   const unitNum = Math.min(6, Math.max(1, Math.ceil((pageNumber / totalPages) * 6)));
 
-  let md = `# Unit ${unitNum}: Core Foundations & Principles of ${subject}\n\n`;
-  md += `## Section ${unitNum}.${(pageNumber % 4) + 1}: Conceptual Analysis & Examination Foundations\n\n`;
-  md += `*${title} • Official Ethiopian Curriculum — Page ${pageNumber} of ${totalPages} • FDRE Ministry of Education*\n\n`;
+  let md = `# Unit ${unitNum}: Principles & Core Concepts of ${subject}\n\n`;
+  md += `## Section ${unitNum}.${(pageNumber % 4) + 1}: National Curriculum Standard Analysis\n\n`;
+  md += `*${title} • Official Ethiopian Curriculum Standard — Page ${pageNumber} of ${totalPages} • FDRE Ministry of Education*\n\n`;
   md += `---\n\n`;
-  md += `> 🎯 **Essential Syllabus Objectives & Key Takeaways:**\n`;
-  md += `> • **Standard Topic Focus:** Theoretical and applied foundations in ${subject} defined for ${grade}.\n`;
-  md += `> • **Core Competency:** Master the mathematical formulas, scientific definitions, and deductive reasoning required by the national curriculum.\n`;
+  md += `> 🎯 **Unit ${unitNum} Learning Objectives (Page ${pageNumber}):**\n`;
+  md += `> • **Curriculum Standard:** Master the core definitions, theoretical principles, and analytical methods defined by the FDRE Ministry of Education for ${grade} ${subject}.\n`;
+  md += `> • **Problem-Solving Framework:** Apply systematic deductive reasoning, state given variables, and verify standard SI units/conventions at each step.\n`;
   md += `> • **University Entrance Alignment:** Structured to match National Entrance Exam (EUEE) standard difficulty and topic coverage.\n\n`;
   md += `---\n\n`;
-  md += `### 📖 Detailed Educational Breakdown\n\n`;
-  md += `In this section of the ${subject} curriculum, students analyze the interactions between fundamental principles and concrete applications. `;
-  md += `A thorough understanding of these concepts enables learners to model real-world scenarios, solve multi-step problems, and evaluate experimental or analytical outcomes.\n\n`;
-  md += `### Key Mathematical & Scientific Principles\n\n`;
-  md += `- **Governing Relationships**: Every physical, biological, or chemical process obeys fundamental conservation and equilibrium laws.\n`;
-  md += `- **Systematic Problem Solving**: Always state given variables, identify target unknowns, and select the appropriate formula before substituting values.\n`;
-  md += `- **Units and Dimensions**: Ensure standard SI units are verified at each calculation step to prevent examiner distractor errors.\n\n`;
-  md += `### 💡 Real-World Ethiopian Context & Application\n\n`;
-  md += `The principles studied on this page find direct application in national development, including infrastructure engineering, agricultural modernization, renewable energy development (e.g., GERD hydro generation and solar grids), and healthcare diagnostics across Ethiopia.\n\n`;
+  md += `### ${subject} Curriculum Foundation & Core Theory\n\n`;
+  md += `This section establishes the analytical framework for Unit ${unitNum} in the ${grade} ${subject} syllabus. Students explore the fundamental relationships and governing principles that connect theoretical models to practical applications.\n\n`;
+  md += `### Key Conceptual Checkpoints\n\n`;
+  md += `- **Foundational Definitions:** Review key terms, formulas, and domain constraints established in Unit ${unitNum}.\n`;
+  md += `- **Systematic Analysis:** Always identify given data, isolate required unknowns, and select the authoritative curriculum formula before calculating.\n`;
+  md += `- **Examination Focus:** Ensure precise application of theorems and avoid common distractor choices tested in school and national entrance examinations.\n\n`;
+  md += `### Real-World Ethiopian Context & Application\n\n`;
+  md += `The competencies taught in this unit directly support national development initiatives across Ethiopia, including infrastructure engineering, agricultural modernization, renewable energy development, and technological innovation.\n\n`;
   md += `---\n\n`;
   md += `### ✍️ Self-Check Curriculum Review Question\n\n`;
   md += `**1. Which of the following approaches is most effective when analyzing problems in ${subject} according to standard secondary educational guidelines?**\n`;
-  md += `- **A)** Memorizing isolated results without understanding the underlying physical or mathematical principles.\n`;
-  md += `- **B)** Identifying governing laws, verifying SI units, and applying step-by-step analytical reasoning.\n`;
+  md += `- **A)** Memorizing isolated results without understanding the underlying principles.\n`;
+  md += `- **B)** Identifying governing laws, verifying units/constraints, and applying step-by-step analytical reasoning.\n`;
   md += `- **C)** Guessing options based solely on numerical similarity to given data.\n`;
   md += `- **D)** Disregarding boundary conditions and experimental assumptions.\n\n`;
-  md += `> ✅ **Correct Answer:** **B** — *Identifying governing laws, verifying SI units, and applying step-by-step analytical reasoning ensures reliable problem solving on classroom and entrance examinations.*`;
+  md += `> ✅ **Correct Answer:** **B** — *Identifying governing laws, verifying units/constraints, and applying step-by-step analytical reasoning ensures reliable problem solving on classroom and entrance examinations.*`;
 
   return md;
 }
 
 export function getEmbeddedBookPage(bookId: string, pageNumber: number): BookPage | null {
   let content = '';
+  const id = (bookId || '').toLowerCase();
 
-  if (bookId.includes('12-math')) {
+  if (id.includes('12') && (id.includes('math') || id.includes('mat'))) {
     content = getMath12PageContent(pageNumber);
-  } else if (bookId.includes('12-phys')) {
+  } else if (id.includes('12') && (id.includes('phys') || id.includes('phy'))) {
     content = getPhysics12PageContent(pageNumber);
-  } else if (bookId.includes('12-chem')) {
+  } else if (id.includes('12') && id.includes('chem')) {
     content = getChemistryPageContent(pageNumber);
-  } else if (bookId.includes('12-bio')) {
+  } else if (id.includes('12') && id.includes('bio')) {
     content = getBio12PageContent(pageNumber);
-  } else if (bookId.includes('12-eng')) {
+  } else if (id.includes('12') && id.includes('eng')) {
     content = getEnglish12PageContent(pageNumber);
-  } else if (bookId.includes('11-math')) {
+  } else if (id.includes('11') && (id.includes('math') || id.includes('mat'))) {
     content = getMath11PageContent(pageNumber);
-  } else if (bookId === 'book-9-civ') {
+  } else if (id === 'book-9-civ' || (id.includes('9') && id.includes('civ'))) {
     content = getCivics9PageContent(pageNumber);
-  } else if (bookId.includes('sat') || bookId.includes('apt')) {
+  } else if (id.includes('sat') || id.includes('apt')) {
     content = getSatPageContent(bookId, pageNumber);
   }
 

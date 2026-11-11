@@ -28,7 +28,8 @@ import {
   Trophy,
   CalendarDays,
   Flame,
-  GitBranch
+  GitBranch,
+  HeartHandshake
 } from 'lucide-react';
 import { NotificationItem } from '../types';
 import { apiFetchJson } from '../utils/api';
@@ -188,6 +189,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentRoute, onNavigate }) => {
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Compass },
+    { id: 'sponsor', label: 'Sponsor a Scholar', icon: HeartHandshake, badge: 'PayPal' },
     { id: 'competition', label: 'Weekly Competition', icon: Trophy, badge: 'Live Cup' },
     { id: 'daily-topic', label: 'Daily Topic Hub', icon: CalendarDays, badge: 'Daily' },
     { id: 'module', label: 'Module', icon: BookMarked, badge: 'New' },

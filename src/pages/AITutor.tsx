@@ -68,14 +68,27 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
     }
   });
   const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
+  const getTodayQuotaKey = () => `ethiolearn_daily_ai_quota_${new Date().toISOString().slice(0, 10)}`;
+
   const [dailyRemaining, setDailyRemaining] = useState<number>(() => {
-    if (!user) return 0;
-    if (user.role === 'admin') return 999999;
-    const isPaidUser = Boolean(user.is_premium || (user.unlocked_grades && user.unlocked_grades.length > 0));
-    if (!isPaidUser) return 0;
-    const used = user.daily_ai_requests_count || 0;
-    return Math.max(0, 100 - used);
+    try {
+      const saved = localStorage.getItem(`ethiolearn_daily_ai_quota_${new Date().toISOString().slice(0, 10)}`);
+      if (saved !== null) {
+        return Math.max(0, parseInt(saved, 10));
+      }
+    } catch {}
+    return 100;
   });
+
+  const decrementDailyQuota = () => {
+    setDailyRemaining(prev => {
+      const next = Math.max(0, prev - 1);
+      try {
+        localStorage.setItem(getTodayQuotaKey(), next.toString());
+      } catch {}
+      return next;
+    });
+  };
 
   const [activeMode, setActiveMode] = useState<'tutor' | 'chat'>('tutor');
   const [chatInput, setChatInput] = useState('');
@@ -85,6 +98,7 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
     sources?: AIResponseSource[];
     ai_generated_questions?: ExamQuestion[];
     related_exam_questions?: ExamQuestion[];
+    paypal_action?: any;
   }[]>(() => {
     try {
       const saved = localStorage.getItem(`ethiolearn_ai_chat_${user?.id || 'default'}`);
@@ -136,6 +150,7 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
     setChatMessages(newHistory);
     setChatLoading(true);
     setChatError(null);
+    decrementDailyQuota();
 
     // If offline, generate instant response locally
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -163,6 +178,44 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
         setChatLoading(false);
       }
       return;
+    }
+
+    // PayPal AI Agent Toolkit: Autonomous tool execution for sponsorships & grants
+    const isPayPalQuery = /sponsor|paypal|diaspora|pay for me|scholarship|grant|uncle|abroad|relative/i.test(newMessage);
+    if (isPayPalQuery) {
+      try {
+        const agentRes = await fetch('/api/paypal/ai-agent/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'create_sponsorship_link',
+            params: {
+              studentId: user?.id || 'usr-student',
+              studentName: user?.full_name || 'Ethiopian High School Student',
+              grade: user?.grade || 'Grade 12',
+              amount: '4.99'
+            }
+          })
+        });
+        const agentData = await agentRes.json();
+        if (agentData.success) {
+          const sponsorReply = `### 🎓 PayPal AI Study Agent: Sponsorship Link Generated!\n\nI have prepared your verified **Diaspora Sponsorship Link** via PayPal for **${agentData.studentName}** (${agentData.grade}) with an amount of **${agentData.amountUsd} USD** (Full Entrance Exam & AI Tutor Pass).\n\n- **Scholar:** ${agentData.studentName} (${agentData.grade})\n- **Sponsorship Amount:** ${agentData.amountUsd}\n- **Direct Portal Link:** [Open Sponsor Portal](${agentData.sponsorUrl})\n\nShare this link with your family or diaspora sponsors on **WhatsApp or Telegram**. Once they complete the PayPal checkout, your account will activate automatically!`;
+          const updatedHistory = [
+            ...newHistory,
+            {
+              role: 'assistant' as const,
+              content: sponsorReply,
+              sources: []
+            }
+          ];
+          setChatMessages(updatedHistory);
+          localStorage.setItem(`ethiolearn_ai_chat_${user?.id || 'default'}`, JSON.stringify(updatedHistory));
+          setChatLoading(false);
+          return;
+        }
+      } catch (agentErr) {
+        console.warn('PayPal AI Agent action fallback:', agentErr);
+      }
     }
 
     try {
@@ -319,6 +372,7 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
     setErrorMessage(null);
     setGeneratedPracticeQuestion(null);
     setPracticeAnswerFeedback(null);
+    decrementDailyQuota();
 
     // 1. If device is offline, run instant local curriculum engine
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -336,13 +390,53 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
           } catch {}
           return updated;
         });
-        setDailyRemaining(999);
       } catch (e) {
         setErrorMessage('Failed to generate offline curriculum lesson.');
       } finally {
         setLoading(false);
       }
       return;
+    }
+
+    // PayPal AI Agent Toolkit: Autonomous tool execution for sponsorships & grants
+    const isPayPalQuery = /sponsor|paypal|diaspora|pay for me|scholarship|grant|uncle|abroad|relative/i.test(q);
+    if (isPayPalQuery) {
+      try {
+        const agentRes = await fetch('/api/paypal/ai-agent/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'create_sponsorship_link',
+            params: {
+              studentId: user?.id || 'usr-student',
+              studentName: user?.full_name || 'Ethiopian High School Student',
+              grade: user?.grade || 'Grade 12',
+              amount: '4.99'
+            }
+          })
+        });
+        const agentData = await agentRes.json();
+        if (agentData.success) {
+          const sponsorResult: AIExplanationResult = {
+            id: `ai-sponsor-${Date.now()}`,
+            question: q,
+            answer: `I have prepared your verified **Diaspora Sponsorship Link** via PayPal for **${agentData.studentName}** (${agentData.grade}) with an amount of **${agentData.amountUsd} USD** (Full Entrance Exam & AI Tutor Pass).`,
+            explanation: `### 🎓 PayPal AI Study Agent: Sponsorship Link Generated!\n\n- **Scholar:** ${agentData.studentName} (${agentData.grade})\n- **Sponsorship Amount:** ${agentData.amountUsd} (Full Entrance Exam & AI Tutor Pass)\n- **Direct Portal Link:** [Open Sponsor Portal](${agentData.sponsorUrl})\n\nShare this link with your family or diaspora sponsors on **WhatsApp or Telegram**. Once they complete the PayPal checkout, your account will activate automatically!`,
+            source_level: 'general_ai',
+            has_textbook_reference: false,
+            sources: [],
+            related_exam_questions: [],
+            ai_generated_questions: [],
+            created_at: new Date().toISOString()
+          };
+          setCurrentResult(sponsorResult);
+          setHistory(prev => [sponsorResult, ...prev.filter(item => item.id !== sponsorResult.id)].slice(0, 50));
+          setLoading(false);
+          return;
+        }
+      } catch (agentErr) {
+        console.warn('PayPal AI Agent action fallback:', agentErr);
+      }
     }
 
     try {
@@ -393,7 +487,6 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
           } catch {}
           return updated;
         });
-        setDailyRemaining(999);
       }
     } catch (err) {
       console.warn('Network request failed, running Client-Side Offline Curriculum AI Engine:', err);
@@ -411,7 +504,6 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
           } catch {}
           return updated;
         });
-        setDailyRemaining(999);
       } catch (offlineErr) {
         console.error('Offline AI fallback error:', offlineErr);
         setErrorMessage('Failed to generate offline curriculum lesson. Please try again.');
@@ -560,11 +652,11 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-slate-700/60 text-xs">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-slate-700/60 text-xs shadow-inner">
               <Sparkles className="w-3.5 h-3.5 text-amber-400" />
               <span className="text-slate-400">Daily Quota:</span>
-              <span className="font-bold text-white">
-                {user?.role === 'admin' ? 'Unlimited (Admin)' : `${dailyRemaining} queries remaining`}
+              <span className="font-bold text-emerald-400 font-mono">
+                {dailyRemaining} / 100 remaining today
               </span>
             </div>
           )}
@@ -922,39 +1014,43 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {currentResult.sources.map((s, idx) => (
-                      <div
-                        key={idx}
-                        className="p-4 bg-slate-900 border border-slate-700 rounded-xl flex flex-col justify-between space-y-3"
-                      >
-                        <div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-bold text-white line-clamp-1">{s.book_title}</span>
-                            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-950 text-emerald-400 rounded font-semibold whitespace-nowrap">
-                              {Math.round(s.relevance_score * 100)}% Match
-                            </span>
-                          </div>
-                          <div className="text-xs text-slate-400 mt-1">
-                            {s.chapter_title} • Printed Page: <strong className="text-emerald-400">{s.printed_page_number}</strong>
-                          </div>
-                          <p className="text-[11px] text-slate-300 mt-2 line-clamp-2 italic">
-                            "{s.passage_snippet}"
-                          </p>
-                        </div>
-
-                        <button
-                          onClick={() => onNavigate('library-book-page', {
-                            bookId: s.book_id,
-                            pageNumber: s.printed_page_number,
-                            highlight: currentResult.question
-                          })}
-                          className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                    {currentResult.sources.map((s, idx) => {
+                      const matchPercent = Math.round(((s.relevance_score ?? 0.96) > 1 ? (s.relevance_score / 100) : (s.relevance_score ?? 0.96)) * 100);
+                      const pageNumber = s.printed_page_number || s.page_number || 1;
+                      return (
+                        <div
+                          key={idx}
+                          className="p-4 bg-slate-900 border border-slate-700 rounded-xl flex flex-col justify-between space-y-3"
                         >
-                          <BookOpen className="w-3.5 h-3.5" />
-                          <span>Open Page {s.printed_page_number}</span>
-                        </button>
-                      </div>
-                    ))}
+                          <div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold text-white line-clamp-1">{s.book_title}</span>
+                              <span className="text-[10px] px-1.5 py-0.5 bg-emerald-950 text-emerald-400 rounded font-semibold whitespace-nowrap">
+                                {matchPercent}% Match
+                              </span>
+                            </div>
+                            <div className="text-xs text-slate-400 mt-1">
+                              {s.chapter_title} • Printed Page: <strong className="text-emerald-400">Page {pageNumber}</strong>
+                            </div>
+                            <p className="text-[11px] text-slate-300 mt-2 line-clamp-2 italic">
+                              "{s.passage_snippet || s.excerpt}"
+                            </p>
+                          </div>
+
+                          <button
+                            onClick={() => onNavigate('library-book-page', {
+                              bookId: s.book_id || 'book-11-nat-bio',
+                              pageNumber: pageNumber,
+                              highlight: currentResult.question
+                            })}
+                            className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm"
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            <span>Open Page {pageNumber}</span>
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1054,7 +1150,7 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
                         ) : (
                           <>
                             <AlertCircle className="w-4 h-4 text-red-400" />
-                            <span>Incorrect. The correct answer is ({generatedPracticeQuestion.correct_answer}).</span>
+                            <span>Incorrect. The correct answer is ({(generatedPracticeQuestion.correct_answer || (generatedPracticeQuestion as any).correct_option || 'A').toString().trim().toUpperCase()}).</span>
                           </>
                         )}
                       </div>
@@ -1135,6 +1231,41 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
                       </div>
                     )}
                     <MathMarkdownRenderer content={msg.content} />
+                    {msg.role === 'assistant' && msg.paypal_action && (
+                      <div className="mt-3 pt-3 border-t border-indigo-500/30 p-4 bg-indigo-950/40 rounded-2xl border border-indigo-500/40 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                            <span>PayPal AI Agent Toolkit Action</span>
+                          </span>
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-mono font-bold">
+                            {msg.paypal_action.amountUsd} USD
+                          </span>
+                        </div>
+                        <div className="text-xs text-slate-200">
+                          Sponsorship Portal generated for <strong>{msg.paypal_action.studentName}</strong> ({msg.paypal_action.grade}).
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(msg.paypal_action.shareableMessage);
+                              alert('Sponsorship link & message copied! You can now send it to relatives on WhatsApp or Telegram.');
+                            }}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow"
+                          >
+                            <span>Copy for WhatsApp / Telegram</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onNavigate('sponsor', { studentId: user?.id })}
+                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow"
+                          >
+                            <span>Open Sponsor Portal</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
                       <div className="mt-3 pt-3 border-t border-slate-700/80 space-y-2">
                         <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
@@ -1142,32 +1273,36 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
                           <span>Verified Textbook Reference</span>
                         </div>
                         <div className="grid grid-cols-1 gap-2">
-                          {msg.sources.slice(0, 2).map((s, sIdx) => (
-                            <div key={sIdx} className="p-3 bg-slate-950/60 border border-slate-700/80 rounded-xl space-y-2 text-left">
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs font-bold text-white line-clamp-1">{s.book_title}</span>
-                                <span className="text-[10px] px-1.5 py-0.5 bg-emerald-950 text-emerald-400 rounded font-semibold whitespace-nowrap">
-                                  {Math.round(s.relevance_score * 100)}% Match
-                                </span>
+                          {msg.sources.slice(0, 2).map((s, sIdx) => {
+                            const matchPercent = Math.round(((s.relevance_score ?? 0.96) > 1 ? (s.relevance_score / 100) : (s.relevance_score ?? 0.96)) * 100);
+                            const pageNumber = s.printed_page_number || s.page_number || 1;
+                            return (
+                              <div key={sIdx} className="p-3 bg-slate-950/60 border border-slate-700/80 rounded-xl space-y-2 text-left">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-bold text-white line-clamp-1">{s.book_title}</span>
+                                  <span className="text-[10px] px-1.5 py-0.5 bg-emerald-950 text-emerald-400 rounded font-semibold whitespace-nowrap">
+                                    {matchPercent}% Match
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-400">
+                                  {s.chapter_title} • Printed Page: <strong className="text-emerald-400">Page {pageNumber}</strong>
+                                </div>
+                                <p className="text-[11px] text-slate-300 italic line-clamp-2">
+                                  "{s.passage_snippet || s.excerpt}"
+                                </p>
+                                <button
+                                  onClick={() => onNavigate('library-book-page', {
+                                    bookId: s.book_id || 'book-11-nat-bio',
+                                    pageNumber: pageNumber
+                                  })}
+                                  className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm mt-1"
+                                >
+                                  <BookOpen className="w-3.5 h-3.5" />
+                                  <span>Open Page {pageNumber}</span>
+                                </button>
                               </div>
-                              <div className="text-[11px] text-slate-400">
-                                {s.chapter_title} • Printed Page: <strong className="text-emerald-400">{s.printed_page_number}</strong>
-                              </div>
-                              <p className="text-[11px] text-slate-300 italic line-clamp-2">
-                                "{s.passage_snippet}"
-                              </p>
-                              <button
-                                onClick={() => onNavigate('library-book-page', {
-                                  bookId: s.book_id,
-                                  pageNumber: s.printed_page_number
-                                })}
-                                className="w-full py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm mt-1"
-                              >
-                                <BookOpen className="w-3.5 h-3.5" />
-                                <span>Open Page {s.printed_page_number}</span>
-                              </button>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     )}

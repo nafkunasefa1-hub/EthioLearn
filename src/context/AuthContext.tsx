@@ -32,6 +32,7 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>;
   requestDeviceTransfer: (phoneNumber: string, reason?: string) => Promise<{ success: boolean; message: string }>;
   loginAsAdmin: (accountType?: 'nafkun' | 'chulo' | 'ai_assistant') => Promise<boolean>;
+  loginAsJudgeDemo: () => Promise<boolean>;
   hasGradeAccess: (gradeId?: string, subjectId?: string, contentType?: 'book' | 'exam') => boolean;
   deviceId: string;
 }
@@ -247,11 +248,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     const expectedPwd = String(foundStudent.password || 'Student@123').trim();
-    const isPwdValid =
-      cleanPwd === expectedPwd ||
-      cleanPwd.toLowerCase() === expectedPwd.toLowerCase() ||
-      cleanPwd === 'Student@123' ||
-      cleanPwd === '123456';
+    const isPwdValid = cleanPwd === expectedPwd;
 
     if (!isPwdValid) {
       return {
@@ -467,6 +464,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  
+  const loginAsJudgeDemo = async (): Promise<boolean> => {
+    setLoading(true);
+    try {
+      let judgeProfile: any = null;
+      try {
+        const res = await fetch('/api/auth/judge-demo-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: 'devpost_hackathon_judge' })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile) {
+            judgeProfile = data.profile;
+          }
+        }
+      } catch (_) {}
+
+      if (!judgeProfile) {
+        judgeProfile = {
+          id: 'usr-devpost-judge',
+          phone_number: '+251911002026',
+          email: 'judge@paypal-devpost.ethiolearn.edu.et',
+          full_name: 'Devpost Judge',
+          grade: 'Grade 12 - Natural Science',
+          grade_id: 'grade-12-natural',
+          role: 'student',
+          is_premium: true,
+          is_verified: true,
+          is_all_access: true,
+          payment_tier: 'all',
+          subscription_tier: 'full_access',
+          unlocked_grades: ['all'],
+          created_at: new Date().toISOString()
+        };
+      }
+
+      setUser(judgeProfile);
+      try {
+        localStorage.setItem('ethiolearn_user_id', judgeProfile.id);
+        localStorage.setItem('ethiolearn_phone_session', 'verified');
+        localStorage.setItem('ethiolearn_user_profile', JSON.stringify(judgeProfile));
+        localStorage.setItem('ethiolearn_user', JSON.stringify(judgeProfile));
+        localStorage.setItem('ethiolearn_token', 'devpost-judge-token-2026');
+        if (judgeProfile.phone_number) {
+          localStorage.setItem('ethiolearn_phone', judgeProfile.phone_number);
+        }
+        window.dispatchEvent(new Event('auth-change'));
+        window.dispatchEvent(new CustomEvent('judge-demo-login', { detail: judgeProfile }));
+      } catch (_) {}
+
+      return true;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const updateGrade = async (gradeName: string, gradeId?: string) => {
     if (!user) return;
     try {
@@ -668,6 +723,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       refreshProfile,
       requestDeviceTransfer,
       loginAsAdmin,
+      loginAsJudgeDemo,
       hasGradeAccess,
       deviceId
     }}>
