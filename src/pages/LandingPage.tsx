@@ -508,18 +508,6 @@ $$\\mathbf{a = g (\\sin\\theta - \\mu_k \\cos\\theta)}$$
 
         <div className="flex items-center gap-2.5">
           <button
-            type="button"
-            onClick={async () => {
-              await loginAsJudgeDemo();
-            }}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-black text-white bg-gradient-to-r from-indigo-500 via-blue-500 to-emerald-500 hover:opacity-90 rounded-xl shadow-md transition transform active:scale-95"
-            title="Instant 1-Click Access for Devpost Hackathon Judges"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-amber-200" />
-            <span className="hidden sm:inline">⚡ Devpost Judge</span>
-            <span>1-Click Demo</span>
-          </button>
-          <button
             onClick={onSignIn}
             className="px-3.5 py-2 text-xs font-bold text-slate-200 hover:text-white bg-slate-900/90 hover:bg-slate-800 border border-slate-700/80 rounded-xl transition flex items-center gap-1.5 shadow-sm"
           >

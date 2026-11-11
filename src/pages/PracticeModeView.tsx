@@ -42,27 +42,45 @@ function resolveQuestionText(q: any): string {
 function resolveOptionText(optKey: 'A' | 'B' | 'C' | 'D', q: any): string {
   if (!q) return '';
   const lower = optKey.toLowerCase();
-  if (q[`option_${lower}`]) return String(q[`option_${lower}`]);
-  if (q[`opt_${lower}`]) return String(q[`opt_${lower}`]);
-  if (q[lower] && typeof q[lower] === 'string') return String(q[lower]);
-  if (q[`option${optKey}`]) return String(q[`option${optKey}`]);
+  if (q[`option_${lower}`]) return String(q[`option_${lower}`]).trim();
+  if (q[`opt_${lower}`]) return String(q[`opt_${lower}`]).trim();
+  if (q[lower] && typeof q[lower] === 'string') return String(q[lower]).trim();
+  if (q[`option${optKey}`]) return String(q[`option${optKey}`]).trim();
 
-  const idx = optKey.charCodeAt(0) - 65;
-  if (Array.isArray(q.options) && q.options[idx] !== undefined) {
-    const val = q.options[idx];
-    if (typeof val === 'string') return val;
-    if (typeof val === 'object' && val !== null) {
-      return String(val.text || val.option || val.value || val.label || '');
+  let opts = q.options;
+  if (typeof opts === 'string') {
+    try {
+      opts = JSON.parse(opts);
+    } catch {
+      const match = opts.match(new RegExp(`(?:^|\\n|\\r|\\s)${optKey}[\\.\\:\\)]\\s*([^\\n\\r]+)`, 'i'));
+      if (match && match[1]) return match[1].trim();
     }
   }
 
-  if (q.options && typeof q.options === 'object' && !Array.isArray(q.options)) {
-    const val = q.options[lower] || q.options[optKey];
-    if (val) return String(typeof val === 'object' ? (val.text || val.value || '') : val);
+  const idx = optKey.charCodeAt(0) - 65;
+  if (Array.isArray(opts) && opts[idx] !== undefined) {
+    const val = opts[idx];
+    if (typeof val === 'string') return val.trim();
+    if (typeof val === 'object' && val !== null) {
+      return String(val.text || val.option || val.value || val.label || '').trim();
+    }
   }
-  if (q.choices && typeof q.choices === 'object') {
-    const val = q.choices[lower] || q.choices[optKey];
-    if (val) return String(typeof val === 'object' ? (val.text || val.value || '') : val);
+
+  if (opts && typeof opts === 'object' && !Array.isArray(opts)) {
+    const val = opts[optKey] || opts[lower] || opts[`${optKey}.`] || opts[`(${optKey})`];
+    if (val) return String(typeof val === 'object' ? (val.text || val.value || '') : val).trim();
+  }
+
+  let choices = q.choices;
+  if (typeof choices === 'string') {
+    try { choices = JSON.parse(choices); } catch {}
+  }
+  if (choices && typeof choices === 'object') {
+    if (Array.isArray(choices) && choices[idx] !== undefined) {
+      return String(choices[idx]).trim();
+    }
+    const val = choices[optKey] || choices[lower] || choices[`${optKey}.`];
+    if (val) return String(typeof val === 'object' ? (val.text || val.value || '') : val).trim();
   }
 
   return '';

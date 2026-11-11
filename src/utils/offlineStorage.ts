@@ -274,6 +274,50 @@ export async function getOfflineExam(examId: string): Promise<Exam | null> {
   }
 }
 
+function normalizeStoredQuestion(q: any): ExamQuestion {
+  if (!q) return q;
+  let optA = q.option_a || q.opt_a || '';
+  let optB = q.option_b || q.opt_b || '';
+  let optC = q.option_c || q.opt_c || '';
+  let optD = q.option_d || q.opt_d || '';
+
+  let rawOpts = q.options;
+  if (typeof rawOpts === 'string') {
+    try { rawOpts = JSON.parse(rawOpts); } catch {}
+  }
+
+  if (Array.isArray(rawOpts) && rawOpts.length > 0) {
+    if (!optA && rawOpts[0] !== undefined) optA = typeof rawOpts[0] === 'object' && rawOpts[0] !== null ? (rawOpts[0].text || rawOpts[0].value || rawOpts[0].option || '') : String(rawOpts[0]);
+    if (!optB && rawOpts[1] !== undefined) optB = typeof rawOpts[1] === 'object' && rawOpts[1] !== null ? (rawOpts[1].text || rawOpts[1].value || rawOpts[1].option || '') : String(rawOpts[1]);
+    if (!optC && rawOpts[2] !== undefined) optC = typeof rawOpts[2] === 'object' && rawOpts[2] !== null ? (rawOpts[2].text || rawOpts[2].value || rawOpts[2].option || '') : String(rawOpts[2]);
+    if (!optD && rawOpts[3] !== undefined) optD = typeof rawOpts[3] === 'object' && rawOpts[3] !== null ? (rawOpts[3].text || rawOpts[3].value || rawOpts[3].option || '') : String(rawOpts[3]);
+  } else if (rawOpts && typeof rawOpts === 'object') {
+    if (!optA) optA = rawOpts.A || rawOpts.a || rawOpts['A.'] || '';
+    if (!optB) optB = rawOpts.B || rawOpts.b || rawOpts['B.'] || '';
+    if (!optC) optC = rawOpts.C || rawOpts.c || rawOpts['C.'] || '';
+    if (!optD) optD = rawOpts.D || rawOpts.d || rawOpts['D.'] || '';
+  }
+
+  const qText = q.question_text || q.text || q.question || '';
+  const rawCorrect = q.correct_answer ?? q.correct_option ?? 'A';
+  const normCorrect = typeof rawCorrect === 'number'
+    ? (['A', 'B', 'C', 'D'][rawCorrect] || 'A')
+    : (String(rawCorrect).trim().toUpperCase() || 'A');
+
+  return {
+    ...q,
+    question_text: qText,
+    text: qText,
+    option_a: String(optA || '').trim(),
+    option_b: String(optB || '').trim(),
+    option_c: String(optC || '').trim(),
+    option_d: String(optD || '').trim(),
+    options: [optA, optB, optC, optD].filter(Boolean),
+    correct_answer: normCorrect as any,
+    correct_option: normCorrect as any
+  };
+}
+
 export async function getOfflineExamQuestions(examId: string): Promise<ExamQuestion[]> {
   if (!offlineQuestionsBundle) {
     await loadOfflineQuestionsBundle();
@@ -282,18 +326,13 @@ export async function getOfflineExamQuestions(examId: string): Promise<ExamQuest
   // 1. Authoritative: Pre-indexed verified offline bundle (covers all 73 exams & 11,002 questions)
   const bundled = offlineQuestionsBundle?.[examId];
   if (Array.isArray(bundled) && bundled.length > 0) {
-    const first = bundled[0];
-    const hasValidOpts = (first.option_a && first.option_a.trim().length > 0) ||
-      (Array.isArray(first.options) && first.options.some((o: any) => typeof o === 'string' && o.trim().length > 0));
-    if (hasValidOpts) {
-      return bundled;
-    }
+    return bundled.map(normalizeStoredQuestion);
   }
 
   // 2. Fallback to worksheet questions
   const ws = getBundledExamQuestions(examId);
   if (ws && ws.length > 0) {
-    return ws;
+    return ws.map(normalizeStoredQuestion);
   }
 
   // 3. Fallback to IndexedDB (for user custom saved exams)
@@ -306,20 +345,15 @@ export async function getOfflineExamQuestions(examId: string): Promise<ExamQuest
     return new Promise((resolve) => {
       req.onsuccess = () => {
         if (req.result && Array.isArray(req.result.questions) && req.result.questions.length > 0) {
-          const first = req.result.questions[0];
-          const hasValidOpts = (first.option_a && first.option_a.trim().length > 0) ||
-            (Array.isArray(first.options) && first.options.some((o: any) => typeof o === 'string' && o.trim().length > 0));
-          if (hasValidOpts) {
-            resolve(req.result.questions);
-            return;
-          }
+          resolve(req.result.questions.map(normalizeStoredQuestion));
+          return;
         }
-        resolve(getBundledExamQuestions(examId));
+        resolve(getBundledExamQuestions(examId).map(normalizeStoredQuestion));
       };
-      req.onerror = () => resolve(getBundledExamQuestions(examId));
+      req.onerror = () => resolve(getBundledExamQuestions(examId).map(normalizeStoredQuestion));
     });
   } catch {
-    return getBundledExamQuestions(examId);
+    return getBundledExamQuestions(examId).map(normalizeStoredQuestion);
   }
 }
 

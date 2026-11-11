@@ -409,30 +409,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-indigo-500" />
 
 
-          {/* Devpost PayPal AI Hackathon — 1-Click Judge Instant Demo Access */}
-          <div className="mb-6 p-3.5 rounded-2xl bg-gradient-to-r from-indigo-950/90 via-blue-950/80 to-emerald-950/80 border border-indigo-400/40 shadow-lg shadow-indigo-950/40">
-            <div className="flex items-center justify-between gap-2 mb-2">
-              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider text-amber-300 bg-amber-500/15 border border-amber-400/30 px-2.5 py-0.5 rounded-full">
-                <Sparkles className="w-3 h-3 text-amber-300" />
-                <span>Devpost PayPal AI Hackathon</span>
-              </span>
-              <span className="text-[10px] font-semibold text-emerald-300">All 59 Books &amp; 73 Exams Unlocked</span>
-            </div>
-            <button
-              type="button"
-              onClick={handleJudgeDemoAccess}
-              disabled={loading}
-              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-500 via-blue-500 to-emerald-500 hover:from-indigo-400 hover:via-blue-400 hover:to-emerald-400 text-white font-extrabold text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 transition transform active:scale-[0.99] disabled:opacity-60"
-            >
-              <Sparkles className="w-4 h-4 text-amber-200 shrink-0" />
-              <span>⚡ Devpost Judge / 1-Click Instant Demo Access</span>
-              <ArrowRight className="w-4 h-4 shrink-0" />
-            </button>
-            <p className="text-[10px] text-slate-300/90 text-center mt-1.5">
-              Logs in instantly as <span className="font-bold text-white">Dr. Dawit Haile (Devpost Judge)</span> — test PayPal MCP tools, AI Tutor &amp; Curriculum with zero setup.
-            </p>
-          </div>
-
           {/* Mode Switcher Tabs (Sign In vs Sign Up) */}
           <div className="flex items-center p-1 bg-slate-950/80 border border-slate-800 rounded-xl mb-6">
             <button
@@ -1089,19 +1065,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                   Manage Materials
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleAdminQuickLogin('ai_assistant')}
-                  disabled={loading}
-                  className="p-2.5 bg-slate-950/70 hover:bg-slate-800/90 border border-slate-800 hover:border-indigo-500/50 rounded-xl text-left transition group"
-                >
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300 group-hover:text-indigo-200">
-                    <Sparkles className="w-3 h-3 text-indigo-400" />
-                    <span>AI Coding Assistant</span>
-                  </div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Admin edit exams & books</div>
-                </button>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => handleAdminQuickLogin('nafkun')}
@@ -1118,6 +1082,30 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onSuccess }) => {
                     </span>
                     <span className="text-[10px] text-slate-400">Full owner</span>
                   </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleJudgeDemoAccess}
+                  disabled={loading}
+                  className="p-2.5 bg-slate-950/70 hover:bg-slate-800/90 border border-slate-800 hover:border-indigo-500/50 rounded-xl text-left transition group"
+                >
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-300 group-hover:text-indigo-200">
+                    <Sparkles className="w-3 h-3 text-indigo-400" />
+                    <span>Devpost Judge</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-1">1-Click Demo Access</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAdminQuickLogin('ai_assistant')}
+                  disabled={loading}
+                  className="p-2.5 bg-slate-950/70 hover:bg-slate-800/90 border border-slate-800 hover:border-emerald-500/50 rounded-xl text-left transition group"
+                >
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-300 group-hover:text-emerald-200">
+                    <ShieldAlert className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>AI Assistant</span>
+                  </div>
+                  <div className="text-[10px] text-slate-400 mt-1">Content editor</div>
                 </button>
               </div>
             </div>

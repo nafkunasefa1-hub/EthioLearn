@@ -235,15 +235,69 @@ async function ensureBookShortNotes(bookId: string): Promise<Record<string, any>
   return bookShortNotesPromises.get(resolvedId)!;
 }
 
+function extractQuestionOptions(q: any): { optA: string; optB: string; optC: string; optD: string; opts: string[] } {
+  if (!q) return { optA: '', optB: '', optC: '', optD: '', opts: [] };
+
+  let optA = q.option_a || q.opt_a || q.optionA || '';
+  let optB = q.option_b || q.opt_b || q.optionB || '';
+  let optC = q.option_c || q.opt_c || q.optionC || '';
+  let optD = q.option_d || q.opt_d || q.optionD || '';
+
+  let rawOpts = q.options;
+  if (typeof rawOpts === 'string') {
+    try {
+      rawOpts = JSON.parse(rawOpts);
+    } catch {
+      const matchA = rawOpts.match(/A[\.\:\)]\s*([^\n\r]+)/i);
+      const matchB = rawOpts.match(/B[\.\:\)]\s*([^\n\r]+)/i);
+      const matchC = rawOpts.match(/C[\.\:\)]\s*([^\n\r]+)/i);
+      const matchD = rawOpts.match(/D[\.\:\)]\s*([^\n\r]+)/i);
+      if (matchA && !optA) optA = matchA[1].trim();
+      if (matchB && !optB) optB = matchB[1].trim();
+      if (matchC && !optC) optC = matchC[1].trim();
+      if (matchD && !optD) optD = matchD[1].trim();
+    }
+  }
+
+  if (Array.isArray(rawOpts) && rawOpts.length > 0) {
+    if (!optA && rawOpts[0] !== undefined) optA = typeof rawOpts[0] === 'object' && rawOpts[0] !== null ? (rawOpts[0].text || rawOpts[0].value || rawOpts[0].option || '') : String(rawOpts[0]);
+    if (!optB && rawOpts[1] !== undefined) optB = typeof rawOpts[1] === 'object' && rawOpts[1] !== null ? (rawOpts[1].text || rawOpts[1].value || rawOpts[1].option || '') : String(rawOpts[1]);
+    if (!optC && rawOpts[2] !== undefined) optC = typeof rawOpts[2] === 'object' && rawOpts[2] !== null ? (rawOpts[2].text || rawOpts[2].value || rawOpts[2].option || '') : String(rawOpts[2]);
+    if (!optD && rawOpts[3] !== undefined) optD = typeof rawOpts[3] === 'object' && rawOpts[3] !== null ? (rawOpts[3].text || rawOpts[3].value || rawOpts[3].option || '') : String(rawOpts[3]);
+  } else if (rawOpts && typeof rawOpts === 'object') {
+    if (!optA) optA = rawOpts.A || rawOpts.a || rawOpts['A.'] || rawOpts['(A)'] || '';
+    if (!optB) optB = rawOpts.B || rawOpts.b || rawOpts['B.'] || rawOpts['(B)'] || '';
+    if (!optC) optC = rawOpts.C || rawOpts.c || rawOpts['C.'] || rawOpts['(C)'] || '';
+    if (!optD) optD = rawOpts.D || rawOpts.d || rawOpts['D.'] || rawOpts['(D)'] || '';
+  }
+
+  if (q.choices && typeof q.choices === 'object') {
+    if (Array.isArray(q.choices)) {
+      if (!optA && q.choices[0] !== undefined) optA = String(q.choices[0]);
+      if (!optB && q.choices[1] !== undefined) optB = String(q.choices[1]);
+      if (!optC && q.choices[2] !== undefined) optC = String(q.choices[2]);
+      if (!optD && q.choices[3] !== undefined) optD = String(q.choices[3]);
+    } else {
+      if (!optA) optA = q.choices.A || q.choices.a || '';
+      if (!optB) optB = q.choices.B || q.choices.b || '';
+      if (!optC) optC = q.choices.C || q.choices.c || '';
+      if (!optD) optD = q.choices.D || q.choices.d || '';
+    }
+  }
+
+  optA = String(optA || '').trim();
+  optB = String(optB || '').trim();
+  optC = String(optC || '').trim();
+  optD = String(optD || '').trim();
+
+  const opts = [optA, optB, optC, optD].filter(Boolean);
+
+  return { optA, optB, optC, optD, opts };
+}
+
 function normalizeQuestionForClient(q: any): ExamQuestion {
-  const optA = q.option_a || (Array.isArray(q.options) ? q.options[0] : '') || '';
-  const optB = q.option_b || (Array.isArray(q.options) ? q.options[1] : '') || '';
-  const optC = q.option_c || (Array.isArray(q.options) ? q.options[2] : '') || '';
-  const optD = q.option_d || (Array.isArray(q.options) ? q.options[3] : '') || '';
-  const opts = (Array.isArray(q.options) && q.options.length > 0)
-    ? q.options
-    : [optA, optB, optC, optD].filter(Boolean);
-  const qText = q.question_text || q.text || '';
+  const { optA, optB, optC, optD, opts } = extractQuestionOptions(q);
+  const qText = q.question_text || q.text || q.question || q.prompt || '';
   const rawCorrect = q.correct_answer ?? q.correct_option ?? 'A';
   const normCorrect = typeof rawCorrect === 'number'
     ? (['A', 'B', 'C', 'D'][rawCorrect] || 'A')
@@ -257,7 +311,7 @@ function normalizeQuestionForClient(q: any): ExamQuestion {
     option_b: optB,
     option_c: optC,
     option_d: optD,
-    options: opts,
+    options: opts.length > 0 ? opts : (Array.isArray(q.options) && q.options.length > 0 ? q.options : [optA, optB, optC, optD]),
     correct_answer: normCorrect as any,
     correct_option: normCorrect as any
   };
