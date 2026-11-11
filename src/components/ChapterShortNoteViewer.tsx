@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
+  Lock,
   Sparkles,
   BookOpen,
   CheckCircle2,
@@ -48,6 +49,8 @@ interface ChapterShortNoteViewerProps {
   onViewGrammarVocab?: () => void;
   theme?: "light" | "sepia" | "dark";
   isDetailed?: boolean;
+  isFreePreview?: boolean;
+  onUnlock?: () => void;
 }
 
 export const ChapterShortNoteViewer: React.FC<ChapterShortNoteViewerProps> = ({
@@ -61,7 +64,9 @@ export const ChapterShortNoteViewer: React.FC<ChapterShortNoteViewerProps> = ({
   onSelectChapter,
   onViewGrammarVocab,
   theme = "dark",
-  isDetailed = false
+  isDetailed = false,
+  isFreePreview = false,
+  onUnlock
 }) => {
   const chapterNumber = currentChapter?.chapter_number || 1;
   const [shortNote, setShortNote] = useState<ChapterShortNote | null>(null);
@@ -360,10 +365,15 @@ ${(shortNote.euee_exam_tips || []).map(formatTip).filter(Boolean).join('\n')}`;
             <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
               {chapters.map((chap) => {
                 const isSelected = (currentChapter?.chapter_number || chapterNumber) === chap.chapter_number;
+                const isLockedUnit = isFreePreview && chap.chapter_number > 1;
                 return (
                   <button
                     key={chap.id}
                     onClick={() => {
+                      if (isLockedUnit) {
+                        if (onUnlock) onUnlock();
+                        return;
+                      }
                       if (onSelectChapter) onSelectChapter(chap.chapter_number);
                     }}
                     className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 ${
@@ -371,9 +381,13 @@ ${(shortNote.euee_exam_tips || []).map(formatTip).filter(Boolean).join('\n')}`;
                         ? isDetailed
                           ? 'bg-purple-600 text-white shadow-md'
                           : 'bg-emerald-600 text-white shadow-md'
+                        : isLockedUnit
+                        ? 'bg-[var(--bg-canvas)] text-slate-500 hover:text-amber-300 border border-slate-800'
                         : 'bg-[var(--bg-canvas)] text-[var(--text-muted)] hover:text-[var(--text-heading)] border border-[var(--border-light)]'
                     }`}
+                    title={isLockedUnit ? `Unit ${chap.chapter_number} is locked (Subscribe to unlock)` : undefined}
                   >
+                    {isLockedUnit && <Lock className="w-3 h-3 text-amber-400" />}
                     <span>Unit {chap.chapter_number}</span>
                     <span className="opacity-80 max-w-[120px] truncate">{(chap.chapter_title || (chap as any).title || `Unit ${chap.chapter_number}`).replace(/^Unit\s*\d+:\s*/i, '')}</span>
                   </button>
@@ -1456,6 +1470,30 @@ ${(shortNote.euee_exam_tips || []).map(formatTip).filter(Boolean).join('\n')}`;
                 <span>Next Topic →</span>
               </button>
             </div>
+
+            {/* Free Preview Unit 1 Completion Paywall Card */}
+            {isFreePreview && (
+              <div className="bg-gradient-to-r from-amber-950/80 via-slate-900 to-indigo-950/80 border border-amber-600/50 rounded-2xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[10px] font-bold uppercase tracking-wide">
+                      Free Preview of Unit 1
+                    </span>
+                  </div>
+                  <h4 className="text-base font-bold text-white">Unlock All Units & Full Digital Textbook</h4>
+                  <p className="text-xs text-slate-300 leading-relaxed max-w-xl">
+                    You are viewing the free sample notes for Unit 1. Subscribe to unlock Units 2–8, complete digital textbook reader, full PDF access, and 100 daily AI Tutor questions.
+                  </p>
+                </div>
+                <button
+                  onClick={onUnlock}
+                  className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg transition flex items-center gap-2 shrink-0 active:scale-95"
+                >
+                  <Lock className="w-4 h-4" />
+                  <span>Unlock Full Access</span>
+                </button>
+              </div>
+            )}
 
             {/* Bottom Actions Banner */}
             <div className="bg-[var(--bg-paper)] border border-[var(--border-light)] rounded-2xl p-6 flex flex-wrap items-center justify-between gap-4">

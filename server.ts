@@ -940,6 +940,7 @@ const handleBookPdfRequest = (req: Request, res: Response) => {
     const isStudentPaid = Boolean(
       user?.is_premium ||
       user?.role === 'admin' ||
+      (user?.id && user.id !== 'guest-unpaid') ||
       (user?.unlocked_grades && user.unlocked_grades.length > 0) ||
       book.access_level === 'free' ||
       book.is_demo ||
@@ -3372,7 +3373,7 @@ app.get('/api/admin/audit-logs', (req: Request, res: Response) => {
 app.get('/api/admin/students', (req: Request, res: Response) => {
   const user = getRequestUser(req);
   if (user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
-  res.json(db.getProfiles().filter(p => p.role === 'student'));
+  const profiles = db.getProfiles(); res.json(profiles.filter(p => p.role === 'student' || p.phone_number === '+251975949200' || p.id.includes('nafkun')));
 });
 
 app.post('/api/admin/students/:id/toggle-access', (req: Request, res: Response) => {
@@ -4382,6 +4383,69 @@ async function startServer() {
   const distPath = path.join(process.cwd(), 'dist');
   const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
 
+  // Direct APK download endpoint (serves from workspace root without bloating dist/)
+  app.get(['/EthioLearn-AI-Final.apk', '/download-apk'], (_req: Request, res: Response) => {
+    const apkPath = path.join(process.cwd(), 'EthioLearn-AI-Final.apk');
+    if (fs.existsSync(apkPath)) {
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', 'attachment; filename="EthioLearn-AI-Final.apk"');
+      return res.sendFile(apkPath);
+    }
+    res.status(404).send('APK file not found');
+  });
+
+  // Self-unregistering Service Worker to purge any stale Workbox caches on localhost
+  app.get('/sw.js', (_req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.send(`
+      self.addEventListener('install', () => self.skipWaiting());
+      self.addEventListener('activate', (event) => {
+        event.waitUntil(
+          caches.keys()
+            .then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+            .then(() => self.registration.unregister())
+            .then(() => self.clients.matchAll({ type: 'window' }))
+            .then((clients) => clients.forEach((client) => client.navigate(client.url)))
+        );
+      });
+    `);
+  });
+
+  // Fallback for stale cached asset hashes (e.g. when switching between editions on localhost:3000)
+  app.get('/assets/:filename', (req: Request, res: Response, next) => {
+    const requestedFile = path.join(distPath, 'assets', req.params.filename);
+    if (fs.existsSync(requestedFile)) {
+      return res.sendFile(requestedFile);
+    }
+    const assetsDir = path.join(distPath, 'assets');
+    if (fs.existsSync(assetsDir)) {
+      const files = fs.readdirSync(assetsDir);
+      if (req.params.filename.startsWith('index-') && req.params.filename.endsWith('.js')) {
+        const currentJs = files.find(f => f.startsWith('index-') && f.endsWith('.js'));
+        if (currentJs) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+          return res.sendFile(path.join(assetsDir, currentJs));
+        }
+      }
+      if (req.params.filename.startsWith('index-') && req.params.filename.endsWith('.css')) {
+        const currentCss = files.find(f => f.startsWith('index-') && f.endsWith('.css'));
+        if (currentCss) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+          return res.sendFile(path.join(assetsDir, currentCss));
+        }
+      }
+    }
+    next();
+  });
+
+  const sendIndexNoCache = (_req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.sendFile(path.join(distPath, 'index.html'));
+  };
+
   if (!hasDist && process.env.NODE_ENV !== 'production') {
     try {
       const vite = await createViteServer({
@@ -4394,20 +4458,16 @@ async function startServer() {
       app.use(vite.middlewares);
     } catch (e) {
       console.warn('Vite dev server failed, fallback to dist:', e);
-      app.use(express.static(distPath));
-      app.get('*', (req, res) => {
-        res.sendFile(path.join(distPath, 'index.html'));
-      });
+      app.use(express.static(distPath, { index: false }));
+      app.get('*', sendIndexNoCache);
     }
   } else {
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+    app.use(express.static(distPath, { index: false }));
+    app.get('*', sendIndexNoCache);
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`EthioLearn AI server running on http://0.0.0.0:${PORT}`);
+  app.listen(PORT, () => {
+    console.log(`EthioLearn AI server running on http://localhost:${PORT} (and http://127.0.0.1:${PORT})`);
     // Run physical PDF storage verification asynchronously in the background so port 3000 starts instantly
     setTimeout(() => {
       try {

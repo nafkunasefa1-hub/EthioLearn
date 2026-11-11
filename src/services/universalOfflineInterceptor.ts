@@ -1171,10 +1171,10 @@ async function handleOfflineApiRequest(
         grade_id: 'grade-12-natural'
       },
       {
-        phone: '+251911223344',
-        cleanPhone: '251911223344',
-        name: 'Abebe Kebede',
-        password: 'Student@123',
+        phone: '+251911002026',
+        cleanPhone: '251911002026',
+        name: 'Devpost Judge',
+        password: 'Judge@2026',
         role: 'student',
         grade_id: 'grade-12-natural'
       }
@@ -1264,6 +1264,34 @@ async function handleOfflineApiRequest(
       localStorage.setItem('ethiolearn_token', 'student-registered-token');
       localStorage.setItem('ethiolearn_phone_session', 'verified');
       localStorage.setItem('ethiolearn_phone', formattedPhone);
+
+      // Immediately add/update in ethiolearn_admin_students so Admin sees them instantly!
+      const adminStr = localStorage.getItem('ethiolearn_admin_students');
+      let adminList = adminStr ? JSON.parse(adminStr) : [];
+      if (!Array.isArray(adminList)) adminList = [];
+      const exIdx = adminList.findIndex((s: any) => s.id === newStudent.id || s.phone_number === formattedPhone);
+      const adminEntry = {
+        id: newStudent.id,
+        phone_number: formattedPhone,
+        email: studentProfile.email,
+        full_name: newStudent.name,
+        grade: studentProfile.grade,
+        grade_id: newStudent.grade_id,
+        role: 'student',
+        is_premium: false,
+        payment_tier: 'free',
+        unlocked_grades: [],
+        paid_amount: 0,
+        device_id: body.device_id || 'ethiolearn-device-1',
+        created_at: newStudent.created_at,
+        updated_at: newStudent.created_at
+      };
+      if (exIdx >= 0) {
+        adminList[exIdx] = { ...adminList[exIdx], ...adminEntry };
+      } else {
+        adminList.push(adminEntry);
+      }
+      localStorage.setItem('ethiolearn_admin_students', JSON.stringify(adminList));
     } catch (_) {}
 
     return jsonResponse({
@@ -3052,16 +3080,17 @@ How can I help you excel today? You can ask me any question or explore these cor
     // ONLY Admin and Devpost Judge are seeded by default (no other sample numbers!)
     const DEFAULT_STUDENTS = [
       {
-        id: 'usr-nafkun-admin',
+        id: 'usr-nafkun-student',
         phone_number: '+251975949200',
         email: 'nafkun@ethiolearn.edu.et',
-        full_name: 'Nafkun Asefa (Admin)',
+        full_name: 'Nafkun Asefa (+251975949200)',
         grade: 'Grade 12 - Natural Science',
         grade_id: 'grade-12-natural',
-        role: 'admin',
+        role: 'student',
         is_premium: true,
         unlocked_grades: ['all'],
         payment_tier: 'all',
+        paid_amount: 300,
         device_id: 'dev-ethio-nafkun-primary-2026',
         created_at: '2026-09-01T10:00:00Z',
         updated_at: new Date().toISOString()
@@ -3118,36 +3147,98 @@ How can I help you excel today? You can ask me any question or explore these cor
       }
     }
 
+    // 1. Always ensure DEFAULT_STUDENTS (including +251975949200 Nafkun Asefa & Devpost Judge) are in the list!
+    for (const ds of DEFAULT_STUDENTS) {
+      const pClean = ds.phone_number.replace(/[^\d]/g, '');
+      const found = currentList.find(s => {
+        if (s.id === ds.id || s.phone_number === ds.phone_number) return true;
+        const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
+        return pClean.length >= 9 && sClean.includes(pClean.slice(-9));
+      });
+      if (!found) {
+        currentList.unshift(ds);
+      } else {
+        // Keep name and phone clear
+        found.phone_number = ds.phone_number;
+        found.full_name = ds.full_name;
+        found.role = 'student';
+      }
+    }
+
+    // 2. Merge all registered students from ethiolearn_registered_students
     try {
       const regStr = localStorage.getItem('ethiolearn_registered_students');
       if (regStr) {
         const regList = JSON.parse(regStr);
         if (Array.isArray(regList)) {
           for (const rs of regList) {
-            const cleanPhone = String(rs.phone || '').replace(/[^\d+]/g, '');
+            const rawPhone = String(rs.phone || rs.phone_number || '').trim();
+            const cleanDigits = rawPhone.replace(/[^\d]/g, '');
+            if (!cleanDigits || cleanDigits.length < 9) continue;
             if (
-              STALE_SAMPLE_PHONES.has(cleanPhone) ||
-              STALE_SAMPLE_PHONES.has(String(rs.phone)) ||
+              STALE_SAMPLE_PHONES.has(rawPhone) ||
+              (cleanDigits.length >= 9 && STALE_SAMPLE_PHONES.has('0' + cleanDigits.slice(-9))) ||
               (rs.id && deletedSet.has(String(rs.id).toLowerCase())) ||
-              (cleanPhone && deletedSet.has(cleanPhone.toLowerCase())) ||
-              (rs.phone && deletedSet.has(String(rs.phone).toLowerCase()))
+              (rawPhone && deletedSet.has(rawPhone.toLowerCase()))
             ) {
               continue;
             }
-            const existing = currentList.find(s => s.phone_number === cleanPhone || s.phone_number === rs.phone || s.id === rs.id);
+            const existing = currentList.find(s => {
+              if (s.id === rs.id || s.phone_number === rawPhone) return true;
+              const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
+              return sDigits.includes(cleanDigits.slice(-9));
+            });
             if (!existing) {
+              const formatted = rawPhone.startsWith('+') ? rawPhone : ('+251' + cleanDigits.slice(-9));
               currentList.push({
-                id: rs.id || `usr-reg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                phone_number: cleanPhone || rs.phone,
-                full_name: rs.name || 'Registered Student',
-                grade: rs.grade_id ? (rs.grade_id.includes('12') ? 'Grade 12 - Natural Science' : 'Grade 10') : 'Grade 12',
+                id: rs.id || `usr-student-${cleanDigits.slice(-9)}`,
+                phone_number: formatted,
+                full_name: rs.name || rs.full_name || 'Registered Student',
+                grade: rs.grade || (rs.grade_id && rs.grade_id.includes('12') ? 'Grade 12 - Natural Science' : 'Grade 10'),
                 grade_id: rs.grade_id || 'grade-12-natural',
                 role: 'student',
-                is_premium: false,
-                payment_tier: 'free',
-                unlocked_grades: [],
-                device_id: rs.device_id || 'dev-phone-' + Math.random().toString(36).slice(2, 8),
+                is_premium: Boolean(rs.is_premium),
+                payment_tier: rs.payment_tier || (rs.is_premium ? 'all' : 'free'),
+                unlocked_grades: rs.unlocked_grades || (rs.is_premium ? ['all'] : []),
+                paid_amount: rs.paid_amount || (rs.payment_tier === 'all' ? 300 : (rs.payment_tier === 'single' ? 200 : 0)),
+                device_id: rs.device_id || 'dev-phone-' + cleanDigits.slice(-6),
                 created_at: rs.created_at || new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              });
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // 3. Merge active user profile if not in list
+    try {
+      const userProfileStr = localStorage.getItem('ethiolearn_user_profile');
+      if (userProfileStr) {
+        const up = JSON.parse(userProfileStr);
+        if (up && (up.phone_number || up.phone) && up.role !== 'admin') {
+          const rawPhone = String(up.phone_number || up.phone).trim();
+          const cleanDigits = rawPhone.replace(/[^\d]/g, '');
+          if (cleanDigits.length >= 9) {
+            const existing = currentList.find(s => {
+              if (s.id === up.id || s.phone_number === rawPhone) return true;
+              const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
+              return sDigits.includes(cleanDigits.slice(-9));
+            });
+            if (!existing && !deletedSet.has(rawPhone.toLowerCase())) {
+              currentList.push({
+                id: up.id || `usr-student-${cleanDigits.slice(-9)}`,
+                phone_number: rawPhone.startsWith('+') ? rawPhone : ('+251' + cleanDigits.slice(-9)),
+                full_name: up.full_name || 'Registered Student',
+                grade: up.grade || 'Grade 12 - Natural Science',
+                grade_id: up.grade_id || 'grade-12-natural',
+                role: 'student',
+                is_premium: Boolean(up.is_premium),
+                payment_tier: up.payment_tier || (up.is_premium ? 'all' : 'free'),
+                unlocked_grades: up.unlocked_grades || (up.is_premium ? ['all'] : []),
+                paid_amount: up.paid_amount || (up.payment_tier === 'all' ? 300 : (up.payment_tier === 'single' ? 200 : 0)),
+                device_id: up.device_id || 'dev-phone-' + cleanDigits.slice(-6),
+                created_at: up.created_at || new Date().toISOString(),
                 updated_at: new Date().toISOString()
               });
             }

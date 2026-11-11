@@ -687,7 +687,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
         }
         const curId = localStorage.getItem('ethiolearn_user_id');
         const curPhone = localStorage.getItem('ethiolearn_phone');
-        if (curId === studentId || curPhone === studentId) {
+        const curDigits = String(curPhone || '').replace(/[^\d]/g, '');
+        const targetDigits = String(studentId || '').replace(/[^\d]/g, '');
+        const isSessionMatch = curId === studentId || curPhone === studentId || (curDigits.length >= 9 && targetDigits.length >= 9 && curDigits.slice(-9) === targetDigits.slice(-9));
+        if (isSessionMatch) {
           const profStr = localStorage.getItem('ethiolearn_user_profile');
           if (profStr) {
             const p = JSON.parse(profStr);
