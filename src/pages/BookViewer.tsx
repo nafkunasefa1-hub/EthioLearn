@@ -55,7 +55,7 @@ export const BookViewer: React.FC<BookViewerProps> = ({
   highlightQuery,
   onNavigate
 }) => {
-  const { user } = useAuth();
+  const { user, hasGradeAccess } = useAuth();
 
   // Persistent reading page and mode resolution from localStorage
   const savedPageStr = typeof window !== 'undefined' ? localStorage.getItem(`ethio_saved_page_${bookId}`) : null;
@@ -79,6 +79,13 @@ export const BookViewer: React.FC<BookViewerProps> = ({
   const [viewMode, setViewMode] = useState<'digital_textbook' | 'short_notes' | 'detailed_short_notes' | 'grammar_vocab' | 'pdf'>(resolvedInitialMode);
 
   const handleSetViewMode = (mode: 'digital_textbook' | 'short_notes' | 'detailed_short_notes' | 'grammar_vocab' | 'pdf') => {
+    if (book && user?.role !== 'admin' && hasGradeAccess && !hasGradeAccess(book.grade_id, book.subject_id, 'book')) {
+      if (mode !== 'short_notes') {
+        setError('PREMIUM_REQUIRED');
+        return;
+      }
+    }
+    setError(null);
     setViewMode(mode);
     try {
       localStorage.setItem(`ethio_saved_mode_${bookId}`, mode);
@@ -109,6 +116,19 @@ export const BookViewer: React.FC<BookViewerProps> = ({
   const [offlinePdfSrc, setOfflinePdfSrc] = useState<string | null>(null);
 
   const authoritativeTotalPages = getAuthoritativeTotalPages(bookId, book?.total_pages);
+
+  useEffect(() => {
+    if (book && user?.role !== 'admin' && hasGradeAccess) {
+      const allowed = hasGradeAccess(book.grade_id, book.subject_id, 'book');
+      if (!allowed && viewMode !== 'short_notes') {
+        setError('PREMIUM_REQUIRED');
+      } else if (allowed && error === 'PREMIUM_REQUIRED') {
+        setError(null);
+      }
+    }
+  }, [book, user, viewMode, hasGradeAccess, error]);
+
+
 
   useEffect(() => {
     isBookOffline(bookId).then(saved => {
@@ -423,12 +443,21 @@ export const BookViewer: React.FC<BookViewerProps> = ({
         <p className="text-slate-400 text-sm max-w-md mx-auto">
           Upgrade your EthioLearn account to unlock full offline textbook access with structured chapter notes and OCR image indexing.
         </p>
-        <div className="pt-2 flex justify-center gap-3">
+        <div className="pt-2 flex flex-wrap justify-center gap-3">
           <button
             onClick={() => onNavigate('library')}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold"
           >
             Back to Library
+          </button>
+          <button
+            onClick={() => {
+              setError(null);
+              handleSetViewMode('short_notes');
+            }}
+            className="px-4 py-2 bg-purple-950/80 hover:bg-purple-900 border border-purple-700/60 text-purple-300 rounded-xl text-xs font-semibold"
+          >
+            Preview Unit 1 Free Notes
           </button>
           {user?.is_premium || (user?.unlocked_grades && user.unlocked_grades.length > 0) ? (
             <button
