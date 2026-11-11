@@ -3050,17 +3050,28 @@ If Δ < 0: no real roots.`}
             {/* Actual Screenshot image or slip */}
             <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 text-center space-y-2">
               {viewingReceipt.receipt_storage_path ? (
-                <div className="space-y-2">
-                  <img
-                    src={viewingReceipt.receipt_storage_path}
-                    alt="Payment Screenshot"
-                    className="max-h-72 w-auto mx-auto rounded-xl border border-slate-700 object-contain"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                  <div className="text-[11px] text-slate-400 font-mono">
-                    File: {viewingReceipt.receipt_filename || 'screenshot.png'}
+                <div className="space-y-3">
+                  <div className="relative group max-h-[55vh] overflow-auto rounded-xl border border-slate-700/80 bg-black/50 p-2 flex items-center justify-center">
+                    <img
+                      src={viewingReceipt.receipt_storage_path}
+                      alt="Student Payment Screenshot"
+                      className="max-h-[50vh] w-auto mx-auto rounded-lg object-contain shadow-2xl"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-400 font-mono px-2 pt-1">
+                    <span className="truncate max-w-[220px]">
+                      File: {viewingReceipt.receipt_filename || 'payment_screenshot.png'}
+                    </span>
+                    <a
+                      href={viewingReceipt.receipt_storage_path}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={viewingReceipt.receipt_filename || 'payment_screenshot.png'}
+                      className="text-emerald-400 hover:text-emerald-300 font-sans font-bold flex items-center gap-1 transition"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open Full Size</span>
+                    </a>
                   </div>
                 </div>
               ) : (

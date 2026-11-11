@@ -124,9 +124,32 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
     setIsSubmitting(true);
     setSubmitError(null);
 
+    // Convert screenshot file to Base64 Data URL so it is 100% preserved offline and across all devices
+    let receiptDataUrl = '';
+    try {
+      receiptDataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(selectedFile);
+      });
+    } catch (_) {}
+
+    if (receiptDataUrl) {
+      try {
+        localStorage.setItem('ethiolearn_last_uploaded_receipt_image', receiptDataUrl);
+      } catch (_) {}
+    }
+
     const currentDeviceId = getDeviceId();
     const formData = new FormData();
     formData.append('receipt', selectedFile);
+    if (receiptDataUrl) {
+      formData.append('receipt_data_url', receiptDataUrl);
+    }
+    formData.append('receipt_filename', selectedFile.name || 'payment_screenshot.png');
+    formData.append('student_phone', user?.phone_number || (user as any)?.phone || '');
+    formData.append('student_name', user?.full_name || 'Student');
     formData.append('amount_birr', isUpgrading ? '100' : selectedPlan === 'all' ? '300' : '200');
     formData.append('upgrade_all_grades', (selectedPlan === 'all' || isUpgrading) ? 'true' : 'false');
     formData.append('target_grade_id', user?.grade_id || 'grade-12-natural');
@@ -236,6 +259,22 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
             <Clock className="w-8 h-8 animate-pulse" />
           </div>
           <h2 className="text-2xl font-bold text-white">Payment Screenshot Received & Under Review</h2>
+          {/* Display Student's Actual Submitted Screenshot */}
+          {(existingReceipt?.receipt_storage_path || previewUrl) && (
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 max-w-sm mx-auto text-center space-y-2">
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Your Attached Screenshot</span>
+              <div className="max-h-48 overflow-hidden rounded-xl border border-slate-700/80 bg-black/40 p-1 flex items-center justify-center">
+                <img
+                  src={existingReceipt?.receipt_storage_path || previewUrl}
+                  alt="Submitted Screenshot"
+                  className="max-h-44 w-auto rounded-lg object-contain shadow"
+                />
+              </div>
+              <span className="text-[10px] text-emerald-400 font-mono block truncate px-2">
+                {existingReceipt?.receipt_filename || selectedFile?.name || 'payment_screenshot.png'}
+              </span>
+            </div>
+          )}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 max-w-md mx-auto text-xs text-slate-300 space-y-2 text-left">
             <div className="flex justify-between">
               <span className="text-slate-400">Phone Number:</span>

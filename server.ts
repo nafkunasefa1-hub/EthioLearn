@@ -85,6 +85,7 @@ const STORAGE_PAGES_DIR = path.join(STORAGE_DIR, 'pages');
 app.use('/api/diagrams', express.static(DIAGRAMS_DIR));
 app.use('/diagrams', express.static(DIAGRAMS_DIR));
 app.use('/storage/pages', express.static(STORAGE_PAGES_DIR));
+app.use('/storage/private/receipts', express.static(PRIVATE_RECEIPTS_DIR));
 app.use(express.static(path.join(process.cwd(), 'public')));
 
 // Configure Multer for secure uploads (supports large curriculum textbooks up to 250MB)
@@ -2770,7 +2771,7 @@ app.post('/api/payments/submit-receipt', upload.single('receipt'), (req: Request
     upgrade_all_grades: isAllGrades,
     amount_birr: chosenAmount,
     transaction_reference: generatedRef,
-    receipt_storage_path: file ? `/storage/private/receipts/${file.filename}` : '/storage/private/receipts/sample.png',
+    receipt_storage_path: (req.body && req.body.receipt_data_url) ? req.body.receipt_data_url : (file ? `/storage/private/receipts/${file.filename}` : '/storage/private/receipts/sample.png'),
     receipt_filename: file ? file.originalname : 'payment_receipt.png',
     status: 'pending',
     submitted_at: new Date().toISOString()
