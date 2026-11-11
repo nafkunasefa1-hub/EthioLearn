@@ -469,34 +469,34 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
     if (!examId) return;
     setCategoryLoading(true);
     try {
-      const data = await apiFetchJson<ExamQuestion[]>(
-        `/api/exams/${examId}/questions`,
-        { headers: { 'x-user-id': user?.id || 'usr-student-premium' } },
-        []
-      );
-      if (Array.isArray(data) && data.length > 0) {
-        setCategoryQuestions(data);
-        if (!expandedCategory) {
-          const firstCat = data[0].instruction_category || data[0].topic_name || 'Dialogue & Communicative Activities';
-          setExpandedCategory(firstCat);
+      let qList: ExamQuestion[] = [];
+      try {
+        const data = await apiFetchJson<ExamQuestion[]>(
+          `/api/exams/${examId}/questions`,
+          { headers: { 'x-user-id': user?.id || 'usr-student-premium' } },
+          []
+        );
+        if (Array.isArray(data) && data.length > 0) {
+          qList = data;
         }
-        return;
+      } catch (err) {
+        console.warn('Online category questions fetch failed, falling back to offline:', err);
       }
-    } catch {
-      // Offline fallback
-    }
 
-    try {
-      const offlineData = await getOfflineExamQuestions(examId);
-      if (offlineData && offlineData.length > 0) {
-        setCategoryQuestions(offlineData);
-        if (!expandedCategory) {
-          const firstCat = offlineData[0].instruction_category || offlineData[0].topic_name || 'Dialogue & Communicative Activities';
-          setExpandedCategory(firstCat);
+      if (qList.length === 0) {
+        const offlineData = await getOfflineExamQuestions(examId);
+        if (offlineData && offlineData.length > 0) {
+          qList = offlineData;
         }
+      }
+
+      setCategoryQuestions(qList);
+      if (qList.length > 0 && !expandedCategory) {
+        const firstCat = qList[0].instruction_category || qList[0].topic_name || 'Core Curriculum Questions';
+        setExpandedCategory(firstCat);
       }
     } catch (err) {
-      console.error('Error loading category questions offline:', err);
+      console.error('Error loading category questions:', err);
     } finally {
       setCategoryLoading(false);
     }
@@ -1411,9 +1411,9 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
           }`}
         >
           <Layers className="w-4 h-4" />
-          <span>By Category</span>
+          <span>By Topic</span>
           <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-950 text-purple-300 font-mono border border-purple-800/60">
-            Instruction Sections
+            Syllabus Topics
           </span>
         </button>
 
@@ -1461,13 +1461,13 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
               <div>
                 <div className="flex items-center gap-2 text-xs font-bold text-purple-400 uppercase tracking-wider mb-1">
                   <Layers className="w-4 h-4" />
-                  <span>Instruction-Based Structure</span>
+                  <span>Syllabus Topic Structure</span>
                 </div>
                 <h2 className="text-xl sm:text-2xl font-extrabold text-white">
-                  Exam Sections Arranged by Instruction
+                  Exam Questions Arranged by Topic
                 </h2>
                 <p className="text-xs text-slate-300 mt-1 max-w-2xl">
-                  Questions are categorized strictly according to official exam instructions (Dialogue, Reading Comprehension, Grammar & Structure, etc.), preserving original exam order with reading texts and AI explanations.
+                  Questions are categorized strictly according to official Ethiopian curriculum syllabus topics and instructions, preserving original question text, options, and AI explanations.
                 </p>
               </div>
 
@@ -1570,7 +1570,7 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
                   </div>
                 </div>
 
-                {categorySelectedExam && (
+                {user?.role === 'admin' && categorySelectedExam && (
                   <button
                     onClick={() => handleOpenReplaceModal(categorySelectedExam)}
                     className="w-full sm:w-auto px-3.5 py-2.5 sm:py-2 bg-purple-950/90 hover:bg-purple-900 border border-purple-700/70 text-purple-200 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap"
@@ -1758,7 +1758,7 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
               <p className="text-xs text-slate-400 max-w-md mx-auto">
                 Use the Replace / Re-extract button to ingest all questions from the PDF paper with instructions and reading texts.
               </p>
-              {categorySelectedExam && (
+              {user?.role === 'admin' && categorySelectedExam && (
                 <button
                   onClick={() => handleOpenReplaceModal(categorySelectedExam)}
                   className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition inline-flex items-center gap-2"
@@ -2325,14 +2325,16 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
                       )}
                     </div>
 
-                    {/* Replace / Re-extract Button directly under every exam */}
-                    <button
-                      onClick={() => handleOpenReplaceModal(exam)}
-                      className="w-full py-1.5 text-xs text-purple-300 hover:text-purple-100 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/40 rounded-xl transition flex items-center justify-center gap-1.5 font-medium shadow-sm"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
-                      <span>Replace / Re-extract ({getExamExpectedCount(exam)} Questions)</span>
-                    </button>
+                    {/* Replace / Re-extract Button directly under every exam (Admin only) */}
+                    {user?.role === 'admin' && (
+                      <button
+                        onClick={() => handleOpenReplaceModal(exam)}
+                        className="w-full py-1.5 text-xs text-purple-300 hover:text-purple-100 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/40 rounded-xl transition flex items-center justify-center gap-1.5 font-medium shadow-sm"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Replace / Re-extract ({getExamExpectedCount(exam)} Questions)</span>
+                      </button>
+                    )}
                   </>
                 ) : (
                   <>
@@ -2358,14 +2360,16 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
                       </span>
                     </button>
 
-                    {/* Replace / Re-extract Button directly under every exam */}
-                    <button
-                      onClick={() => handleOpenReplaceModal(exam)}
-                      className="w-full py-1.5 text-xs text-purple-300 hover:text-purple-100 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/40 rounded-xl transition flex items-center justify-center gap-1.5 font-medium shadow-sm"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
-                      <span>Replace / Re-extract ({getExamExpectedCount(exam)} Questions)</span>
-                    </button>
+                    {/* Replace / Re-extract Button directly under every exam (Admin only) */}
+                    {user?.role === 'admin' && (
+                      <button
+                        onClick={() => handleOpenReplaceModal(exam)}
+                        className="w-full py-1.5 text-xs text-purple-300 hover:text-purple-100 bg-purple-950/40 hover:bg-purple-900/60 border border-purple-800/40 rounded-xl transition flex items-center justify-center gap-1.5 font-medium shadow-sm"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
+                        <span>Replace / Re-extract ({getExamExpectedCount(exam)} Questions)</span>
+                      </button>
+                    )}
                   </>
                 )}
               </div>
@@ -2956,14 +2960,16 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleOpenReplaceModal(inspectExam)}
-                  className="px-3 py-1.5 bg-purple-950/90 hover:bg-purple-900 border border-purple-700/70 text-purple-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
-                  <span className="hidden sm:inline">Replace & Re-extract ({getExamExpectedCount(inspectExam)} Qs)</span>
-                  <span className="sm:hidden">Replace</span>
-                </button>
+                {user?.role === 'admin' && (
+                  <button
+                    onClick={() => handleOpenReplaceModal(inspectExam)}
+                    className="px-3 py-1.5 bg-purple-950/90 hover:bg-purple-900 border border-purple-700/70 text-purple-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
+                    <span className="hidden sm:inline">Replace & Re-extract ({getExamExpectedCount(inspectExam)} Qs)</span>
+                    <span className="sm:hidden">Replace</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => setInspectExam(null)}

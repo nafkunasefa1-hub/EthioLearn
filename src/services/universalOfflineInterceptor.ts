@@ -2146,7 +2146,7 @@ async function handleOfflineApiRequest(
     const topic = topics.find((t: any) => t.id === topicId);
     const tName = String(topic?.topic_name || topicId).toLowerCase().trim();
     const cleanTName = tName.replace(/&/g, 'and').replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-    const tWords = cleanTName.split(' ').filter(w => w.length > 3 && !['functions', 'calculus', 'equations', 'motion'].includes(w));
+    const tWords = cleanTName.split(' ').filter(w => w.length > 3 && !['functions', 'calculus', 'equations', 'motion', 'theory', 'study'].includes(w));
 
     const questionsByExam = await ensureQuestions();
     const allTopicQuestions: ExamQuestion[] = [];
@@ -2160,14 +2160,17 @@ async function handleOfflineApiRequest(
         const qName = String(q.topic_name || q.instruction_category || '').toLowerCase().trim();
         const cleanQName = qName.replace(/&/g, 'and').replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
         
+        // Subject guard: topic questions must match topic subject
+        if (topic?.subject_id && q.subject_id && q.subject_id !== topic.subject_id) {
+          continue;
+        }
+
         let matchName = false;
         if (cleanQName && cleanTName) {
           if (cleanQName === cleanTName || cleanQName.includes(cleanTName) || cleanTName.includes(cleanQName)) {
             matchName = true;
-          } else if (tWords.length > 0 && tWords.some(w => cleanQName.includes(w))) {
-            if (!topic?.subject_id || q.subject_id === topic.subject_id) {
-              matchName = true;
-            }
+          } else if (tWords.length >= 2 && tWords.every(w => cleanQName.includes(w))) {
+            matchName = true;
           }
         }
 
@@ -2175,22 +2178,6 @@ async function handleOfflineApiRequest(
           seenQIds.add(q.id);
           allTopicQuestions.push(normalizeQuestionForClient(q));
         }
-      }
-    }
-
-    // Fallback: If 0 questions matched by specific name, gather from same subject & grade so student always has high-yield questions
-    if (allTopicQuestions.length === 0 && topic?.subject_id) {
-      for (const examId of Object.keys(questionsByExam)) {
-        const qList = questionsByExam[examId] || [];
-        for (const q of qList) {
-          if (seenQIds.has(q.id)) continue;
-          if (q.subject_id === topic.subject_id && (!topic.grade_id || q.grade_id === topic.grade_id)) {
-            seenQIds.add(q.id);
-            allTopicQuestions.push(normalizeQuestionForClient(q));
-            if (allTopicQuestions.length >= 25) break;
-          }
-        }
-        if (allTopicQuestions.length >= 25) break;
       }
     }
 
