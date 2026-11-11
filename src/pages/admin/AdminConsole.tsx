@@ -732,7 +732,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
           'Content-Type': 'application/json',
           'x-user-id': user?.id || 'usr-admin-1'
         },
-        body: tier === 'upgrade' ? undefined : JSON.stringify({ tier })
+        body: JSON.stringify({ tier })
       });
       if (res.ok) fetchAdminData();
     } catch (err) {

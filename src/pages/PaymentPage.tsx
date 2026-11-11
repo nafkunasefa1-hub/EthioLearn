@@ -70,9 +70,13 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
   const isPaidSingleGrade = Boolean(
     !hasAllAccess &&
     (
+      (user as any)?.payment_tier === 'single' ||
+      (user as any)?.paid_amount === 200 ||
       (user?.is_premium && user?.subscription_type === 'grade_only') ||
+      (user?.is_premium && !user?.unlocked_grades?.includes('all') && (user?.unlocked_grades?.length ?? 0) > 0) ||
+      (hasGradeAccess && user?.grade_id && hasGradeAccess(user.grade_id)) ||
       hasApproved200Receipt ||
-      (user?.is_premium && !user?.unlocked_grades?.includes('all') && user?.subscription_type !== 'all_grades' && (user as any)?.paid_amount === 200)
+      Boolean(routeParams?.upgrade)
     )
   );
 
@@ -81,15 +85,15 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
   }, [user]);
 
   useEffect(() => {
-    // Only users who legitimately paid 200 Birr for a single grade can upgrade for 100 Birr
-    if (isPaidSingleGrade && (routeParams?.upgrade || selectedPlan === 'all')) {
+    // If student already has Single Grade access, they are exclusively eligible to UPGRADE for 100 Birr!
+    if (isPaidSingleGrade) {
       setIsUpgrading(true);
       setSelectedPlan('all');
     } else {
       setIsUpgrading(false);
       if (routeParams?.plan === 'all') {
         setSelectedPlan('all');
-      } else if (routeParams?.plan === 'single') {
+      } else {
         setSelectedPlan('single');
       }
     }
@@ -150,7 +154,8 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
     formData.append('receipt_filename', selectedFile.name || 'payment_screenshot.png');
     formData.append('student_phone', user?.phone_number || (user as any)?.phone || '');
     formData.append('student_name', user?.full_name || 'Student');
-    formData.append('amount_birr', isUpgrading ? '100' : selectedPlan === 'all' ? '300' : '200');
+    const chosenAmount = (isUpgrading || isPaidSingleGrade || routeParams?.upgrade) ? '100' : (selectedPlan === 'all' ? '300' : '200');
+    formData.append('amount_birr', chosenAmount);
     formData.append('upgrade_all_grades', (selectedPlan === 'all' || isUpgrading) ? 'true' : 'false');
     formData.append('target_grade_id', user?.grade_id || 'grade-12-natural');
     formData.append('device_id', currentDeviceId);
@@ -282,11 +287,23 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Target Grade:</span>
-              <strong className="text-amber-400">{existingReceipt.upgrade_all_grades ? 'All Grades (9, 10, 11, 12)' : (user?.grade || 'Selected Grade')}</strong>
+              <strong className="text-amber-400">
+                {existingReceipt.amount_birr === 100 || existingReceipt.upgrade_all_grades || isUpgrading || isPaidSingleGrade
+                  ? 'All Grades (9, 10, 11, 12) - Complete Access Upgrade'
+                  : (user?.grade || 'Selected Grade Access')}
+              </strong>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Amount:</span>
-              <strong className="text-emerald-400">{existingReceipt.amount_birr} ETB</strong>
+              <strong className="text-emerald-400">
+                {existingReceipt.amount_birr === 100 || ((isUpgrading || isPaidSingleGrade) && existingReceipt.upgrade_all_grades)
+                  ? '100 ETB'
+                  : existingReceipt.amount_birr === 300
+                  ? '300 ETB'
+                  : existingReceipt.amount_birr === 200 && !isPaidSingleGrade
+                  ? '200 ETB'
+                  : (isUpgrading || isPaidSingleGrade ? '100 ETB' : `${existingReceipt.amount_birr || 200} ETB`)}
+              </strong>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Submitted At:</span>

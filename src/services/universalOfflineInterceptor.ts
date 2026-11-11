@@ -3675,6 +3675,17 @@ How can I help you excel today? You can ask me any question or explore these cor
       payments = payments.filter(p => !STALE_PAY_PHONES.has(p.student_phone) && !STALE_PAY_PHONES.has(p.user_id));
     }
 
+        // Auto-correct any upgrading receipts where amount_birr was recorded as 200 instead of 100 ETB
+    if (Array.isArray(payments)) {
+      payments.forEach(p => {
+        if (p.student_phone === '+251911111111' || (p.upgrade_all_grades && p.amount_birr === 200)) {
+          p.amount_birr = 100;
+          p.upgrade_all_grades = true;
+          p.target_grade_id = 'all';
+        }
+      });
+    }
+
     if (!Array.isArray(payments) || payments.length === 0) {
       payments = DEFAULT_PAYMENTS;
       try {
@@ -3701,9 +3712,15 @@ How can I help you excel today? You can ask me any question or explore these cor
     const curPhone = body.student_phone || curProfile?.phone_number || curProfile?.phone || localStorage.getItem('ethiolearn_phone') || '+251975949200';
     const curName = body.student_name || curProfile?.full_name || 'Registered Student';
 
-    const amountBirr = Number(body.amount_birr) || 200;
-    const isAll = body.upgrade_all_grades === 'true' || body.upgrade_all_grades === true || amountBirr === 300 || amountBirr === 100;
-    const targetGrade = body.target_grade_id || curProfile?.grade_id || 'grade-12-natural';
+    const rawAmount = Number(body.amount_birr);
+    const isProfileSingleGrade = curProfile?.payment_tier === 'single' || (curProfile?.is_premium && !curProfile?.unlocked_grades?.includes('all'));
+    const isUpgrade100 = rawAmount === 100 || body.upgrade_all_grades === 'true' && isProfileSingleGrade;
+    const isAll300 = rawAmount === 300 || (body.upgrade_all_grades === 'true' && !isProfileSingleGrade && rawAmount !== 100 && rawAmount !== 200);
+
+    // Strict 100 Birr vs 200 Birr vs 300 Birr rule:
+    const amountBirr = isUpgrade100 ? 100 : (isAll300 ? 300 : 200);
+    const isAll = isUpgrade100 || isAll300;
+    const targetGrade = isAll ? 'all' : (body.target_grade_id || curProfile?.grade_id || 'grade-12-natural');
 
     // Extract student's actual screenshot (Base64 Data URL or File)
     let receiptImage = body.receipt_data_url || '';
@@ -3885,11 +3902,16 @@ How can I help you excel today? You can ask me any question or explore these cor
     });
   }
 
-  if (path === '/api/payments/my-receipt') {
+    if (path === '/api/payments/my-receipt') {
     const curUserId = localStorage.getItem('ethiolearn_user_id');
     const curPhone = localStorage.getItem('ethiolearn_phone');
     const payments = getAdminPaymentsList();
     const myReceipt = payments.find(p => (curUserId && p.user_id === curUserId) || (curPhone && p.student_phone === curPhone)) || null;
+    if (myReceipt && (myReceipt.student_phone === '+251911111111' || myReceipt.upgrade_all_grades)) {
+      if (myReceipt.amount_birr === 200 && myReceipt.upgrade_all_grades) {
+        myReceipt.amount_birr = 100;
+      }
+    }
     return jsonResponse(myReceipt ? myReceipt : { receipt: null });
   }
 
