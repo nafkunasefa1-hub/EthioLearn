@@ -823,12 +823,14 @@ export const Library: React.FC<LibraryProps> = ({ onNavigate }) => {
       {/* Book Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {filteredBooks.map(book => {
+          const isAdmin = user?.role === 'admin' && (user.id === 'usr-admin-1' || user.id === 'usr-admin-ai' || user.phone_number === '+251994847287' || user.phone_number === '+251900000000');
           const isStudentPaid = Boolean(
-            user?.is_premium ||
-            user?.role === 'admin' ||
-            (user?.unlocked_grades && user.unlocked_grades.length > 0)
+            !isAdmin &&
+            (user as any)?.payment_tier !== 'free' &&
+            user?.is_premium !== false &&
+            (user?.is_premium || (user?.unlocked_grades && user.unlocked_grades.length > 0))
           );
-          const canRead = user?.role === 'admin' || book.access_level === 'free' || book.is_free_preview || (isStudentPaid && hasGradeAccess(book.grade_id, book.subject_id, 'book'));
+          const canRead = isAdmin || (hasGradeAccess && hasGradeAccess(book.grade_id, book.subject_id, 'book'));
           const isOffline = offlineIds.includes(book.id);
 
           return (

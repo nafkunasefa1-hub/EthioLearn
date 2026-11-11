@@ -57,13 +57,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // Load from local storage cache immediately so user enters without waiting for network
       const cachedProfileStr = localStorage.getItem('ethiolearn_user_profile');
+      let resolvedProfile: any = null;
       if (cachedProfileStr) {
         try {
           const cachedProfile = JSON.parse(cachedProfileStr);
           if (cachedProfile && cachedProfile.id === savedId) {
-            setUser(cachedProfile);
+            resolvedProfile = cachedProfile;
           }
         } catch (e) {}
+      }
+
+      // Authoritative sync from ethiolearn_admin_students
+      try {
+        const adminStudentsStr = localStorage.getItem('ethiolearn_admin_students');
+        if (adminStudentsStr && resolvedProfile) {
+          const adminList = JSON.parse(adminStudentsStr);
+          if (Array.isArray(adminList)) {
+            const pDigits = String(resolvedProfile.phone_number || resolvedProfile.phone || '').replace(/[^\d]/g, '');
+            const rec = adminList.find((s: any) => {
+              if (s.id === resolvedProfile.id || (resolvedProfile.phone_number && s.phone_number === resolvedProfile.phone_number)) return true;
+              const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
+              return pDigits.length >= 9 && sDigits.includes(pDigits.slice(-9));
+            });
+            if (rec && resolvedProfile.role !== 'admin') {
+              resolvedProfile.is_premium = Boolean(rec.is_premium);
+              resolvedProfile.payment_tier = rec.payment_tier || (resolvedProfile.is_premium ? 'all' : 'free');
+              resolvedProfile.unlocked_grades = rec.unlocked_grades || (resolvedProfile.is_premium ? ['all'] : []);
+              resolvedProfile.paid_amount = rec.paid_amount || (resolvedProfile.payment_tier === 'all' ? 300 : (resolvedProfile.payment_tier === 'single' ? 200 : 0));
+              localStorage.setItem('ethiolearn_user_profile', JSON.stringify(resolvedProfile));
+            }
+          }
+        }
+      } catch (_) {}
+
+      if (resolvedProfile) {
+        setUser(resolvedProfile);
       }
 
       // Try fetching latest from server if online
@@ -114,6 +142,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     fetchCurrentUser();
+    const handleAuthChange = () => {
+      fetchCurrentUser();
+    };
+    window.addEventListener('auth-change', handleAuthChange);
+    window.addEventListener('storage', handleAuthChange);
+    return () => {
+      window.removeEventListener('auth-change', handleAuthChange);
+      window.removeEventListener('storage', handleAuthChange);
+    };
   }, []);
 
   const loginWithPhone = async (phoneNumber: string, password?: string, fullName?: string, gradeId?: string): Promise<{ success: boolean; isAdmin?: boolean; error?: string; message?: string }> => {
@@ -360,11 +397,96 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           return { success: true, isAdmin: data.is_admin || data.profile.role === 'admin' };
         }
+      } else if (!res.ok && contentType.includes('application/json')) {
+        const errData = await res.json().catch(() => null);
+        if (errData?.message) {
+          return { success: false, error: errData.error, message: errData.message };
+        }
       }
     } catch (err: any) {}
 
-    // Offline fallback registration
-    return await loginWithPhone(phoneNumber, password, fullName, gradeId);
+    // Offline registration fallback (create student profile directly in localStorage):
+    const cleanPhone = (phoneNumber || '').replace(/[^\d+]/g, '');
+    let normPhone = cleanPhone;
+    if (normPhone.startsWith('09') || normPhone.startsWith('07')) {
+      normPhone = '+251' + normPhone.substring(1);
+    } else if (normPhone.startsWith('9') || normPhone.startsWith('7')) {
+      normPhone = '+251' + normPhone;
+    } else if (!normPhone.startsWith('+')) {
+      normPhone = '+' + normPhone;
+    }
+
+    const cleanNorm = normPhone.replace(/[^\d]/g, '');
+    const newStudentId = `usr-student-${cleanNorm || Date.now()}`;
+    const studentName = fullName?.trim() || `Student ${normPhone.slice(-4)}`;
+    const studentPwd = password?.trim() || 'Student@123';
+    const targetGrade = gradeId || 'grade-12-natural';
+
+    const newStudentProfile: UserProfile = {
+      id: newStudentId,
+      phone_number: normPhone,
+      email: `${cleanNorm}@student.ethiolearn.edu.et`,
+      full_name: studentName,
+      role: 'student',
+      grade: 'Grade 12 - Natural Science',
+      grade_id: targetGrade,
+      is_premium: false,
+      payment_tier: 'free',
+      unlocked_grades: [],
+      paid_amount: 0,
+      is_verified: true,
+      created_at: new Date().toISOString()
+    };
+
+    try {
+      const regStr = localStorage.getItem('ethiolearn_registered_students');
+      let regList = regStr ? JSON.parse(regStr) : [];
+      if (!Array.isArray(regList)) regList = [];
+      const exReg = regList.findIndex((s: any) => s.id === newStudentId || (s.phone && s.phone === normPhone));
+      const regEntry = {
+        id: newStudentId,
+        phone: normPhone,
+        name: studentName,
+        password: studentPwd,
+        role: 'student',
+        grade_id: targetGrade
+      };
+      if (exReg >= 0) regList[exReg] = { ...regList[exReg], ...regEntry };
+      else regList.push(regEntry);
+      localStorage.setItem('ethiolearn_registered_students', JSON.stringify(regList));
+
+      const adminStr = localStorage.getItem('ethiolearn_admin_students');
+      let adminList = adminStr ? JSON.parse(adminStr) : [];
+      if (!Array.isArray(adminList)) adminList = [];
+      const exAdm = adminList.findIndex((s: any) => s.id === newStudentId || s.phone_number === normPhone);
+      const adminEntry = {
+        id: newStudentId,
+        phone_number: normPhone,
+        email: newStudentProfile.email,
+        full_name: studentName,
+        grade: newStudentProfile.grade,
+        grade_id: targetGrade,
+        role: 'student',
+        is_premium: false,
+        payment_tier: 'free',
+        unlocked_grades: [],
+        paid_amount: 0,
+        device_id: deviceId,
+        created_at: newStudentProfile.created_at,
+        updated_at: newStudentProfile.created_at
+      };
+      if (exAdm >= 0) adminList[exAdm] = { ...adminList[exAdm], ...adminEntry };
+      else adminList.push(adminEntry);
+      localStorage.setItem('ethiolearn_admin_students', JSON.stringify(adminList));
+
+      setUser(newStudentProfile);
+      localStorage.setItem('ethiolearn_user_id', newStudentProfile.id);
+      localStorage.setItem('ethiolearn_phone_session', 'verified');
+      localStorage.setItem('ethiolearn_user_profile', JSON.stringify(newStudentProfile));
+      localStorage.setItem('ethiolearn_phone', newStudentProfile.phone_number);
+    } catch (_) {}
+
+    return { success: true, isAdmin: false };
   };
 
   const login = async (email: string, role?: 'student' | 'admin', fullName?: string, grade?: string) => {
@@ -586,11 +708,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasGradeAccess = (targetGradeId?: string, subjectId?: string, contentType: 'book' | 'exam' = 'book'): boolean => {
     if (!user) return false;
-    if (user.role === 'admin') return true;
 
-    // Free tier (unpaid) students have zero access to textbooks, chatbots, or materials
-    const isPaid = Boolean(user.is_premium || (user.unlocked_grades && user.unlocked_grades.length > 0));
-    if (!isPaid) return false;
+    // Check tier status
+    const paymentTier = (user as any).payment_tier || (user.is_premium ? 'all' : 'free');
+    const isExplicitlyFree = paymentTier === 'free' || user.is_premium === false;
+
+    // Only genuine Root Lead Admin bypasses lockdown (and not if set to free tier)
+    const isRootAdmin = user.role === 'admin' && (user.id === 'usr-admin-1' || user.id === 'usr-admin-ai' || user.phone_number === '+251994847287' || user.phone_number === '+251900000000');
+    if (isRootAdmin && !isExplicitlyFree) return true;
+
+    // Free tier (unpaid / trial) students: STRICT LOCKDOWN!
+    // Free trial students only access weekly competition and Unit 1 preview! Zero full books or exams!
+    if (isExplicitlyFree) return false;
 
     // All-access (300 Birr upfront or upgraded) - 100% unrestricted access to all grades and content
     if (
@@ -598,8 +727,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user.subscription_type === 'all_grades' ||
       user.subscription_type === 'all' ||
       user.subscription_type === 'lifetime' ||
-      (user as any).payment_tier === 'all_access' ||
-      (user as any).payment_tier === 'all' ||
+      paymentTier === 'all_access' ||
+      paymentTier === 'all' ||
       (user as any).paid_amount === 300 ||
       (user as any).is_all_access === true ||
       (user as any).subscription_tier === 'full_access'
@@ -607,17 +736,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return true;
     }
 
+    // 200 Birr Single-Grade Access:
+    const isPaid = Boolean(user.is_premium && paymentTier !== 'free');
+    if (!isPaid) return false;
+
     const unlockedGrades = new Set<string>(user.unlocked_grades || []);
     if (user.grade_id && user.is_premium) {
       unlockedGrades.add(user.grade_id);
     }
     const userGradeStr = (user.grade || '').toLowerCase();
-    if (userGradeStr.includes('9')) unlockedGrades.add('grade-9');
-    if (userGradeStr.includes('10')) unlockedGrades.add('grade-10');
-    if (userGradeStr.includes('11') && userGradeStr.includes('nat')) unlockedGrades.add('grade-11-natural');
-    if (userGradeStr.includes('11') && userGradeStr.includes('soc')) unlockedGrades.add('grade-11-social');
-    if (userGradeStr.includes('12') && userGradeStr.includes('nat')) unlockedGrades.add('grade-12-natural');
-    if (userGradeStr.includes('12') && userGradeStr.includes('soc')) unlockedGrades.add('grade-12-social');
+    if (user.is_premium && userGradeStr.includes('9')) unlockedGrades.add('grade-9');
+    if (user.is_premium && userGradeStr.includes('10')) unlockedGrades.add('grade-10');
+    if (user.is_premium && userGradeStr.includes('11') && userGradeStr.includes('nat')) unlockedGrades.add('grade-11-natural');
+    if (user.is_premium && userGradeStr.includes('11') && userGradeStr.includes('soc')) unlockedGrades.add('grade-11-social');
+    if (user.is_premium && userGradeStr.includes('12') && userGradeStr.includes('nat')) unlockedGrades.add('grade-12-natural');
+    if (user.is_premium && userGradeStr.includes('12') && userGradeStr.includes('soc')) unlockedGrades.add('grade-12-social');
 
     const isGr12Nat = unlockedGrades.has('grade-12-natural');
     const isGr12Soc = unlockedGrades.has('grade-12-social');

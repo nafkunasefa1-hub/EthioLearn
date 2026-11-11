@@ -39,10 +39,10 @@ interface AITutorProps {
 
 export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' && (user.id === 'usr-admin-1' || user.id === 'usr-admin-ai' || user.phone_number === '+251994847287' || user.phone_number === '+251900000000');
   const isPaid = Boolean(
-    user?.role === 'admin' ||
-    user?.is_premium ||
-    (user?.unlocked_grades && user.unlocked_grades.length > 0)
+    isAdmin ||
+    (!isAdmin && (user as any)?.payment_tier !== 'free' && user?.is_premium !== false && (user?.is_premium || (user?.unlocked_grades && user.unlocked_grades.length > 0)))
   );
   const isStudentPaid = isPaid;
 
@@ -71,6 +71,7 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
   const getTodayQuotaKey = () => `ethiolearn_daily_ai_quota_${new Date().toISOString().slice(0, 10)}`;
 
   const [dailyRemaining, setDailyRemaining] = useState<number>(() => {
+    if (!isPaid) return 0;
     try {
       const saved = localStorage.getItem(`ethiolearn_daily_ai_quota_${new Date().toISOString().slice(0, 10)}`);
       if (saved !== null) {
@@ -79,6 +80,12 @@ export const AITutor: React.FC<AITutorProps> = ({ onNavigate }) => {
     } catch {}
     return 100;
   });
+
+  useEffect(() => {
+    if (!isPaid) {
+      setDailyRemaining(0);
+    }
+  }, [isPaid]);
 
   const decrementDailyQuota = () => {
     setDailyRemaining(prev => {

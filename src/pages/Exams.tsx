@@ -2190,13 +2190,15 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
       {/* Exam Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredExams.map(exam => {
+          const isAdmin = user?.role === 'admin' && (user.id === 'usr-admin-1' || user.id === 'usr-admin-ai' || user.phone_number === '+251994847287' || user.phone_number === '+251900000000');
           const isStudentPaid = Boolean(
-            user?.is_premium ||
-            user?.role === 'admin' ||
-            (user?.unlocked_grades && user.unlocked_grades.length > 0)
+            !isAdmin &&
+            (user as any)?.payment_tier !== 'free' &&
+            user?.is_premium !== false &&
+            (user?.is_premium || (user?.unlocked_grades && user.unlocked_grades.length > 0))
           );
           const isFree = Boolean(exam.is_free_preview);
-          const canAccess = user?.role === 'admin' || (isStudentPaid && hasGradeAccess(exam.grade_id, exam.subject_id, 'exam'));
+          const canAccess = isAdmin || (hasGradeAccess && hasGradeAccess(exam.grade_id, exam.subject_id, 'exam'));
           const isModel = exam.category === 'MODEL';
 
           return (

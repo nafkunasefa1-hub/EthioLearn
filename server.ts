@@ -3482,6 +3482,8 @@ app.post('/api/admin/students/:id/tier', (req: Request, res: Response) => {
 
   const updated = db.updateProfile(student.id, {
     is_premium,
+    payment_tier: tier,
+    paid_amount: tier === 'all' ? 300 : (tier === 'single' ? 200 : 0),
     unlocked_grades,
     grade_id: grade_id || student.grade_id,
     ...(is_premium && firstSubDeviceId ? { device_id: firstSubDeviceId, premium_device_id: firstSubDeviceId } : {})

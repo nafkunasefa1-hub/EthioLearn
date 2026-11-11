@@ -674,10 +674,17 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
       // 2. Directly update localStorage so client sync is instant
       try {
         const storedStr = localStorage.getItem('ethiolearn_admin_students');
+        let targetStudentPhone = '';
         if (storedStr) {
           const list = JSON.parse(storedStr);
-          const st = list.find((s: any) => s.id === studentId || s.phone_number === studentId);
+          const rawTargetDigits = String(studentId || '').replace(/[^\d]/g, '');
+          const st = list.find((s: any) => {
+            if (s.id === studentId || s.phone_number === studentId) return true;
+            const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
+            return rawTargetDigits.length >= 9 && sDigits.includes(rawTargetDigits.slice(-9));
+          });
           if (st) {
+            targetStudentPhone = st.phone_number;
             st.is_premium = tier !== 'free';
             st.payment_tier = tier;
             st.unlocked_grades = tier === 'all' ? ['all'] : (tier === 'single' ? [st.grade_id || 'grade-12-natural'] : []);
@@ -687,7 +694,12 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
         }
         const curId = localStorage.getItem('ethiolearn_user_id');
         const curPhone = localStorage.getItem('ethiolearn_phone');
-        if (curId === studentId || curPhone === studentId) {
+        const curDigits = String(curPhone || '').replace(/[^\d]/g, '');
+        const targetStudent = students.find(s => s.id === studentId || s.phone_number === studentId);
+        const targetPhone = targetStudentPhone || targetStudent?.phone_number || studentId;
+        const targetDigits = String(targetPhone || '').replace(/[^\d]/g, '');
+        const isSessionMatch = curId === studentId || curPhone === studentId || curPhone === targetPhone || (curDigits.length >= 9 && targetDigits.length >= 9 && curDigits.slice(-9) === targetDigits.slice(-9));
+        if (isSessionMatch) {
           const profStr = localStorage.getItem('ethiolearn_user_profile');
           if (profStr) {
             const p = JSON.parse(profStr);
@@ -729,7 +741,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
           'Content-Type': 'application/json',
           'x-user-id': user?.id || 'usr-admin-1'
         },
-        body: tier === 'upgrade' ? undefined : JSON.stringify({ tier })
+        body: JSON.stringify({ tier })
       });
       if (res.ok) fetchAdminData();
     } catch (err) {
@@ -3047,17 +3059,28 @@ If Δ < 0: no real roots.`}
             {/* Actual Screenshot image or slip */}
             <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 text-center space-y-2">
               {viewingReceipt.receipt_storage_path ? (
-                <div className="space-y-2">
-                  <img
-                    src={viewingReceipt.receipt_storage_path}
-                    alt="Payment Screenshot"
-                    className="max-h-72 w-auto mx-auto rounded-xl border border-slate-700 object-contain"
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                  <div className="text-[11px] text-slate-400 font-mono">
-                    File: {viewingReceipt.receipt_filename || 'screenshot.png'}
+                <div className="space-y-3">
+                  <div className="relative group max-h-[55vh] overflow-auto rounded-xl border border-slate-700/80 bg-black/50 p-2 flex items-center justify-center">
+                    <img
+                      src={viewingReceipt.receipt_storage_path}
+                      alt="Student Payment Screenshot"
+                      className="max-h-[50vh] w-auto mx-auto rounded-lg object-contain shadow-2xl"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-400 font-mono px-2 pt-1">
+                    <span className="truncate max-w-[220px]">
+                      File: {viewingReceipt.receipt_filename || 'payment_screenshot.png'}
+                    </span>
+                    <a
+                      href={viewingReceipt.receipt_storage_path}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={viewingReceipt.receipt_filename || 'payment_screenshot.png'}
+                      className="text-emerald-400 hover:text-emerald-300 font-sans font-bold flex items-center gap-1 transition"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open Full Size</span>
+                    </a>
                   </div>
                 </div>
               ) : (
