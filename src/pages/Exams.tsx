@@ -2195,8 +2195,8 @@ export const Exams: React.FC<ExamsProps> = ({ initialCategory = 'ALL', onNavigat
             user?.role === 'admin' ||
             (user?.unlocked_grades && user.unlocked_grades.length > 0)
           );
-          const isFree = Boolean(exam.is_free_preview || exam.grade_id === 'grade-all' || exam.grade_id === 'all');
-          const canAccess = isFree || user?.role === 'admin' || user?.is_premium || (exam.grade_id ? hasGradeAccess(exam.grade_id, exam.subject_id, 'exam') : true);
+          const isFree = Boolean(exam.is_free_preview);
+          const canAccess = user?.role === 'admin' || (isStudentPaid && hasGradeAccess(exam.grade_id, exam.subject_id, 'exam'));
           const isModel = exam.category === 'MODEL';
 
           return (

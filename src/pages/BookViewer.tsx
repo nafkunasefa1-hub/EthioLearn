@@ -80,10 +80,8 @@ export const BookViewer: React.FC<BookViewerProps> = ({
 
   const handleSetViewMode = (mode: 'digital_textbook' | 'short_notes' | 'detailed_short_notes' | 'grammar_vocab' | 'pdf') => {
     if (book && user?.role !== 'admin' && hasGradeAccess && !hasGradeAccess(book.grade_id, book.subject_id, 'book')) {
-      if (mode !== 'short_notes') {
-        setError('PREMIUM_REQUIRED');
-        return;
-      }
+      setError('PREMIUM_REQUIRED');
+      return;
     }
     setError(null);
     setViewMode(mode);
@@ -120,7 +118,7 @@ export const BookViewer: React.FC<BookViewerProps> = ({
   useEffect(() => {
     if (book && user?.role !== 'admin' && hasGradeAccess) {
       const allowed = hasGradeAccess(book.grade_id, book.subject_id, 'book');
-      if (!allowed && viewMode !== 'short_notes') {
+      if (!allowed) {
         setError('PREMIUM_REQUIRED');
       } else if (allowed && error === 'PREMIUM_REQUIRED') {
         setError(null);

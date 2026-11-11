@@ -221,9 +221,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         grade_id: 'grade-12-natural'
       },
       {
-        phone: '+251911223344',
-        name: 'Abebe Kebede',
-        password: 'Student@123',
+        phone: '+251911002026',
+        name: 'Devpost Judge',
+        password: 'Judge@2026',
         grade_id: 'grade-12-natural'
       }
     ];
@@ -258,6 +258,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
+    // Look up tier in authoritative admin students list
+    let isStudentPaid = false;
+    let paymentTier: 'free' | 'single' | 'all' = 'free';
+    let unlockedGrades: string[] = [];
+    let paidAmount = 0;
+
+    try {
+      const adminStudentsStr = localStorage.getItem('ethiolearn_admin_students');
+      if (adminStudentsStr) {
+        const adminList = JSON.parse(adminStudentsStr);
+        if (Array.isArray(adminList)) {
+          const rec = adminList.find((s: any) => {
+            if (s.id === foundStudent.id || s.phone_number === normPhone) return true;
+            const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
+            return cleanNorm.length >= 9 && sDigits.includes(cleanNorm.slice(-9));
+          });
+          if (rec) {
+            isStudentPaid = Boolean(rec.is_premium);
+            paymentTier = rec.payment_tier || (isStudentPaid ? 'all' : 'free');
+            unlockedGrades = rec.unlocked_grades || (isStudentPaid ? ['all'] : []);
+            paidAmount = rec.paid_amount || (paymentTier === 'all' ? 300 : (paymentTier === 'single' ? 200 : 0));
+          }
+        }
+      }
+    } catch (_) {}
+
     const studentProfile: UserProfile = {
       id: foundStudent.id || `usr-student-${normPhone.replace('+', '')}`,
       phone_number: normPhone,
@@ -266,7 +292,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role: 'student',
       grade: 'Grade 12 - Natural Science',
       grade_id: foundStudent.grade_id || gradeId || 'grade-12-natural',
-      is_premium: true,
+      is_premium: isStudentPaid,
+      payment_tier: paymentTier,
+      unlocked_grades: unlockedGrades,
+      paid_amount: paidAmount,
       is_verified: true,
       created_at: new Date().toISOString()
     };
@@ -366,7 +395,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role: role || 'student',
       grade: grade || 'Grade 12 - Natural Science',
       grade_id: 'grade-12-natural',
-      is_premium: true,
+      is_premium: role === 'admin',
+      payment_tier: role === 'admin' ? 'all' : 'free',
+      unlocked_grades: role === 'admin' ? ['all'] : [],
+      paid_amount: role === 'admin' ? 300 : 0,
       created_at: new Date().toISOString()
     };
     setUser(offlineProfile);

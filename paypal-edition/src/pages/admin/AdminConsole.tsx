@@ -657,13 +657,59 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
   const handleStudentTierChange = async (studentId: string, tier: 'free' | 'single' | 'all') => {
     if (!user) return;
     try {
-      const res = await fetch(`/api/admin/students/${studentId}/tier`, {
+      // 1. Optimistically update local students list
+      setStudents(prev => prev.map(s => {
+        if (s.id === studentId || s.phone_number === studentId) {
+          return {
+            ...s,
+            is_premium: tier !== 'free',
+            payment_tier: tier,
+            unlocked_grades: tier === 'all' ? ['all'] : (tier === 'single' ? [s.grade_id || 'grade-12-natural'] : []),
+            paid_amount: tier === 'all' ? 300 : (tier === 'single' ? 200 : 0)
+          };
+        }
+        return s;
+      }));
+
+      // 2. Directly update localStorage so client sync is instant
+      try {
+        const storedStr = localStorage.getItem('ethiolearn_admin_students');
+        if (storedStr) {
+          const list = JSON.parse(storedStr);
+          const st = list.find((s: any) => s.id === studentId || s.phone_number === studentId);
+          if (st) {
+            st.is_premium = tier !== 'free';
+            st.payment_tier = tier;
+            st.unlocked_grades = tier === 'all' ? ['all'] : (tier === 'single' ? [st.grade_id || 'grade-12-natural'] : []);
+            st.paid_amount = tier === 'all' ? 300 : (tier === 'single' ? 200 : 0);
+            localStorage.setItem('ethiolearn_admin_students', JSON.stringify(list));
+          }
+        }
+        const curId = localStorage.getItem('ethiolearn_user_id');
+        const curPhone = localStorage.getItem('ethiolearn_phone');
+        if (curId === studentId || curPhone === studentId) {
+          const profStr = localStorage.getItem('ethiolearn_user_profile');
+          if (profStr) {
+            const p = JSON.parse(profStr);
+            p.is_premium = tier !== 'free';
+            p.payment_tier = tier;
+            p.unlocked_grades = tier === 'all' ? ['all'] : (tier === 'single' ? [p.grade_id || 'grade-12-natural'] : []);
+            p.paid_amount = tier === 'all' ? 300 : (tier === 'single' ? 200 : 0);
+            localStorage.setItem('ethiolearn_user_profile', JSON.stringify(p));
+            localStorage.setItem('ethiolearn_user', JSON.stringify(p));
+            window.dispatchEvent(new Event('auth-change'));
+          }
+        }
+      } catch (_) {}
+
+      // 3. Send request to backend
+      const res = await fetch(`/api/admin/students/${encodeURIComponent(studentId)}/tier`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-user-id': user.id
         },
-        body: JSON.stringify({ tier, grade_id: 'grade-12' })
+        body: JSON.stringify({ tier, grade_id: 'grade-12-natural' })
       });
       if (res.ok) await fetchAdminData();
     } catch (err) {

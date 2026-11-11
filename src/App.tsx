@@ -1,3 +1,5 @@
+import { PayPalDevpostQuickDemo } from './components/PayPalDevpostQuickDemo';
+import { SponsorPortal } from './pages/SponsorPortal';
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
@@ -85,6 +87,18 @@ function AppContent() {
     }
   }, [user, hasInitializedRoute]);
 
+  // PayPal sponsorship deep-links (/?sponsor=1&studentId=...) open the Sponsor Portal directly
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') return;
+    try {
+      const qp = new URLSearchParams(window.location.search);
+      if (qp.get('sponsor') === '1') {
+        setCurrentRoute('sponsor');
+        setRouteParams({ studentId: qp.get('studentId') || undefined });
+      }
+    } catch (_) {}
+  }, [user]);
+
   const handleNavigate = (route: string, params?: Record<string, any>) => {
     if (route.startsWith('admin') && user?.role !== 'admin') {
       setCurrentRoute('dashboard');
@@ -94,6 +108,15 @@ function AppContent() {
     setRouteParams(params || {});
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  useEffect(() => {
+    const handleJudgeLogin = () => {
+      setShowAuthScreen(false);
+      setCurrentRoute('dashboard');
+    };
+    window.addEventListener('judge-demo-login', handleJudgeLogin);
+    return () => window.removeEventListener('judge-demo-login', handleJudgeLogin);
+  }, []);
 
   // Loading Session State
   if (loading) {
@@ -135,6 +158,7 @@ function AppContent() {
         </div>
         <AuthScreen
           onSuccess={(isAdmin) => {
+            setShowAuthScreen(false);
             if (isAdmin) {
               setCurrentRoute('admin-dashboard');
             } else {
@@ -156,6 +180,7 @@ function AppContent() {
         return (
           <AuthScreen
             onSuccess={(isAdmin) => {
+              setShowAuthScreen(false);
               if (isAdmin) {
                 setCurrentRoute('admin-dashboard');
               } else {
@@ -174,6 +199,16 @@ function AppContent() {
 
       case 'daily-topic':
       case 'daily-topics':
+        if (!isPaidUser) {
+          return (
+            <LockedFeaturePaywall
+              title="Daily Curriculum Drill — Premium Feature"
+              description="Daily Ethiopian curriculum drills and AI explanations are available exclusively to subscribed students. Unlock for 200 ETB or All Access for 300 ETB."
+              userGrade={user?.grade}
+              onNavigate={handleNavigate}
+            />
+          );
+        }
         return <DailyTopicPage onNavigate={handleNavigate} />;
 
       case 'module':
@@ -360,6 +395,9 @@ function AppContent() {
         }
         return <StudyPlanPage onNavigate={handleNavigate} />;
 
+      case 'sponsor':
+        return <SponsorPortal onNavigate={handleNavigate} initialStudentId={routeParams?.studentId} />;
+
       case 'payment':
         return <PaymentPage onNavigate={handleNavigate} routeParams={routeParams} />;
 
@@ -527,6 +565,7 @@ function AppContent() {
           </footer>
         )}
       </div>
+      <PayPalDevpostQuickDemo onNavigate={handleNavigate} />
     </SecurityShield>
   );
 }
