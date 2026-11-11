@@ -855,6 +855,68 @@ class Database {
           });
         }
 
+        // Ensure student profile with phone +251975949200 (Nafkun Asefa) exists under Registered Students
+        const studentNafkunIdx = currentProfiles.findIndex(p => p.phone_number && normalizePhoneNumber(p.phone_number) === '+251975949200');
+        if (studentNafkunIdx !== -1) {
+          currentProfiles[studentNafkunIdx] = {
+            ...currentProfiles[studentNafkunIdx],
+            id: currentProfiles[studentNafkunIdx].id || 'usr-nafkun-student',
+            phone_number: '+251975949200',
+            email: 'nafkun@ethiolearn.edu.et',
+            full_name: 'Nafkun Asefa',
+            role: 'student',
+            is_premium: true,
+            unlocked_grades: ['all'],
+            grade: 'Grade 12 - Natural Science',
+            grade_id: 'grade-12-natural'
+          };
+        } else {
+          currentProfiles.push({
+            id: 'usr-nafkun-student',
+            phone_number: '+251975949200',
+            email: 'nafkun@ethiolearn.edu.et',
+            full_name: 'Nafkun Asefa',
+            grade: 'Grade 12 - Natural Science',
+            grade_id: 'grade-12-natural',
+            role: 'student',
+            is_premium: true,
+            unlocked_grades: ['all'],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        }
+
+        // Ensure Devpost Judge student profile exists
+        const judgeIdx = currentProfiles.findIndex(p => p.id === 'usr-devpost-judge' || (p.phone_number && normalizePhoneNumber(p.phone_number) === '+251911002026'));
+        if (judgeIdx !== -1) {
+          currentProfiles[judgeIdx] = {
+            ...currentProfiles[judgeIdx],
+            id: 'usr-devpost-judge',
+            phone_number: '+251911002026',
+            email: 'judge@paypal-devpost.ethiolearn.edu.et',
+            full_name: 'Dr. Dawit Haile (Devpost Judge)',
+            role: 'student',
+            is_premium: true,
+            unlocked_grades: ['all'],
+            grade: 'Grade 12 - Natural Science',
+            grade_id: 'grade-12-natural'
+          };
+        } else {
+          currentProfiles.push({
+            id: 'usr-devpost-judge',
+            phone_number: '+251911002026',
+            email: 'judge@paypal-devpost.ethiolearn.edu.et',
+            full_name: 'Dr. Dawit Haile (Devpost Judge)',
+            grade: 'Grade 12 - Natural Science',
+            grade_id: 'grade-12-natural',
+            role: 'student',
+            is_premium: true,
+            unlocked_grades: ['all'],
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        }
+
         // Keep all exams (2018, 2023, 2024, and all user uploads) permanently across restarts and exports
         const finalExamsList = finalExams;
         const validExamIds = new Set(finalExamsList.map(e => e.id));
@@ -1867,7 +1929,15 @@ class Database {
   }
 
   public updateProfile(id: string, updates: Partial<UserProfile>): UserProfile | undefined {
-    const idx = this.data.profiles.findIndex(p => p.id === id);
+    const normSearch = normalizePhoneNumber(id);
+    const cleanId = id.replace(/[^\d]/g, '');
+    const idx = this.data.profiles.findIndex(p => {
+      if (p.id === id) return true;
+      if (p.phone_number === id) return true;
+      if (normSearch && p.phone_number && normalizePhoneNumber(p.phone_number) === normSearch) return true;
+      if (cleanId.length >= 9 && p.phone_number && p.phone_number.replace(/[^\d]/g, '').includes(cleanId)) return true;
+      return false;
+    });
     if (idx === -1) return undefined;
     this.data.profiles[idx] = {
       ...this.data.profiles[idx],

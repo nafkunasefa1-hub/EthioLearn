@@ -561,26 +561,54 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
     });
   };
 
-  const handleRemoveStudent = async (studentId: string) => {
+  const handleRemoveStudent = async (studentId: string, phoneNumber?: string) => {
     try {
-      // Optimistic update
-      setStudents(prev => prev.filter(s => s.id !== studentId));
+      // 1. Optimistic UI update
+      setStudents(prev => prev.filter(s => s.id !== studentId && (!phoneNumber || s.phone_number !== phoneNumber)));
 
-      const res = await fetch(`/api/admin/students/${studentId}`, {
+      // 2. Client-side storage purge immediately
+      try {
+        const storedStr = localStorage.getItem('ethiolearn_admin_students');
+        if (storedStr) {
+          const list = JSON.parse(storedStr);
+          if (Array.isArray(list)) {
+            const cleanList = list.filter((s: any) => 
+              s.id !== studentId && 
+              s.phone_number !== studentId && 
+              (!phoneNumber || (s.phone_number !== phoneNumber && s.id !== phoneNumber))
+            );
+            localStorage.setItem('ethiolearn_admin_students', JSON.stringify(cleanList));
+          }
+        }
+        const regStr = localStorage.getItem('ethiolearn_registered_students');
+        if (regStr) {
+          const regList = JSON.parse(regStr);
+          if (Array.isArray(regList)) {
+            const cleanReg = regList.filter((rs: any) => 
+              rs.id !== studentId && 
+              rs.phone !== studentId && 
+              (!phoneNumber || (rs.phone !== phoneNumber && rs.id !== phoneNumber))
+            );
+            localStorage.setItem('ethiolearn_registered_students', JSON.stringify(cleanReg));
+          }
+        }
+        const delStr = localStorage.getItem('ethiolearn_deleted_students');
+        const delList = delStr ? JSON.parse(delStr) : [];
+        if (studentId) delList.push(studentId.toLowerCase());
+        if (phoneNumber) delList.push(phoneNumber.toLowerCase());
+        localStorage.setItem('ethiolearn_deleted_students', JSON.stringify(Array.from(new Set(delList))));
+      } catch (_) {}
+
+      // 3. Send DELETE to backend with URL-encoded identifier
+      const res = await fetch(`/api/admin/students/${encodeURIComponent(studentId)}`, {
         method: 'DELETE',
         headers: { 'x-user-id': user?.id || 'usr-admin-1' }
       });
 
-      if (res.ok) {
-        fetchAdminData();
-      } else {
-        const data = await res.json().catch(() => ({}));
-        console.error('Failed to remove student account:', data.error);
-        fetchAdminData(); // Revert on failure
-      }
+      await fetchAdminData();
     } catch (err) {
-      console.error(err);
-      fetchAdminData();
+      console.error('Failed to remove student account:', err);
+      await fetchAdminData();
     }
   };
 
@@ -1677,7 +1705,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                         )}
 
                         <button
-                          onClick={() => handleRemoveStudent(st.id)}
+                          onClick={() => handleRemoveStudent(st.id, st.phone_number)}
                           className="px-2.5 py-1 bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-800/90 rounded-lg text-xs font-semibold transition inline-flex items-center gap-1 shadow-sm"
                           title="Remove student account and all stored information completely"
                         >
