@@ -136,6 +136,81 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{ message: string, onConfirm: () => void } | null>(null);
 
+  // Manual Student Registration & Activation Modal State
+  const [showAddStudentModal, setShowAddStudentModal] = useState(false);
+  const [addStudentPhone, setAddStudentPhone] = useState('');
+  const [addStudentName, setAddStudentName] = useState('');
+  const [addStudentGradeId, setAddStudentGradeId] = useState('grade-12-natural');
+  const [addStudentTier, setAddStudentTier] = useState<'single' | 'all' | 'free'>('single');
+  const [addStudentScreenshot, setAddStudentScreenshot] = useState<File | null>(null);
+  const [addStudentScreenshotPreview, setAddStudentScreenshotPreview] = useState<string>('');
+  const [addStudentSubmitting, setAddStudentSubmitting] = useState(false);
+  const [addStudentMessage, setAddStudentMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  const handleAddAndActivateStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addStudentPhone.trim()) {
+      setAddStudentMessage({ type: 'error', text: 'Please enter a valid phone number.' });
+      return;
+    }
+
+    setAddStudentSubmitting(true);
+    setAddStudentMessage(null);
+
+    let screenshotDataUrl = '';
+    if (addStudentScreenshot) {
+      try {
+        screenshotDataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(addStudentScreenshot);
+        });
+      } catch (_) {}
+    }
+
+    try {
+      const res = await fetch('/api/admin/students/register-and-activate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user?.id || 'usr-admin-1'
+        },
+        body: JSON.stringify({
+          phone_number: addStudentPhone.trim(),
+          full_name: addStudentName.trim() || 'Registered Student',
+          grade_id: addStudentGradeId,
+          tier: addStudentTier,
+          screenshot_data_url: screenshotDataUrl,
+          screenshot_filename: addStudentScreenshot?.name || 'payment_screenshot.png'
+        })
+      });
+
+      if (res.ok) {
+        setAddStudentMessage({
+          type: 'success',
+          text: `Student ${addStudentPhone} successfully registered and activated (${addStudentTier === 'all' ? '300 ETB All Grades' : addStudentTier === 'single' ? '200 ETB Single Grade' : 'Free Trial'})!`
+        });
+        await fetchAdminData();
+        setTimeout(() => {
+          setShowAddStudentModal(false);
+          setAddStudentPhone('');
+          setAddStudentName('');
+          setAddStudentScreenshot(null);
+          setAddStudentScreenshotPreview('');
+          setAddStudentMessage(null);
+        }, 1200);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        setAddStudentMessage({ type: 'error', text: d.error || 'Failed to register student.' });
+      }
+    } catch (err: any) {
+      setAddStudentMessage({ type: 'error', text: err?.message || 'Network error.' });
+    } finally {
+      setAddStudentSubmitting(false);
+    }
+  };
+
   // Book Ingestion Form
   const [uploadBookTitle, setUploadBookTitle] = useState('');
   const [uploadBookGrade, setUploadBookGrade] = useState('grade-10');
@@ -1224,8 +1299,21 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                 Pricing: 200 ETB for single grade unlock, 300 ETB for all grades. Approving immediately unlocks student content.
               </p>
             </div>
-            <div className="text-xs text-slate-400">
-              Admin: <span className="font-mono text-indigo-300 font-bold">+251994847287</span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setShowAddStudentModal(true); setAddStudentMessage(null); }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Add Student & Screenshot</span>
+              </button>
+              <button
+                onClick={fetchAdminData}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Refresh Receipts</span>
+              </button>
             </div>
           </div>
 
@@ -1667,13 +1755,22 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                 All students registered via phone number. You can toggle premium access or clear device locks anytime.
               </p>
             </div>
-            <button
-              onClick={fetchAdminData}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Refresh Students</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setShowAddStudentModal(true); setAddStudentMessage(null); }}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold transition shadow-sm"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ Register & Activate Student</span>
+              </button>
+              <button
+                onClick={fetchAdminData}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg text-xs font-semibold transition"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Refresh Students</span>
+              </button>
+            </div>
           </div>
 
           <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-sm">
@@ -3632,6 +3729,197 @@ If Δ < 0: no real roots.`}
           </div>
         </div>
       )}
+
+      {/* Add / Register & Activate Student Modal */}
+      {showAddStudentModal && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl text-slate-100 my-8">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                  <User className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-white">Register & Activate Student</h3>
+                  <p className="text-xs text-slate-400">Instantly register and unlock student across all devices</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAddStudentModal(false);
+                  setAddStudentMessage(null);
+                }}
+                className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {addStudentMessage && (
+              <div className={`p-3.5 rounded-xl text-xs font-semibold flex items-center gap-2.5 ${
+                addStudentMessage.type === 'success'
+                  ? 'bg-emerald-500/15 border border-emerald-500/40 text-emerald-300'
+                  : 'bg-red-500/15 border border-red-500/40 text-red-300'
+              }`}>
+                {addStudentMessage.type === 'success' ? (
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                )}
+                <span>{addStudentMessage.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAddAndActivateStudent} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  Phone Number <span className="text-red-400">*</span>
+                </label>
+                <div className="relative">
+                  <Smartphone className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="+2519... or 09..."
+                    value={addStudentPhone}
+                    onChange={(e) => setAddStudentPhone(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">This phone number will be used for auto-unlock and login</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  Student Full Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Abebe Kebede"
+                  value={addStudentName}
+                  onChange={(e) => setAddStudentName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    Target Grade
+                  </label>
+                  <select
+                    value={addStudentGradeId}
+                    onChange={(e) => setAddStudentGradeId(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {grades.length > 0 ? (
+                      grades.map(g => (
+                        <option key={g.id} value={g.id}>{g.name}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="grade-12-natural">Grade 12 Natural</option>
+                        <option value="grade-12-social">Grade 12 Social</option>
+                        <option value="grade-11-natural">Grade 11 Natural</option>
+                        <option value="grade-11-social">Grade 11 Social</option>
+                        <option value="grade-10">Grade 10</option>
+                        <option value="grade-9">Grade 9</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                    Plan / Access Tier
+                  </label>
+                  <select
+                    value={addStudentTier}
+                    onChange={(e) => setAddStudentTier(e.target.value as any)}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-bold"
+                  >
+                    <option value="single">200 ETB (Single Grade Plan)</option>
+                    <option value="all">300 ETB (All Grades All-Inclusive)</option>
+                    <option value="free">Free Trial (Weekly Cup Only)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-300 mb-1.5">
+                  Payment Receipt / Telebirr Screenshot <span className="text-slate-500 text-[11px] font-normal">(Optional if verified on Telegram)</span>
+                </label>
+                <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500/50 rounded-2xl p-4 text-center cursor-pointer transition bg-slate-950/60 relative">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setAddStudentScreenshot(file);
+                        const reader = new FileReader();
+                        reader.onload = () => setAddStudentScreenshotPreview(String(reader.result || ''));
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  {addStudentScreenshotPreview ? (
+                    <div className="space-y-2">
+                      <img
+                        src={addStudentScreenshotPreview}
+                        alt="Screenshot Preview"
+                        className="max-h-36 mx-auto rounded-lg object-contain border border-slate-700"
+                      />
+                      <p className="text-[11px] text-emerald-400 font-semibold">
+                        {addStudentScreenshot?.name} (Click to change)
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 py-1">
+                      <Upload className="w-6 h-6 mx-auto text-slate-400" />
+                      <p className="text-xs font-semibold text-slate-300">Click or drag screenshot here</p>
+                      <p className="text-[10px] text-slate-500">Supports PNG, JPG, WebP</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  disabled={addStudentSubmitting}
+                  onClick={() => {
+                    setShowAddStudentModal(false);
+                    setAddStudentMessage(null);
+                  }}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={addStudentSubmitting}
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-lg shadow-emerald-950/50 disabled:opacity-50"
+                >
+                  {addStudentSubmitting ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Activating & Broadcasting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Register & Activate Student</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Floating Quick Return to AI Developer Chat (visible on any other admin tab) */}
       {activeTab !== 'copilot' && (
         <div className="fixed bottom-6 right-6 z-40">

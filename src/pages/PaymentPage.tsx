@@ -15,7 +15,8 @@ import {
   Send,
   ExternalLink,
   Sparkles,
-  Layers
+  Layers,
+  RefreshCw
 } from 'lucide-react';
 import { PaymentSettings, ReceiptVerification } from '../types';
 
@@ -83,6 +84,17 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
   useEffect(() => {
     fetchPaymentData();
   }, [user]);
+
+  // When payment is pending, poll remote status every 7 seconds for instant unlocking
+  useEffect(() => {
+    if (existingReceipt?.status === 'pending') {
+      const interval = setInterval(async () => {
+        await fetchPaymentData();
+        await refreshProfile();
+      }, 7000);
+      return () => clearInterval(interval);
+    }
+  }, [existingReceipt?.status]);
 
   useEffect(() => {
     // If student already has Single Grade access, they are exclusively eligible to UPGRADE for 100 Birr!
@@ -313,7 +325,17 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
           <p className="text-slate-300 text-xs max-w-md mx-auto leading-relaxed">
             The administrator will verify your payment slip and click approve. Once approved, your chosen grade content will unlock immediately.
           </p>
-          <div className="pt-2 flex justify-center gap-3">
+          <div className="pt-2 flex flex-wrap justify-center gap-3">
+            <button
+              onClick={async () => {
+                await fetchPaymentData();
+                await refreshProfile();
+              }}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-950/40"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Check Approval Status</span>
+            </button>
             <a
               href="https://t.me/wiznfk4"
               target="_blank"

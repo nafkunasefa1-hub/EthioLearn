@@ -384,14 +384,16 @@ Respond strictly with valid JSON only. No markdown formatting around the JSON if
       triedKeys.add(key);
       const ai = new GoogleGenAI({ apiKey: key });
 
-      for (const modelName of getRecommendedModelList()) {
+      for (const modelName of getRecommendedModelList().slice(0, 2)) {
         const startedAt = Date.now();
         try {
-          const response = await ai.models.generateContent({
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('AI generation timed out')), 3500));
+          const aiPromise = ai.models.generateContent({
             model: modelName,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
           });
+          const response = await Promise.race([aiPromise, timeoutPromise]) as any;
 
           const text = response.text?.trim() || '';
           const cleanJson = text.replace(/^```json\s*/, '').replace(/\s*```$/, '');
