@@ -4410,34 +4410,189 @@ How can I help you excel today? You can ask me any question or explore these cor
     const grade = String(body.grade || 'Grade 12').trim();
 
     let explanation = '';
+    let keyPoints: string[] = [];
+    let ethiopianContext = '';
+    let questions: ExamQuestion[] = [];
+
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       try {
-        explanation = await callLiveGemini(
-          `Provide a clear, high-yield Ethiopian National Curriculum (${grade} ${subject}) explanation of "${topic}" including core definitions, key formulas/laws with KaTeX math, real-world Ethiopian application, and EUEE exam strategy.`,
-          [],
-          subject,
-          grade
-        );
-      } catch (_) {}
-    }
+        const topicPrompt = `You are the Lead Ethiopian Ministry of Education Curriculum & University Entrance Exam (EUEE) Specialist for ${grade} ${subject}.
+A student requested a deep-dive mastery lesson for the topic: "${topic}".
+Teach this exact topic thoroughly.
+1. Provide a comprehensive pedagogical lesson explaining "${topic}" with theoretical definitions, mechanisms, and KaTeX math formulas ($...$ or $$...$$).
+2. Highlight high-frequency EUEE national entrance examination traps and examiner distractors for "${topic}".
+3. Provide real-world Ethiopian applications (GERD, agriculture, Ethiopian industrial processing, Rift Valley geology, Ethio Telecom).
+4. Provide EXACTLY 3 multiple-choice practice questions testing "${topic}" with 4 choices A, B, C, D, the correct answer letter, and detailed step-by-step explanations.
 
-    if (!explanation) {
-      explanation = `### ${topic} (${grade} • ${subject})\n\nMastering **${topic}** is essential for the Ethiopian University Entrance Examination (EUEE). Focus on fundamental definitions, governing equations, unit consistency, and systematic step-by-step problem solving aligned with the FDRE Ministry of Education textbook.`;
-    }
+Format the questions strictly as:
+QUESTION 1: [question testing ${topic}]
+A) [choice A]
+B) [choice B]
+C) [choice C]
+D) [choice D]
+CORRECT: [A/B/C/D]
+EXPLANATION: [step-by-step reason why this is correct]
 
-    const questionsByExam = await ensureQuestions();
-    const matchedQuestions: ExamQuestion[] = [];
-    const topicLower = topic.toLowerCase();
-    const subjLower = subject.toLowerCase();
-    for (const eid of Object.keys(questionsByExam)) {
-      for (const q of questionsByExam[eid] || []) {
-        const qt = (q.question_text || '').toLowerCase();
-        if (qt.includes(topicLower) || (matchedQuestions.length < 3 && eid.toLowerCase().includes(subjLower.slice(0, 4)))) {
-          matchedQuestions.push(normalizeQuestionForClient(q));
-          if (matchedQuestions.length >= 3) break;
+QUESTION 2: [question testing ${topic}]
+A) [choice A]
+B) [choice B]
+C) [choice C]
+D) [choice D]
+CORRECT: [A/B/C/D]
+EXPLANATION: [step-by-step reason why this is correct]
+
+QUESTION 3: [question testing ${topic}]
+A) [choice A]
+B) [choice B]
+C) [choice C]
+D) [choice D]
+CORRECT: [A/B/C/D]
+EXPLANATION: [step-by-step reason why this is correct]`;
+
+        const aiRes = await callLiveGemini(topicPrompt, [], subject, grade);
+        const rawAiText = typeof aiRes === 'string' ? aiRes : (aiRes?.full || aiRes?.explanation || String(aiRes || ''));
+
+        if (rawAiText) {
+          // Check for JSON or parse questions from QUESTION 1/2/3
+          const jsonMatch = rawAiText.match(/\{[\s\S]*"practiceQuestions"[\s\S]*\}/);
+          if (jsonMatch) {
+            try {
+              const pj = JSON.parse(jsonMatch[0]);
+              if (pj.summary) explanation = `### ${topic} (${grade} • ${subject})\n\n${pj.summary}`;
+              if (Array.isArray(pj.keyConcepts)) keyPoints = pj.keyConcepts;
+              if (pj.ethiopianContext) ethiopianContext = pj.ethiopianContext;
+              if (Array.isArray(pj.practiceQuestions)) {
+                const letters = ['A', 'B', 'C', 'D'];
+                questions = pj.practiceQuestions.map((pq: any, i: number) => {
+                  const opts = Array.isArray(pq.options) ? pq.options : [];
+                  const cleanOpt = (idx: number) => String(opts[idx] || '').replace(/^[A-D][\.\)]\s*/i, '').trim();
+                  const cIdx = Number.isInteger(pq.correctIndex) && pq.correctIndex >= 0 && pq.correctIndex < 4 ? pq.correctIndex : 0;
+                  return {
+                    id: `dt-ai-q-${Date.now()}-${i + 1}`,
+                    exam_id: 'daily-practice',
+                    question_number: i + 1,
+                    question_text: String(pq.question || `Practice question for ${topic}`),
+                    option_a: cleanOpt(0) || 'Option A',
+                    option_b: cleanOpt(1) || 'Option B',
+                    option_c: cleanOpt(2) || 'Option C',
+                    option_d: cleanOpt(3) || 'Option D',
+                    correct_answer: letters[cIdx],
+                    explanation: String(pq.explanation || `Correct answer is ${letters[cIdx]}.`),
+                    difficulty: i === 0 ? 'Easy' : i === 1 ? 'Medium' : 'Hard'
+                  } as ExamQuestion;
+                });
+              }
+            } catch (_) {}
+          }
+
+          if (questions.length === 0) {
+            // Split out QUESTION 1, QUESTION 2, QUESTION 3
+            const qBlocks = rawAiText.split(/QUESTION\s*\d+\s*:/i).slice(1);
+            qBlocks.forEach((block, idx) => {
+              const qMatch = block.match(/^([\s\S]*?)(?=A[\)\.])/i);
+              const aMatch = block.match(/A[\)\.]\s*([\s\S]*?)(?=B[\)\.])/i);
+              const bMatch = block.match(/B[\)\.]\s*([\s\S]*?)(?=C[\)\.])/i);
+              const cMatch = block.match(/C[\)\.]\s*([\s\S]*?)(?=D[\)\.])/i);
+              const dMatch = block.match(/D[\)\.]\s*([\s\S]*?)(?=CORRECT:|$)/i);
+              const corMatch = block.match(/CORRECT:\s*([A-D])/i);
+              const expMatch = block.match(/EXPLANATION:\s*([\s\S]*$)/i);
+              if (qMatch && aMatch && bMatch && cMatch && dMatch) {
+                questions.push({
+                  id: `dt-ai-q-${Date.now()}-${idx + 1}`,
+                  exam_id: 'daily-practice',
+                  question_number: idx + 1,
+                  question_text: qMatch[1].trim(),
+                  option_a: aMatch[1].trim(),
+                  option_b: bMatch[1].trim(),
+                  option_c: cMatch[1].trim(),
+                  option_d: dMatch[1].trim(),
+                  correct_answer: (corMatch ? corMatch[1] : 'A').toUpperCase(),
+                  explanation: expMatch ? expMatch[1].trim() : `Correct answer is ${corMatch ? corMatch[1] : 'A'}.`,
+                  difficulty: idx === 0 ? 'Easy' : idx === 1 ? 'Medium' : 'Hard'
+                } as ExamQuestion);
+              }
+            });
+
+            // The text before QUESTION 1 is the main explanation
+            const explPart = rawAiText.split(/QUESTION\s*1\s*:/i)[0];
+            explanation = explPart ? explPart.trim() : rawAiText;
+          }
         }
+      } catch (aiErr) {
+        console.warn('[AI Daily Topic Explainer Error]', aiErr);
       }
-      if (matchedQuestions.length >= 3) break;
+    }
+
+    // Dynamic, subject-tailored synthesis if offline or AI returned no questions
+    if (!explanation) {
+      explanation = `### ${topic} (${grade} • ${subject})
+
+In the Ethiopian National Curriculum for ${grade} ${subject}, mastering **${topic}** is critical for both regional exams and the university entrance examination (EUEE).
+
+#### 📌 Theoretical Foundations & Core Principles
+- **Fundamental Definition:** **${topic}** defines the essential laws, properties, and governing relationships in ${subject}.
+- **Governing Behavior:** Systematic experimental observation and mathematical proofs underpin the mechanisms of ${topic}.
+- **Syllabus Focus:** High-frequency EUEE questions focus on analyzing boundary conditions, SI unit conversions, and conceptual definitions of this topic.
+
+#### 📐 Core Formulas & Analytical Framework
+- Primary Relationship: Ensure all parameters are converted to standard SI base units before computation.
+- Examiner Strategy: Watch out for sign conventions, inverse proportionalities, and common distractor choices.`;
+    }
+
+    if (keyPoints.length === 0) {
+      keyPoints = [
+        `Master the precise FDRE curriculum textbook definition for ${topic}`,
+        `Apply dimensional analysis and SI units consistently when evaluating quantitative problems`,
+        `Identify common distractor choices targeted by national entrance examination examiners`
+      ];
+    }
+
+    if (!ethiopianContext) {
+      ethiopianContext = `Principles of ${topic} are directly applied in Ethiopian national infrastructure projects, renewable energy generation (GERD, geothermal power), agricultural modernization, and local industrial manufacturing.`;
+    }
+
+    if (questions.length === 0) {
+      questions = [
+        {
+          id: `dt-q1-${Date.now()}`,
+          exam_id: 'daily-practice',
+          question_number: 1,
+          question_text: `According to the ${grade} ${subject} Ethiopian national textbook, which statement best defines the core principle of ${topic}?`,
+          option_a: `It describes a fundamental theoretical mechanism and governing relationship in ${subject}`,
+          option_b: `It violates conservation laws under standard conditions`,
+          option_c: `It applies exclusively at absolute zero temperature`,
+          option_d: `It has no empirical validity in modern scientific practice`,
+          correct_answer: 'A',
+          explanation: `In ${subject}, ${topic} establishes foundational, experimentally validated laws and properties central to the national curriculum.`,
+          difficulty: 'Easy'
+        },
+        {
+          id: `dt-q2-${Date.now()}`,
+          exam_id: 'daily-practice',
+          question_number: 2,
+          question_text: `When solving examination problems on ${topic} in ${subject}, what is the critical step to prevent common mistakes?`,
+          option_a: 'Disregarding boundary values and signs entirely',
+          option_b: 'Relying exclusively on approximate guesses without written formulas',
+          option_c: 'Verifying SI units, boundary conditions, and the governing formula explicitly',
+          option_d: 'Assuming all reactions or processes proceed with zero energy change',
+          correct_answer: 'C',
+          explanation: 'Dimensional consistency and rigorous adherence to standard SI units prevent conversion errors targeted by EUEE national exam distractors.',
+          difficulty: 'Medium'
+        },
+        {
+          id: `dt-q3-${Date.now()}`,
+          exam_id: 'daily-practice',
+          question_number: 3,
+          question_text: `How does the study of ${topic} in ${subject} contribute to Ethiopian technological and economic development?`,
+          option_a: 'In non-functional historical archives only',
+          option_b: 'Through engineering infrastructure, industrial production, renewable energy, and scientific research',
+          option_c: 'It has been completely superseded by outdated manual techniques',
+          option_d: 'It has no real-world application in Ethiopia',
+          correct_answer: 'B',
+          explanation: 'Secondary curriculum science and mathematics concepts directly inform contemporary Ethiopian industrial, agricultural, and technological modernization.',
+          difficulty: 'Easy'
+        }
+      ];
     }
 
     return jsonResponse({
@@ -4446,13 +4601,10 @@ How can I help you excel today? You can ask me any question or explore these cor
         topic,
         subject,
         explanation,
-        keyPoints: [
-          `Master core FDRE syllabus definitions and laws for ${topic}`,
-          `Verify SI units and dimensional consistency on EUEE multiple-choice items`,
-          `Review textbook worked examples and unit summary exercises`
-        ],
-        ethiopianContext: `Directly tested in Ethiopian Secondary (${grade}) assessments and EUEE national exams.`,
-        questions: matchedQuestions.slice(0, 3)
+        keyPoints,
+        ethiopianContext,
+        questions: questions.slice(0, 5),
+        practiceQuestions: questions.slice(0, 5)
       }
     });
   }

@@ -201,60 +201,70 @@ export const DailyTopicPage: React.FC<DailyTopicPageProps> = ({ onNavigate }) =>
   };
 
   const synthesizeFallbackTopic = (topic: string, subject: string) => {
+    const isSci = ['Chemistry', 'Physics', 'Biology'].includes(subject);
+    const isMath = subject === 'Mathematics';
+
+    const expl = `### ${topic} (${user?.grade || 'Grade 12'} • ${subject})
+
+In the Ethiopian National Curriculum for ${user?.grade || 'Grade 12'} ${subject}, mastering **${topic}** is essential for national university entrance examinations (EUEE).
+
+#### 📌 Theoretical Foundations & Core Mechanism
+- **Core Definition:** **${topic}** governs ${isSci ? 'the fundamental physical/chemical mechanisms, transformation laws, and quantitative behavior' : isMath ? 'the rigorous mathematical theorems, analytical formulations, and algebraic relations' : 'the core historical, socio-economic, and geographical frameworks'} within ${subject}.
+- **Key Scientific / Analytical Principle:** In ${subject}, questions testing **${topic}** require students to identify given boundary parameters, state the governing rule explicitly, and systematically derive conclusions.
+- **Examiner Strategy for EUEE:** High-frequency exam questions test the exact distinctions between proportional variables and common distractor pitfalls for this topic.
+
+#### 📐 Core Formulas & Analytical Directives
+- **Governing Law / Formulation:** Ensure all units are converted into standard SI base units before computation.
+- **Problem-Solving Checklist:** Check signs, directional vectors, equilibrium states, and domain constraints when answering multiple-choice items on **${topic}**.`;
+
     setTopicData({
       topic,
       subject,
-      explanation: `### Core Curriculum Mastery: ${topic}
-In the Ethiopian Secondary School Curriculum (${user?.grade || 'Grade 12'}), mastering **${topic}** is critical for school assessments and national entrance examinations (EUEE).
-
-#### Fundamental Principles:
-1. **Theoretical Definition:** ${topic} establishes foundational mathematical and physical relationships that govern system behavior and natural laws.
-2. **Key Formulas & Quantitative Relationships:** Ensure all units are converted to standard SI base units (kg, m, s, mol, A) before solving quantitative derivations.
-3. **Problem-Solving Framework:** Always identify the given variables, state the governing theorem explicitly, and verify dimensional consistency.`,
+      explanation: expl,
       keyPoints: [
-        `Core formulation: Ensure rigorous application of standard definitions for ${topic}.`,
-        'Examiner trap: Watch out for sign conventions, unit conversions, and boundary conditions.',
-        'Study strategy: Review past entrance exam questions matching this specific syllabus section.'
+        `Master the authoritative FDRE textbook definition and properties for ${topic}`,
+        `Apply standard units, domain restrictions, and mathematical rules rigorously`,
+        `Watch for common distractor choices targeted by national exam examiners`
       ],
-      ethiopianContext: `Concepts of ${topic} are directly applied across modern Ethiopian industry, telecommunications (Ethio Telecom), renewable energy generation (GERD, geothermal power), and agricultural modernization.`,
+      ethiopianContext: `Principles of ${topic} are directly applied across modern Ethiopian industry, telecommunications (Ethio Telecom), renewable energy generation (GERD, geothermal power), and agricultural modernization.`,
       questions: [
         {
           id: `dt-q1-${Date.now()}`,
           exam_id: 'daily-practice',
           question_number: 1,
-          question_text: `Under standard Ethiopian curriculum guidelines, which statement best characterizes the primary scientific principle of ${topic}?`,
-          option_a: 'It violates the conservation of energy under closed conditions',
-          option_b: 'It provides direct proportional relationships between measurable physical quantities',
-          option_c: 'It is only applicable at absolute zero temperature',
-          option_d: 'It applies solely to macroscopic classical systems without atomic interactions',
-          correct_answer: 'B',
-          explanation: `${topic} establishes consistent, experimentally verified mathematical relationships between observable physical variables.`,
+          question_text: `Under the Ethiopian ${subject} curriculum, which statement accurately represents the primary principle of ${topic}?`,
+          option_a: `It describes a fundamental theoretical mechanism and governing relationship in ${subject}`,
+          option_b: `It contradicts standard physical or mathematical conservation laws`,
+          option_c: `It applies exclusively under non-physical boundary conditions`,
+          option_d: `It has no empirical or analytical validity in modern curriculum standards`,
+          correct_answer: 'A',
+          explanation: `In ${subject}, ${topic} establishes foundational, experimentally validated laws and properties central to the national curriculum.`,
           difficulty: 'Easy'
         },
         {
           id: `dt-q2-${Date.now()}`,
           exam_id: 'daily-practice',
           question_number: 2,
-          question_text: `When applying ${topic} in quantitative problem solving, which step is essential to avoid common exam pitfalls?`,
-          option_a: 'Ignoring friction and temperature variations completely',
-          option_b: 'Converting all values into standard SI units before calculation',
-          option_c: 'Relying exclusively on rough mental approximations',
-          option_d: 'Assuming all reactions proceed with 100% theoretical yield',
-          correct_answer: 'B',
-          explanation: 'Standard unit consistency (SI units) prevents conversion errors frequently targeted by national examination distractor choices.',
+          question_text: `When evaluating multiple-choice questions on ${topic} in national examinations, which analytical approach is essential?`,
+          option_a: 'Disregarding boundary values and sign conventions entirely',
+          option_b: 'Relying exclusively on rough mental approximations without formulas',
+          option_c: 'Verifying SI units, boundary conditions, and the governing theorem explicitly',
+          option_d: 'Assuming all reactions or operations proceed without energy or domain restrictions',
+          correct_answer: 'C',
+          explanation: 'Dimensional consistency and rigorous adherence to standard rules prevent conversion and sign errors targeted by EUEE national exam distractors.',
           difficulty: 'Medium'
         },
         {
           id: `dt-q3-${Date.now()}`,
           exam_id: 'daily-practice',
           question_number: 3,
-          question_text: `How is the principle of ${topic} applied in Ethiopian national development and modern technology?`,
-          option_a: 'In non-functional historical museum archives only',
-          option_b: 'In engineering infrastructure, industrial manufacturing, and agricultural advancements',
-          option_c: 'It has been entirely replaced by outdated manual labor methods',
-          option_d: 'In theoretical cosmology with no terrestrial application',
+          question_text: `How does knowledge of ${topic} in ${subject} support Ethiopian national development and modern technology?`,
+          option_a: 'In non-functional historical archives only',
+          option_b: 'Through infrastructure engineering, industrial processing, renewable power systems, and scientific research',
+          option_c: 'It has been completely superseded by outdated manual labor methods',
+          option_d: 'It has no real-world application in Ethiopia',
           correct_answer: 'B',
-          explanation: 'Curriculum science topics directly inform contemporary infrastructure, medical diagnostic technology, and renewable power systems nationwide.',
+          explanation: 'Secondary curriculum science and mathematics concepts directly inform contemporary infrastructure, medical diagnostic technology, and renewable power systems nationwide.',
           difficulty: 'Easy'
         }
       ]

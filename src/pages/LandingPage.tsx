@@ -191,11 +191,22 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [mockScorePercent, setMockScorePercent] = useState(78);
   const [studyHoursPerWeek, setStudyHoursPerWeek] = useState(14);
 
-  // Mouse Glow Coordinates
+  // Check if running on native app, capacitor, or mobile device to eliminate lag & save battery
+  const isAppOrMobile = typeof window !== 'undefined' && (
+    Boolean((window as any).Capacitor?.isNativePlatform?.()) ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'ionic:' ||
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth < 768
+  );
+
+  // Mouse Glow Coordinates (active on desktop web only)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    setMousePos({ x: e.clientX, y: e.clientY });
+    if (!isAppOrMobile) {
+      setMousePos({ x: e.clientX, y: e.clientY });
+    }
   };
 
   // Curated prompts covering core secondary science & math with KaTeX formulas and bilingual explanations
@@ -444,11 +455,11 @@ $$\\mathbf{a = g (\\sin\\theta - \\mu_k \\cos\\theta)}$$
       onMouseMove={handleMouseMove}
       className="relative min-h-screen bg-[#030712] text-slate-100 selection:bg-emerald-500 selection:text-white flex flex-col overflow-x-hidden"
     >
-      {/* Signature Interactive Floating Glass Bubbles with Repulsion & Shockwave Ripples */}
-      <InteractiveFloatingBubblesCanvas />
+      {/* Signature Interactive Floating Glass Bubbles with Repulsion & Shockwave Ripples (Desktop Web Only) */}
+      {!isAppOrMobile && <InteractiveFloatingBubblesCanvas />}
 
-      {/* Dynamic Constellation Particle Canvas */}
-      <ConstellationCanvas />
+      {/* Dynamic Constellation Particle Canvas (Desktop Web Only) */}
+      {!isAppOrMobile && <ConstellationCanvas />}
 
       {/* Background Interactive Radial Glow Cursor */}
       <div

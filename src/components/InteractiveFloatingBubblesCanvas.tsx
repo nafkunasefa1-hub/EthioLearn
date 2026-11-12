@@ -41,6 +41,19 @@ interface InteractiveFloatingBubblesCanvasProps {
 export const InteractiveFloatingBubblesCanvas: React.FC<InteractiveFloatingBubblesCanvasProps> = ({
   className = ''
 }) => {
+  // Completely disable canvas bubbles and physics loops on the native mobile app & mobile screens to eliminate lag
+  const isAppOrMobile = typeof window !== 'undefined' && (
+    Boolean((window as any).Capacitor?.isNativePlatform?.()) ||
+    window.location.protocol === 'capacitor:' ||
+    window.location.protocol === 'ionic:' ||
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth < 768
+  );
+
+  if (isAppOrMobile) {
+    return null;
+  }
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {

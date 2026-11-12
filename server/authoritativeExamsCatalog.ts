@@ -505,9 +505,9 @@ export const AUTHORITATIVE_59_EXAMS: Exam[] = [
   // --- 5. Regional Model Examinations (6 exams) ---
   {
     id: 'exam-model-1789960911494',
-    title: '2018 E.C. National Model Examination Mathematics',
-    subject_id: 'subj-math',
-    subject_name: 'Mathematics',
+    title: '2018 E.C. National Model Examination Chemistry',
+    subject_id: 'subj-chem',
+    subject_name: 'Chemistry',
     grade_id: 'grade-12-natural',
     grade_name: 'Grade 12 - Natural Science',
     year: 2018,
@@ -515,13 +515,13 @@ export const AUTHORITATIVE_59_EXAMS: Exam[] = [
     category: 'MODEL',
     exam_series: 'Regional Model Examinations',
     exam_type: 'Model Examination',
-    duration_minutes: 180,
-    total_questions: 60,
-    total_marks: 100,
+    duration_minutes: 150,
+    total_questions: 80,
+    total_marks: 80,
     is_free_preview: true,
     status: 'PUBLISHED',
-    description: 'National Standard Model Examination for Grade 12 Natural Science Mathematics.',
-    instructions: 'Answer all 60 questions within 3 hours.'
+    description: 'National Standard Model Examination for Grade 12 Natural Science Chemistry (80 Questions).',
+    instructions: 'Answer all 80 questions within 2.5 hours.'
   },
   {
     id: 'exam-model-math-2018',
