@@ -19,6 +19,55 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { PaymentSettings, ReceiptVerification } from '../types';
+import { broadcastPaymentReceipt, fetchRemoteApprovalForPhone } from '../services/cloudSyncService';
+
+// Fast client-side image compressor: downsizes heavy mobile camera photos (4MB-8MB) into crisp 1200px JPEGs (~150KB)
+const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: string }> => {
+  return new Promise((resolve) => {
+    if (!file.type || !file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ blob: file, dataUrl: String(reader.result || '') });
+      reader.onerror = () => resolve({ blob: file, dataUrl: '' });
+      reader.readAsDataURL(file);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1280;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          canvas.toBlob((blob) => {
+            resolve({ blob: blob || file, dataUrl });
+          }, 'image/jpeg', 0.82);
+        } else {
+          resolve({ blob: file, dataUrl: String(e.target?.result || '') });
+        }
+      };
+      img.onerror = () => resolve({ blob: file, dataUrl: String(e.target?.result || '') });
+      img.src = String(e.target?.result || '');
+    };
+    reader.onerror = () => resolve({ blob: file, dataUrl: '' });
+    reader.readAsDataURL(file);
+  });
+};
 
 interface PaymentPageProps {
   onNavigate: (route: string, params?: Record<string, any>) => void;
@@ -85,16 +134,28 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
     fetchPaymentData();
   }, [user]);
 
-  // When payment is pending, poll remote status every 7 seconds for instant unlocking
+  // When payment is pending, poll cloud approval every 3.5 seconds for instantaneous unlocking
   useEffect(() => {
     if (existingReceipt?.status === 'pending') {
       const interval = setInterval(async () => {
+        const phone = user?.phone_number || (user as any)?.phone || localStorage.getItem('ethiolearn_phone');
+        if (phone) {
+          try {
+            const appr = await fetchRemoteApprovalForPhone(phone);
+            if (appr && appr.is_premium) {
+              setExistingReceipt(prev => prev ? ({ ...prev, status: 'approved' }) : null);
+              await refreshProfile();
+              window.dispatchEvent(new Event('auth-change'));
+              return;
+            }
+          } catch (_) {}
+        }
         await fetchPaymentData();
         await refreshProfile();
-      }, 7000);
+      }, 3500);
       return () => clearInterval(interval);
     }
-  }, [existingReceipt?.status]);
+  }, [existingReceipt?.status, user]);
 
   useEffect(() => {
     // If student already has Single Grade access, they are exclusively eligible to UPGRADE for 100 Birr!
@@ -140,16 +201,23 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
     setIsSubmitting(true);
     setSubmitError(null);
 
-    // Convert screenshot file to Base64 Data URL so it is 100% preserved offline and across all devices
+    // Compress screenshot on mobile for instant upload without network timeouts
     let receiptDataUrl = '';
+    let uploadBlob: Blob | File = selectedFile;
     try {
-      receiptDataUrl = await new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result || ''));
-        reader.onerror = () => resolve('');
-        reader.readAsDataURL(selectedFile);
-      });
-    } catch (_) {}
+      const compressed = await compressImageForSlip(selectedFile);
+      receiptDataUrl = compressed.dataUrl;
+      uploadBlob = compressed.blob;
+    } catch (_) {
+      try {
+        receiptDataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(selectedFile);
+        });
+      } catch (_) {}
+    }
 
     if (receiptDataUrl) {
       try {
@@ -159,11 +227,11 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
 
     const currentDeviceId = getDeviceId();
     const formData = new FormData();
-    formData.append('receipt', selectedFile);
+    formData.append('receipt', uploadBlob, selectedFile.name || 'payment_screenshot.jpg');
     if (receiptDataUrl) {
       formData.append('receipt_data_url', receiptDataUrl);
     }
-    formData.append('receipt_filename', selectedFile.name || 'payment_screenshot.png');
+    formData.append('receipt_filename', selectedFile.name || 'payment_screenshot.jpg');
     formData.append('student_phone', user?.phone_number || (user as any)?.phone || '');
     formData.append('student_name', user?.full_name || 'Student');
     const chosenAmount = (isUpgrading || isPaidSingleGrade || routeParams?.upgrade) ? '100' : (selectedPlan === 'all' ? '300' : '200');
@@ -184,6 +252,37 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
 
       if (res.ok) {
         setSubmitSuccess(true);
+
+        // Explicitly broadcast to cloud channel so Admin on Web receives screenshot immediately
+        const studentPhone = user?.phone_number || (user as any)?.phone || '';
+        const studentName = user?.full_name || 'Student';
+        const isAll = (selectedPlan === 'all' || isUpgrading);
+        broadcastPaymentReceipt({
+          id: `rcpt-${Date.now()}`,
+          user_id: user?.id,
+          student_phone: studentPhone,
+          student_name: studentName,
+          student_email: user?.email,
+          amount_birr: Number(chosenAmount) || 200,
+          target_grade_id: user?.grade_id || 'grade-12-natural',
+          upgrade_all_grades: isAll,
+          receipt_storage_path: receiptDataUrl,
+          receipt_filename: selectedFile.name || 'payment_screenshot.jpg',
+          status: 'pending',
+          submitted_at: new Date().toISOString()
+        }, uploadBlob).then(cloudUrl => {
+          if (cloudUrl) {
+            try {
+              const myRcpt = localStorage.getItem('ethiolearn_my_receipt');
+              if (myRcpt) {
+                const parsed = JSON.parse(myRcpt);
+                parsed.receipt_storage_path = cloudUrl;
+                localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(parsed));
+              }
+            } catch (_) {}
+          }
+        }).catch(() => {});
+
         await fetchPaymentData();
         await refreshProfile();
       } else {

@@ -80,8 +80,10 @@ export const BookViewer: React.FC<BookViewerProps> = ({
 
   const handleSetViewMode = (mode: 'digital_textbook' | 'short_notes' | 'detailed_short_notes' | 'grammar_vocab' | 'pdf') => {
     if (book && user?.role !== 'admin' && hasGradeAccess && !hasGradeAccess(book.grade_id, book.subject_id, 'book')) {
-      setError('PREMIUM_REQUIRED');
-      return;
+      if (mode !== 'short_notes') {
+        setError('PREMIUM_REQUIRED');
+        return;
+      }
     }
     setError(null);
     setViewMode(mode);
@@ -118,7 +120,7 @@ export const BookViewer: React.FC<BookViewerProps> = ({
   useEffect(() => {
     if (book && user?.role !== 'admin' && hasGradeAccess) {
       const allowed = hasGradeAccess(book.grade_id, book.subject_id, 'book');
-      if (!allowed) {
+      if (!allowed && viewMode !== 'short_notes') {
         setError('PREMIUM_REQUIRED');
       } else if (allowed && error === 'PREMIUM_REQUIRED') {
         setError(null);
@@ -1019,10 +1021,17 @@ export const BookViewer: React.FC<BookViewerProps> = ({
               chapters={chapters}
               selectedTopicTitle={selectedTopicTitle}
               onSelectTopic={handleSelectTopic}
-              onNavigateToPdf={() => setViewMode('digital_textbook')}
+              onNavigateToPdf={() => handleSetViewMode('digital_textbook')}
               onAskAITutor={(prompt) => onNavigate('ai-tutor', { question: prompt })}
-              onViewGrammarVocab={() => setViewMode('grammar_vocab')}
+              onViewGrammarVocab={() => handleSetViewMode('grammar_vocab')}
+              isFreePreview={Boolean(user?.role !== 'admin' && hasGradeAccess && !hasGradeAccess(book.grade_id, book.subject_id, 'book'))}
+              onUnlock={() => onNavigate('payment', { targetGrade: book.grade_id, upgrade: isStudentPaid })}
               onSelectChapter={(num) => {
+                const isPreview = Boolean(user?.role !== 'admin' && hasGradeAccess && !hasGradeAccess(book.grade_id, book.subject_id, 'book'));
+                if (isPreview && num > 1) {
+                  setError('PREMIUM_REQUIRED');
+                  return;
+                }
                 const target = chapters.find(c => c.chapter_number === num);
                 if (target) {
                   setSelectedChapterId(target.id);

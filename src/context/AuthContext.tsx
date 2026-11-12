@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { apiFetchJson } from '../utils/api';
+import { fetchRemoteApprovalForPhone } from '../services/cloudSyncService';
 
 export const getDeviceId = (): string => {
   let devId = localStorage.getItem('ethiolearn_device_id');
@@ -147,9 +148,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     window.addEventListener('auth-change', handleAuthChange);
     window.addEventListener('storage', handleAuthChange);
+
+    // Periodic cloud poll so student's app instantly unlocks when Admin approves payment
+    const interval = setInterval(async () => {
+      const curPhone = localStorage.getItem('ethiolearn_phone');
+      const isVerified = localStorage.getItem('ethiolearn_phone_session') === 'verified';
+      if (curPhone && isVerified) {
+        try {
+          const appr = await fetchRemoteApprovalForPhone(curPhone);
+          if (appr && appr.is_premium) {
+            const cached = localStorage.getItem('ethiolearn_user_profile');
+            let needsUpdate = false;
+            if (cached) {
+              const u = JSON.parse(cached);
+              if (!u.is_premium || u.payment_tier !== appr.tier) {
+                u.is_premium = true;
+                u.payment_tier = appr.tier;
+                u.unlocked_grades = appr.unlocked_grades || (appr.tier === 'all' ? ['all'] : [u.grade_id || 'grade-12-natural']);
+                u.subscription_type = appr.tier === 'all' ? 'all_grades' : 'grade_only';
+                localStorage.setItem('ethiolearn_user_profile', JSON.stringify(u));
+                localStorage.setItem('ethiolearn_user', JSON.stringify(u));
+                setUser({ ...u });
+                needsUpdate = true;
+              }
+            }
+            if (needsUpdate) {
+              window.dispatchEvent(new Event('auth-change'));
+            }
+          }
+        } catch (_) {}
+      }
+    }, 4000);
+
     return () => {
       window.removeEventListener('auth-change', handleAuthChange);
       window.removeEventListener('storage', handleAuthChange);
+      clearInterval(interval);
     };
   }, []);
 

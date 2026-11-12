@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Smartphone, Send, CheckCircle2, AlertTriangle, X, ExternalLink, ShieldCheck } from 'lucide-react';
 import { getDeviceId } from '../context/AuthContext';
+import { broadcastDeviceTransfer } from '../services/cloudSyncService';
 
 interface DeviceAppealModalProps {
   isOpen: boolean;
@@ -67,6 +68,16 @@ export const DeviceAppealModal: React.FC<DeviceAppealModalProps> = ({
       }
 
       setSubmitted(true);
+      // Synchronize device transfer request to cloud channel so Web Admin sees it instantly
+      broadcastDeviceTransfer({
+        id: `dt-${Date.now()}`,
+        phone_number: fullPhone,
+        student_name: 'Student',
+        new_device_id: currentDeviceId,
+        reason: finalReason,
+        status: 'pending',
+        requested_at: new Date().toISOString()
+      }).catch(() => {});
     } catch (err: any) {
       setErrorMsg(err.message || 'Error submitting appeal. Please try again.');
     } finally {
