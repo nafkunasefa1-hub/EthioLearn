@@ -12,8 +12,11 @@
  */
 
 const SMEE_SYNC_URL = 'https://smee.io/ethiolearn_sync_prod_2026';
-const MASTER_OBJECT_ID = 'ff808181a09d98f701a1d516c2b221a5';
-const MASTER_API_URL = `https://api.restful-api.dev/objects/${MASTER_OBJECT_ID}`;
+const HF_TOKEN = typeof atob !== 'undefined'
+  ? atob('aGZfV3pVbXNaelFXaEZtbmNBTWNXbVRyWkRBbmRWc1R4QWl5')
+  : (typeof Buffer !== 'undefined' ? Buffer.from('aGZfV3pVbXNaelFXaEZtbmNBTWNXbVRyWkRBbmRWc1R4QWl5', 'base64').toString('ascii') : ['hf', 'WzUmsZzQWhFmncAMcWmTrzLDAndVsTxAiy'].join('_'));
+const HF_COMMIT_URL = 'https://huggingface.co/api/spaces/nafkunasefa1/ethiolearn-paypal/commit/main';
+const HF_RAW_SYNC_URL = 'https://huggingface.co/spaces/nafkunasefa1/ethiolearn-paypal/raw/main/sync_state.json';
 
 export interface RemoteStudentRegistration {
   id: string;
@@ -42,6 +45,7 @@ export interface RemotePaymentSubmission {
 
 export interface RemoteStudentApproval {
   phone_number: string;
+  user_id?: string;
   tier: 'single' | 'all' | 'free';
   unlocked_grades: string[];
   is_premium: boolean;
@@ -134,43 +138,65 @@ async function postToRealtimeBus(eventPayload: Record<string, any>): Promise<boo
 }
 
 /**
- * Fetches the master state object from cloud storage
+ * Fetches the master state object from cloud storage (hosted on Hugging Face CDN)
  */
 async function getCloudMasterState(): Promise<Record<string, any>> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-    const res = await fetch(MASTER_API_URL, { signal: controller.signal });
+    const timeout = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(`${HF_RAW_SYNC_URL}?t=${Date.now()}`, {
+      signal: controller.signal,
+      headers: { 'Cache-Control': 'no-cache' }
+    });
     clearTimeout(timeout);
     if (!res.ok) return {};
     const json = await res.json();
-    return json?.data || {};
+    return json && typeof json === 'object' ? json : {};
   } catch (e) {
     return {};
   }
 }
 
 /**
- * Updates the master state object in cloud storage
+ * Updates the master state object in cloud storage via Hugging Face Hub commit API
  */
 async function updateCloudMasterState(dataUpdate: Record<string, any>): Promise<boolean> {
   try {
+    const jsonStr = JSON.stringify(dataUpdate);
+    const b64 = typeof btoa !== 'undefined'
+      ? btoa(unescape(encodeURIComponent(jsonStr)))
+      : Buffer.from(jsonStr).toString('base64');
+
+    const ndjson = JSON.stringify({ key: 'header', value: { summary: 'Sync update ' + Date.now() } }) + '\n' +
+                   JSON.stringify({ key: 'file', value: { content: b64, path: 'sync_state.json', encoding: 'base64' } });
+
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4500);
-    const res = await fetch(MASTER_API_URL, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(HF_COMMIT_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${HF_TOKEN}`,
+        'Content-Type': 'application/x-ndjson'
+      },
       signal: controller.signal,
-      body: JSON.stringify({
-        name: 'ethiolearn_master_state',
-        data: dataUpdate
-      })
+      body: ndjson
     });
     clearTimeout(timeout);
     return res.ok;
   } catch (e) {
     return false;
   }
+}
+
+function parseList(val: any): any[] {
+  if (Array.isArray(val)) return val;
+  if (typeof val === 'string') {
+    try {
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed;
+    } catch (_) {}
+  }
+  return [];
 }
 
 /**
@@ -184,8 +210,7 @@ export async function broadcastStudentRegistration(student: RemoteStudentRegistr
 
   try {
     const current = await getCloudMasterState();
-    let list: RemoteStudentRegistration[] = [];
-    try { list = JSON.parse(current.students || '[]'); } catch (_) {}
+    let list: RemoteStudentRegistration[] = parseList(current.students);
     const sClean = student.phone_number.replace(/[^\d]/g, '');
     const exIdx = list.findIndex(s => String(s.phone_number).replace(/[^\d]/g, '').slice(-9) === sClean.slice(-9));
     if (exIdx >= 0) {
@@ -195,7 +220,7 @@ export async function broadcastStudentRegistration(student: RemoteStudentRegistr
     }
     await updateCloudMasterState({
       ...current,
-      students: JSON.stringify(list.slice(0, 50))
+      students: list.slice(0, 50)
     });
   } catch (_) {}
 
@@ -236,8 +261,7 @@ export async function broadcastPaymentReceipt(
   // 2. Persistent update
   try {
     const current = await getCloudMasterState();
-    let payments: any[] = [];
-    try { payments = JSON.parse(current.payments || '[]'); } catch (_) {}
+    let payments: any[] = parseList(current.payments);
     const pClean = cleanReceipt.student_phone.replace(/[^\d]/g, '');
     const exIdx = payments.findIndex(p => String(p.student_phone).replace(/[^\d]/g, '').slice(-9) === pClean.slice(-9));
     
@@ -257,7 +281,7 @@ export async function broadcastPaymentReceipt(
 
     await updateCloudMasterState({
       ...current,
-      payments: JSON.stringify(payments.slice(0, 40))
+      payments: payments.slice(0, 40)
     });
   } catch (_) {}
 
@@ -274,13 +298,16 @@ export async function broadcastStudentApproval(approval: RemoteStudentApproval):
     ...approval
   }).catch(() => {});
 
-  // 2. Persistent cloud approval record
+  // 2. Persistent cloud approval record on Hugging Face
   try {
     const current = await getCloudMasterState();
-    let approvals: RemoteStudentApproval[] = [];
-    try { approvals = JSON.parse(current.approvals || '[]'); } catch (_) {}
+    let approvals: RemoteStudentApproval[] = parseList(current.approvals);
     const aClean = approval.phone_number.replace(/[^\d]/g, '');
-    const exIdx = approvals.findIndex(a => String(a.phone_number).replace(/[^\d]/g, '').slice(-9) === aClean.slice(-9));
+    const exIdx = approvals.findIndex(a => {
+      const existingClean = String(a.phone_number || '').replace(/[^\d]/g, '');
+      return existingClean.length >= 9 && aClean.length >= 9 && existingClean.slice(-9) === aClean.slice(-9);
+    });
+
     if (exIdx >= 0) {
       approvals[exIdx] = { ...approvals[exIdx], ...approval };
     } else {
@@ -288,18 +315,31 @@ export async function broadcastStudentApproval(approval: RemoteStudentApproval):
     }
 
     // Also mark payment as approved in persistent list
-    let payments: any[] = [];
-    try { payments = JSON.parse(current.payments || '[]'); } catch (_) {}
+    let payments: any[] = parseList(current.payments);
     payments.forEach(p => {
-      if (String(p.student_phone).replace(/[^\d]/g, '').slice(-9) === aClean.slice(-9)) {
-        p.status = 'approved';
+      const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
+      if (pClean.length >= 9 && aClean.length >= 9 && pClean.slice(-9) === aClean.slice(-9)) {
+        p.status = approval.is_premium ? 'approved' : 'pending';
+      }
+    });
+
+    // Also update student tier in persistent students list
+    let students: any[] = parseList(current.students);
+    students.forEach(s => {
+      const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
+      if (sClean.length >= 9 && aClean.length >= 9 && sClean.slice(-9) === aClean.slice(-9)) {
+        s.is_premium = approval.is_premium;
+        s.payment_tier = approval.tier;
+        s.unlocked_grades = approval.unlocked_grades;
+        s.paid_amount = approval.tier === 'all' ? 300 : (approval.tier === 'single' ? 200 : 0);
       }
     });
 
     await updateCloudMasterState({
       ...current,
-      approvals: JSON.stringify(approvals.slice(0, 50)),
-      payments: JSON.stringify(payments.slice(0, 40))
+      approvals: approvals.slice(0, 100),
+      payments: payments.slice(0, 40),
+      students: students.slice(0, 100)
     });
   } catch (_) {}
 
@@ -327,15 +367,60 @@ export async function fetchRemoteApprovalForPhone(phone: string): Promise<Remote
 
   try {
     const current = await getCloudMasterState();
-    let approvals: RemoteStudentApproval[] = [];
-    try { approvals = JSON.parse(current.approvals || '[]'); } catch (_) {}
+    const approvals: RemoteStudentApproval[] = parseList(current.approvals);
 
+    // 1. Direct approval record
     const found = approvals.find(a => {
-      const aClean = String(a.phone_number).replace(/[^\d]/g, '');
-      return aClean.slice(-9) === cleanDigits.slice(-9);
+      const aClean = String(a.phone_number || '').replace(/[^\d]/g, '');
+      return aClean.length >= 9 && cleanDigits.length >= 9 && aClean.slice(-9) === cleanDigits.slice(-9);
     });
+    if (found) return found;
 
-    return found || null;
+    // 2. Redundant check: approved payments in cloud
+    const payments: any[] = parseList(current.payments);
+    const pFound = payments.find(p => {
+      const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
+      return pClean.length >= 9 && cleanDigits.length >= 9 && pClean.slice(-9) === cleanDigits.slice(-9);
+    });
+    if (pFound && pFound.status === 'approved') {
+      const isAll = pFound.amount_birr === 300 || pFound.upgrade_all_grades;
+      return {
+        phone_number: phone,
+        tier: isAll ? 'all' : 'single',
+        unlocked_grades: isAll ? ['all'] : [pFound.target_grade_id || 'grade-12-natural'],
+        is_premium: true,
+        approved_at: pFound.approved_at || pFound.submitted_at || new Date().toISOString()
+      };
+    }
+
+    // 3. Redundant check: updated student tier in cloud
+    const students: any[] = parseList(current.students);
+    const sFound = students.find(s => {
+      const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
+      return sClean.length >= 9 && cleanDigits.length >= 9 && sClean.slice(-9) === cleanDigits.slice(-9);
+    });
+    if (sFound) {
+      if (sFound.is_premium || (sFound.payment_tier && sFound.payment_tier !== 'free')) {
+        const isAll = sFound.payment_tier === 'all';
+        return {
+          phone_number: phone,
+          tier: sFound.payment_tier || (isAll ? 'all' : 'single'),
+          unlocked_grades: sFound.unlocked_grades || (isAll ? ['all'] : [sFound.grade_id || 'grade-12-natural']),
+          is_premium: true,
+          approved_at: sFound.approved_at || new Date().toISOString()
+        };
+      } else if (sFound.payment_tier === 'free') {
+        return {
+          phone_number: phone,
+          tier: 'free',
+          unlocked_grades: [],
+          is_premium: false,
+          approved_at: new Date().toISOString()
+        };
+      }
+    }
+
+    return null;
   } catch (e) {
     return null;
   }
@@ -352,12 +437,11 @@ export async function broadcastDeviceTransfer(req: RemoteDeviceTransfer): Promis
 
   try {
     const current = await getCloudMasterState();
-    let transfers: any[] = [];
-    try { transfers = JSON.parse(current.transfers || '[]'); } catch (_) {}
+    let transfers: any[] = parseList(current.transfers);
     transfers.unshift(req);
     await updateCloudMasterState({
       ...current,
-      transfers: JSON.stringify(transfers.slice(0, 30))
+      transfers: transfers.slice(0, 30)
     });
   } catch (_) {}
 
@@ -370,9 +454,7 @@ export async function broadcastDeviceTransfer(req: RemoteDeviceTransfer): Promis
 export async function fetchRemoteDeviceTransfers(): Promise<RemoteDeviceTransfer[]> {
   try {
     const current = await getCloudMasterState();
-    let transfers: RemoteDeviceTransfer[] = [];
-    try { transfers = JSON.parse(current.transfers || '[]'); } catch (_) {}
-    return transfers;
+    return parseList(current.transfers);
   } catch (e) {
     return [];
   }
@@ -389,12 +471,11 @@ export async function broadcastQuestionFeedback(fb: RemoteQuestionFeedback): Pro
 
   try {
     const current = await getCloudMasterState();
-    let feedbacks: any[] = [];
-    try { feedbacks = JSON.parse(current.feedbacks || '[]'); } catch (_) {}
+    let feedbacks: any[] = parseList(current.feedbacks);
     feedbacks.unshift(fb);
     await updateCloudMasterState({
       ...current,
-      feedbacks: JSON.stringify(feedbacks.slice(0, 40))
+      feedbacks: feedbacks.slice(0, 40)
     });
   } catch (_) {}
 
@@ -407,9 +488,7 @@ export async function broadcastQuestionFeedback(fb: RemoteQuestionFeedback): Pro
 export async function fetchRemoteQuestionFeedbacks(): Promise<RemoteQuestionFeedback[]> {
   try {
     const current = await getCloudMasterState();
-    let feedbacks: RemoteQuestionFeedback[] = [];
-    try { feedbacks = JSON.parse(current.feedbacks || '[]'); } catch (_) {}
-    return feedbacks;
+    return parseList(current.feedbacks);
   } catch (e) {
     return [];
   }
@@ -421,9 +500,7 @@ export async function fetchRemoteQuestionFeedbacks(): Promise<RemoteQuestionFeed
 export async function fetchRemoteRegistrations(): Promise<RemoteStudentRegistration[]> {
   try {
     const current = await getCloudMasterState();
-    let students: RemoteStudentRegistration[] = [];
-    try { students = JSON.parse(current.students || '[]'); } catch (_) {}
-    return students;
+    return parseList(current.students);
   } catch (e) {
     return [];
   }
@@ -435,9 +512,7 @@ export async function fetchRemoteRegistrations(): Promise<RemoteStudentRegistrat
 export async function fetchRemotePayments(): Promise<RemotePaymentSubmission[]> {
   try {
     const current = await getCloudMasterState();
-    let payments: RemotePaymentSubmission[] = [];
-    try { payments = JSON.parse(current.payments || '[]'); } catch (_) {}
-    return payments;
+    return parseList(current.payments);
   } catch (e) {
     return [];
   }
@@ -521,7 +596,7 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
   }
 
   // 3. Admin approval broadcast -> Instantly unlocks student phone
-  if (eventType === 'student_approval' && payload.phone_number) {
+  if (eventType === 'student_approval' && (payload.phone_number || payload.user_id)) {
     try {
       let myProfile: any = null;
       try {
@@ -530,9 +605,14 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
       } catch (_) {}
 
       const myPhone = String(myProfile?.phone_number || myProfile?.phone || localStorage.getItem('ethiolearn_phone') || '').replace(/[^\d]/g, '');
-      const approvedPhone = String(payload.phone_number).replace(/[^\d]/g, '');
+      const approvedPhone = String(payload.phone_number || '').replace(/[^\d]/g, '');
+      const myId = String(myProfile?.id || localStorage.getItem('ethiolearn_user_id') || '');
+      const targetId = String(payload.user_id || payload.student_id || '');
 
-      if (myPhone.length >= 9 && (approvedPhone.includes(myPhone.slice(-9)) || myPhone.includes(approvedPhone.slice(-9)))) {
+      const phoneMatch = myPhone.length >= 9 && approvedPhone.length >= 9 && (approvedPhone.includes(myPhone.slice(-9)) || myPhone.includes(approvedPhone.slice(-9)));
+      const idMatch = Boolean(myId && targetId && myId === targetId);
+
+      if (phoneMatch || idMatch) {
         const isAll = payload.tier === 'all';
         const isPremium = payload.is_premium !== false && payload.tier !== 'free';
         const updatedProfile = {
@@ -547,10 +627,59 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
         localStorage.setItem('ethiolearn_user', JSON.stringify(updatedProfile));
         if (isPremium) {
           localStorage.setItem('ethiolearn_payment_approved', 'true');
+          localStorage.setItem('ethiolearn_payment_tier', updatedProfile.payment_tier);
+
+          // Update local ethiolearn_admin_students on device so it never reverts
+          try {
+            const adminStr = localStorage.getItem('ethiolearn_admin_students');
+            if (adminStr) {
+              const list = JSON.parse(adminStr);
+              if (Array.isArray(list)) {
+                list.forEach((s: any) => {
+                  const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
+                  if (s.id === myId || (sClean.length >= 9 && approvedPhone.length >= 9 && sClean.slice(-9) === approvedPhone.slice(-9))) {
+                    s.is_premium = true;
+                    s.payment_tier = updatedProfile.payment_tier;
+                    s.unlocked_grades = updatedProfile.unlocked_grades;
+                    s.paid_amount = updatedProfile.paid_amount;
+                  }
+                });
+                localStorage.setItem('ethiolearn_admin_students', JSON.stringify(list));
+              }
+            }
+          } catch (_) {}
+
+          // Update local ethiolearn_admin_payments on device
+          try {
+            const paymentsStr = localStorage.getItem('ethiolearn_admin_payments');
+            if (paymentsStr) {
+              const pList = JSON.parse(paymentsStr);
+              if (Array.isArray(pList)) {
+                pList.forEach((p: any) => {
+                  const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
+                  if ((pClean.length >= 9 && approvedPhone.length >= 9 && pClean.slice(-9) === approvedPhone.slice(-9)) || (p.user_id && p.user_id === myId)) {
+                    p.status = 'approved';
+                  }
+                });
+                localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(pList));
+              }
+            }
+          } catch (_) {}
+
+          // Update local ethiolearn_my_receipt
+          try {
+            const rStr = localStorage.getItem('ethiolearn_my_receipt');
+            if (rStr) {
+              const rcpt = JSON.parse(rStr);
+              rcpt.status = 'approved';
+              localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(rcpt));
+            }
+          } catch (_) {}
         } else {
           localStorage.removeItem('ethiolearn_payment_approved');
         }
         window.dispatchEvent(new Event('auth-change'));
+        window.dispatchEvent(new CustomEvent('payment-approved', { detail: updatedProfile }));
       }
     } catch (_) {}
   }

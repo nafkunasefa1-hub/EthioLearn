@@ -68,8 +68,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (e) {}
       }
 
-      // Authoritative sync from ethiolearn_admin_students
+      // Authoritative sync from ethiolearn_admin_students (Safe: NEVER reverts premium status!)
       try {
+        const isApprovedLocally = localStorage.getItem('ethiolearn_payment_approved') === 'true';
         const adminStudentsStr = localStorage.getItem('ethiolearn_admin_students');
         if (adminStudentsStr && resolvedProfile) {
           const adminList = JSON.parse(adminStudentsStr);
@@ -81,13 +82,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return pDigits.length >= 9 && sDigits.includes(pDigits.slice(-9));
             });
             if (rec && resolvedProfile.role !== 'admin') {
-              resolvedProfile.is_premium = Boolean(rec.is_premium);
-              resolvedProfile.payment_tier = rec.payment_tier || (resolvedProfile.is_premium ? 'all' : 'free');
-              resolvedProfile.unlocked_grades = rec.unlocked_grades || (resolvedProfile.is_premium ? ['all'] : []);
-              resolvedProfile.paid_amount = rec.paid_amount || (resolvedProfile.payment_tier === 'all' ? 300 : (resolvedProfile.payment_tier === 'single' ? 200 : 0));
+              // If student is already approved/premium locally, KEEP premium and sync rec -> NEVER DOWNGRADE
+              if (resolvedProfile.is_premium || isApprovedLocally) {
+                resolvedProfile.is_premium = true;
+                if (!resolvedProfile.payment_tier || resolvedProfile.payment_tier === 'free') {
+                  resolvedProfile.payment_tier = rec.payment_tier && rec.payment_tier !== 'free' ? rec.payment_tier : 'single';
+                }
+                if (!resolvedProfile.unlocked_grades || resolvedProfile.unlocked_grades.length === 0) {
+                  resolvedProfile.unlocked_grades = resolvedProfile.payment_tier === 'all' ? ['all'] : [resolvedProfile.grade_id || 'grade-12-natural'];
+                }
+                rec.is_premium = true;
+                rec.payment_tier = resolvedProfile.payment_tier;
+                rec.unlocked_grades = resolvedProfile.unlocked_grades;
+                localStorage.setItem('ethiolearn_admin_students', JSON.stringify(adminList));
+              } else if (rec.is_premium) {
+                // If admin record explicitly upgraded student to premium
+                resolvedProfile.is_premium = true;
+                resolvedProfile.payment_tier = rec.payment_tier || 'single';
+                resolvedProfile.unlocked_grades = rec.unlocked_grades || (resolvedProfile.payment_tier === 'all' ? ['all'] : [resolvedProfile.grade_id || 'grade-12-natural']);
+                resolvedProfile.paid_amount = rec.paid_amount || (resolvedProfile.payment_tier === 'all' ? 300 : 200);
+                localStorage.setItem('ethiolearn_payment_approved', 'true');
+              }
               localStorage.setItem('ethiolearn_user_profile', JSON.stringify(resolvedProfile));
             }
           }
+        } else if (isApprovedLocally && resolvedProfile && resolvedProfile.role !== 'admin') {
+          resolvedProfile.is_premium = true;
+          if (!resolvedProfile.payment_tier || resolvedProfile.payment_tier === 'free') {
+            resolvedProfile.payment_tier = 'single';
+          }
+          if (!resolvedProfile.unlocked_grades || resolvedProfile.unlocked_grades.length === 0) {
+            resolvedProfile.unlocked_grades = resolvedProfile.payment_tier === 'all' ? ['all'] : [resolvedProfile.grade_id || 'grade-12-natural'];
+          }
+          localStorage.setItem('ethiolearn_user_profile', JSON.stringify(resolvedProfile));
         }
       } catch (_) {}
 
@@ -173,6 +200,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 localStorage.setItem('ethiolearn_user', JSON.stringify(u));
                 if (targetIsPremium) {
                   localStorage.setItem('ethiolearn_payment_approved', 'true');
+                  localStorage.setItem('ethiolearn_payment_tier', targetTier);
+
+                  // Keep local admin students list in sync on phone
+                  try {
+                    const aStr = localStorage.getItem('ethiolearn_admin_students');
+                    if (aStr) {
+                      const aList = JSON.parse(aStr);
+                      if (Array.isArray(aList)) {
+                        const curDigits = curPhone.replace(/[^\d]/g, '');
+                        aList.forEach((st: any) => {
+                          const sDigits = String(st.phone_number || '').replace(/[^\d]/g, '');
+                          if (curDigits.length >= 9 && sDigits.includes(curDigits.slice(-9))) {
+                            st.is_premium = true;
+                            st.payment_tier = targetTier;
+                            st.unlocked_grades = u.unlocked_grades;
+                            st.paid_amount = u.paid_amount;
+                          }
+                        });
+                        localStorage.setItem('ethiolearn_admin_students', JSON.stringify(aList));
+                      }
+                    }
+                  } catch (_) {}
+
+                  // Keep local receipt in sync
+                  try {
+                    const rStr = localStorage.getItem('ethiolearn_my_receipt');
+                    if (rStr) {
+                      const rcpt = JSON.parse(rStr);
+                      rcpt.status = 'approved';
+                      localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(rcpt));
+                    }
+                  } catch (_) {}
                 } else {
                   localStorage.removeItem('ethiolearn_payment_approved');
                 }

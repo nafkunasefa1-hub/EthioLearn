@@ -1599,6 +1599,7 @@ async function handleOfflineApiRequest(
       const profileStr = localStorage.getItem('ethiolearn_user_profile');
       let profile = profileStr ? JSON.parse(profileStr) : null;
       if (profile) {
+        const isApprovedLocally = localStorage.getItem('ethiolearn_payment_approved') === 'true';
         // Sync with ethiolearn_admin_students for latest authoritative status
         const adminStudents = getAdminStudentsList();
         const pPhone = String(profile.phone_number || profile.phone || '').replace(/[^\d]/g, '');
@@ -1608,10 +1609,33 @@ async function handleOfflineApiRequest(
           return pPhone.length >= 9 && sDigits.includes(pPhone.slice(-9));
         });
         if (adminRec && profile.role !== 'admin') {
-          profile.is_premium = Boolean(adminRec.is_premium);
-          profile.payment_tier = adminRec.payment_tier || (profile.is_premium ? 'all' : 'free');
-          profile.unlocked_grades = adminRec.unlocked_grades || (profile.is_premium ? ['all'] : []);
-          profile.paid_amount = adminRec.paid_amount || (profile.payment_tier === 'all' ? 300 : (profile.payment_tier === 'single' ? 200 : 0));
+          // If already premium or locally approved, KEEP premium and sync adminRec -> NEVER DOWNGRADE
+          if (profile.is_premium || isApprovedLocally) {
+            profile.is_premium = true;
+            if (!profile.payment_tier || profile.payment_tier === 'free') {
+              profile.payment_tier = adminRec.payment_tier && adminRec.payment_tier !== 'free' ? adminRec.payment_tier : 'single';
+            }
+            if (!profile.unlocked_grades || profile.unlocked_grades.length === 0) {
+              profile.unlocked_grades = profile.payment_tier === 'all' ? ['all'] : [profile.grade_id || 'grade-12-natural'];
+            }
+            adminRec.is_premium = true;
+            adminRec.payment_tier = profile.payment_tier;
+            adminRec.unlocked_grades = profile.unlocked_grades;
+            localStorage.setItem('ethiolearn_admin_students', JSON.stringify(adminStudents));
+          } else if (adminRec.is_premium) {
+            profile.is_premium = true;
+            profile.payment_tier = adminRec.payment_tier || 'single';
+            profile.unlocked_grades = adminRec.unlocked_grades || (profile.payment_tier === 'all' ? ['all'] : [profile.grade_id || 'grade-12-natural']);
+            profile.paid_amount = adminRec.paid_amount || (profile.payment_tier === 'all' ? 300 : 200);
+            localStorage.setItem('ethiolearn_payment_approved', 'true');
+          }
+          localStorage.setItem('ethiolearn_user_profile', JSON.stringify(profile));
+        } else if (isApprovedLocally && profile.role !== 'admin') {
+          profile.is_premium = true;
+          if (!profile.payment_tier || profile.payment_tier === 'free') profile.payment_tier = 'single';
+          if (!profile.unlocked_grades || profile.unlocked_grades.length === 0) {
+            profile.unlocked_grades = profile.payment_tier === 'all' ? ['all'] : [profile.grade_id || 'grade-12-natural'];
+          }
           localStorage.setItem('ethiolearn_user_profile', JSON.stringify(profile));
         }
         return jsonResponse({ success: true, profile, is_admin: profile.role === 'admin' });
@@ -3699,6 +3723,7 @@ How can I help you excel today? You can ask me any question or explore these cor
       // Broadcast approval to cloud so student's phone automatically unlocks remotely!
       broadcastStudentApproval({
         phone_number: student.phone_number,
+        user_id: student.id,
         tier: student.payment_tier,
         unlocked_grades: student.unlocked_grades,
         is_premium: student.is_premium,
@@ -4138,16 +4163,7 @@ How can I help you excel today? You can ask me any question or explore these cor
       payments = payments.filter(p => !STALE_PAY_PHONES.has(p.student_phone) && !STALE_PAY_PHONES.has(p.user_id));
     }
 
-        // Auto-correct any upgrading receipts where amount_birr was recorded as 200 instead of 100 ETB
-    if (Array.isArray(payments)) {
-      payments.forEach(p => {
-        if (p.student_phone === '+251911111111' || (p.upgrade_all_grades && p.amount_birr === 200)) {
-          p.amount_birr = 100;
-          p.upgrade_all_grades = true;
-          p.target_grade_id = 'all';
-        }
-      });
-    }
+
 
     if (!Array.isArray(payments) || payments.length === 0) {
       payments = DEFAULT_PAYMENTS;
@@ -4360,9 +4376,10 @@ How can I help you excel today? You can ask me any question or explore these cor
 
       // Broadcast approval to cloud so student's app unlocks immediately
       const phoneToUnlock = rcpt.student_phone || st?.phone_number || '';
-      if (phoneToUnlock) {
+      if (phoneToUnlock || rcpt.user_id || st?.id) {
         broadcastStudentApproval({
           phone_number: phoneToUnlock,
+          user_id: rcpt.user_id || st?.id,
           tier: grantAll ? 'all' : 'single',
           unlocked_grades: grantAll ? ['all'] : [targetGrade],
           is_premium: true,
@@ -4532,12 +4549,18 @@ How can I help you excel today? You can ask me any question or explore these cor
 
     if (path === '/api/payments/my-receipt') {
       const curUserId = localStorage.getItem('ethiolearn_user_id');
-      const curPhone = localStorage.getItem('ethiolearn_phone');
+      let curPhone = localStorage.getItem('ethiolearn_phone');
+      if (!curPhone) {
+        try {
+          const prof = JSON.parse(localStorage.getItem('ethiolearn_user_profile') || '{}');
+          curPhone = prof.phone_number || prof.phone || '';
+        } catch (_) {}
+      }
 
       if (curPhone) {
         try {
           const remoteAppr = await fetchRemoteApprovalForPhone(curPhone);
-          if (remoteAppr) {
+          if (remoteAppr && (remoteAppr.is_premium || remoteAppr.tier !== 'free')) {
             const payments = getAdminPaymentsList();
             const cleanCurPhone = curPhone.replace(/[^\d]/g, '');
             const rcpt = payments.find(p => String(p.student_phone || '').replace(/[^\d]/g, '').includes(cleanCurPhone.slice(-9)));
@@ -4549,17 +4572,41 @@ How can I help you excel today? You can ask me any question or explore these cor
             const userStr = localStorage.getItem('ethiolearn_user_profile') || localStorage.getItem('ethiolearn_user');
             if (userStr) {
               const u = JSON.parse(userStr);
-              u.is_premium = remoteAppr.tier === 'all' || remoteAppr.tier === 'single';
+              u.is_premium = true;
               u.subscription_type = remoteAppr.tier === 'all' ? 'all_grades' : 'grade_only';
               u.payment_tier = remoteAppr.tier;
               if (remoteAppr.tier === 'all') {
                 u.unlocked_grades = ['all', 'grade-9', 'grade-10', 'grade-11-natural', 'grade-11-social', 'grade-12-natural', 'grade-12-social'];
+                u.paid_amount = 300;
               } else if (remoteAppr.tier === 'single') {
                 u.unlocked_grades = [remoteAppr.grade_id || u.grade_id || 'grade-12-natural'];
+                u.paid_amount = 200;
               }
               localStorage.setItem('ethiolearn_user_profile', JSON.stringify(u));
               localStorage.setItem('ethiolearn_user', JSON.stringify(u));
+              localStorage.setItem('ethiolearn_payment_approved', 'true');
               localStorage.setItem('ethiolearn_payment_tier', remoteAppr.tier);
+
+              // Update admin students list on device
+              try {
+                const aStr = localStorage.getItem('ethiolearn_admin_students');
+                if (aStr) {
+                  const aList = JSON.parse(aStr);
+                  if (Array.isArray(aList)) {
+                    aList.forEach((st: any) => {
+                      const sDigits = String(st.phone_number || '').replace(/[^\d]/g, '');
+                      if (cleanCurPhone.length >= 9 && sDigits.includes(cleanCurPhone.slice(-9))) {
+                        st.is_premium = true;
+                        st.payment_tier = remoteAppr.tier;
+                        st.unlocked_grades = u.unlocked_grades;
+                        st.paid_amount = u.paid_amount;
+                      }
+                    });
+                    localStorage.setItem('ethiolearn_admin_students', JSON.stringify(aList));
+                  }
+                }
+              } catch (_) {}
+
               try { window.dispatchEvent(new Event('auth-change')); } catch (_) {}
             }
           }
@@ -4568,6 +4615,7 @@ How can I help you excel today? You can ask me any question or explore these cor
 
       const payments = getAdminPaymentsList();
       const cleanPhoneDigits = curPhone ? curPhone.replace(/[^\d]/g, '') : '';
+      const isApprovedLocally = localStorage.getItem('ethiolearn_payment_approved') === 'true';
       const myReceipt = payments.find(p => {
         if (curUserId && p.user_id === curUserId) return true;
         if (curPhone && p.student_phone === curPhone) return true;
@@ -4577,10 +4625,9 @@ How can I help you excel today? You can ask me any question or explore these cor
         }
         return false;
       }) || null;
-      if (myReceipt && (myReceipt.student_phone === '+251911111111' || myReceipt.upgrade_all_grades)) {
-        if (myReceipt.amount_birr === 200 && myReceipt.upgrade_all_grades) {
-          myReceipt.amount_birr = 100;
-        }
+
+      if (myReceipt && isApprovedLocally) {
+        myReceipt.status = 'approved';
       }
       return jsonResponse(myReceipt ? myReceipt : { receipt: null });
     }

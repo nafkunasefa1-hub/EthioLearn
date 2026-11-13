@@ -115,9 +115,6 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
         } catch (_) {}
       }
 
-      await fetchPaymentData();
-      await refreshProfile();
-
       if (remoteAppr && (remoteAppr.is_premium || remoteAppr.tier !== 'free')) {
         const cached = localStorage.getItem('ethiolearn_user_profile');
         if (cached) {
@@ -133,6 +130,7 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
           } catch (_) {}
         }
         localStorage.setItem('ethiolearn_payment_approved', 'true');
+        localStorage.setItem('ethiolearn_payment_tier', remoteAppr.tier);
         setExistingReceipt(prev => prev ? { ...prev, status: 'approved' } : null);
         window.dispatchEvent(new Event('auth-change'));
 
@@ -147,6 +145,10 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
         return;
       }
 
+      await fetchPaymentData();
+      await refreshProfile();
+
+      const isApprovedLocally = localStorage.getItem('ethiolearn_payment_approved') === 'true';
       const currentCached = localStorage.getItem('ethiolearn_user_profile');
       let currentIsPremium = false;
       if (currentCached) {
@@ -156,7 +158,7 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
         } catch (_) {}
       }
 
-      if (existingReceipt?.status === 'approved' || currentIsPremium) {
+      if (existingReceipt?.status === 'approved' || currentIsPremium || isApprovedLocally) {
         setApprovalFeedback({
           type: 'success',
           message: '🎉 Access Approved! Your premium account is active. Redirecting to your dashboard...'
@@ -335,16 +337,18 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
         // Explicitly broadcast to cloud channel so Admin on Web receives screenshot immediately
         const studentPhone = user?.phone_number || (user as any)?.phone || '';
         const studentName = user?.full_name || 'Student';
-        const isAll = (selectedPlan === 'all' || isUpgrading);
+        const isUpgrade = Boolean(isUpgrading && isPaidSingleGrade);
+        const planAmount = isUpgrade ? 100 : (selectedPlan === 'all' ? 300 : 200);
+        const finalAmount = Number(chosenAmount) || planAmount;
         broadcastPaymentReceipt({
           id: `rcpt-${Date.now()}`,
           user_id: user?.id,
           student_phone: studentPhone,
           student_name: studentName,
           student_email: user?.email,
-          amount_birr: Number(chosenAmount) || 200,
-          target_grade_id: user?.grade_id || 'grade-12-natural',
-          upgrade_all_grades: isAll,
+          amount_birr: finalAmount,
+          target_grade_id: (selectedPlan === 'all' || isUpgrade) ? 'all' : (user?.grade_id || 'grade-12-natural'),
+          upgrade_all_grades: isUpgrade,
           receipt_storage_path: receiptDataUrl,
           receipt_filename: selectedFile.name || 'payment_screenshot.jpg',
           status: 'pending',

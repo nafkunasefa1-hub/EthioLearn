@@ -416,6 +416,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
           const isAll = targetReceipt.upgrade_all_grades || targetReceipt.amount_birr === 300 || targetReceipt.amount_birr === 100;
           broadcastStudentApproval({
             phone_number: targetReceipt.student_phone || '',
+            user_id: targetReceipt.user_id,
             tier: isAll ? 'all' : 'single',
             unlocked_grades: isAll ? ['all'] : [targetReceipt.target_grade_id || 'grade-12-natural'],
             is_premium: true,
@@ -849,6 +850,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
         const isAll = tier === 'all';
         await broadcastStudentApproval({
           phone_number: phoneToBroadcast,
+          user_id: targetStudent?.id || studentId,
           tier: tier as any,
           unlocked_grades: isAll ? ['all'] : (tier === 'single' ? [targetStudent?.grade_id || 'grade-12-natural'] : []),
           is_premium: tier !== 'free',
@@ -884,6 +886,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
         const isAll = tier === 'all' || tier === 'upgrade';
         await broadcastStudentApproval({
           phone_number: targetReceipt.student_phone || targetReceipt.user_id || '',
+          user_id: targetReceipt.user_id,
           tier: isAll ? 'all' : 'single',
           unlocked_grades: isAll ? ['all'] : [targetReceipt.target_grade_id || 'grade-12-natural'],
           is_premium: true,
