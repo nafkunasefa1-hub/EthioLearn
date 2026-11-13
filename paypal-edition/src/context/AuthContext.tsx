@@ -149,25 +149,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.addEventListener('auth-change', handleAuthChange);
     window.addEventListener('storage', handleAuthChange);
 
-    // Periodic cloud poll so student's app instantly unlocks when Admin approves payment
+    // Periodic cloud poll so student's app instantly unlocks when Admin modifies tier or approves payment
     const interval = setInterval(async () => {
-      const curPhone = localStorage.getItem('ethiolearn_phone');
-      const isVerified = localStorage.getItem('ethiolearn_phone_session') === 'verified';
-      if (curPhone && isVerified) {
+      const curPhone = localStorage.getItem('ethiolearn_phone') || user?.phone_number;
+      if (curPhone) {
         try {
           const appr = await fetchRemoteApprovalForPhone(curPhone);
-          if (appr && appr.is_premium) {
+          if (appr) {
             const cached = localStorage.getItem('ethiolearn_user_profile');
             let needsUpdate = false;
             if (cached) {
               const u = JSON.parse(cached);
-              if (!u.is_premium || u.payment_tier !== appr.tier) {
-                u.is_premium = true;
-                u.payment_tier = appr.tier;
-                u.unlocked_grades = appr.unlocked_grades || (appr.tier === 'all' ? ['all'] : [u.grade_id || 'grade-12-natural']);
-                u.subscription_type = appr.tier === 'all' ? 'all_grades' : 'grade_only';
+              const targetIsPremium = Boolean(appr.is_premium && appr.tier !== 'free');
+              const targetTier = appr.tier || (targetIsPremium ? 'single' : 'free');
+              
+              if (u.is_premium !== targetIsPremium || u.payment_tier !== targetTier) {
+                u.is_premium = targetIsPremium;
+                u.payment_tier = targetTier;
+                u.unlocked_grades = appr.unlocked_grades || (appr.tier === 'all' ? ['all'] : (targetIsPremium ? [u.grade_id || 'grade-12-natural'] : []));
+                u.paid_amount = appr.tier === 'all' ? 300 : (appr.tier === 'single' ? 200 : 0);
+                u.subscription_type = appr.tier === 'all' ? 'all_grades' : (appr.tier === 'single' ? 'grade_only' : 'free');
                 localStorage.setItem('ethiolearn_user_profile', JSON.stringify(u));
                 localStorage.setItem('ethiolearn_user', JSON.stringify(u));
+                if (targetIsPremium) {
+                  localStorage.setItem('ethiolearn_payment_approved', 'true');
+                } else {
+                  localStorage.removeItem('ethiolearn_payment_approved');
+                }
                 setUser({ ...u });
                 needsUpdate = true;
               }
@@ -178,7 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         } catch (_) {}
       }
-    }, 4000);
+    }, 3500);
 
     return () => {
       window.removeEventListener('auth-change', handleAuthChange);

@@ -534,14 +534,22 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
 
       if (myPhone.length >= 9 && (approvedPhone.includes(myPhone.slice(-9)) || myPhone.includes(approvedPhone.slice(-9)))) {
         const isAll = payload.tier === 'all';
+        const isPremium = payload.is_premium !== false && payload.tier !== 'free';
         const updatedProfile = {
           ...myProfile,
-          is_premium: payload.is_premium !== false,
-          payment_tier: payload.tier || 'single',
-          unlocked_grades: payload.unlocked_grades || (isAll ? ['all'] : [myProfile?.grade_id || 'grade-12-natural'])
+          is_premium: isPremium,
+          payment_tier: payload.tier || (isPremium ? 'single' : 'free'),
+          unlocked_grades: payload.unlocked_grades || (isAll ? ['all'] : (isPremium ? [myProfile?.grade_id || 'grade-12-natural'] : [])),
+          paid_amount: payload.tier === 'all' ? 300 : (payload.tier === 'single' ? 200 : 0),
+          subscription_type: payload.tier === 'all' ? 'all_grades' : (payload.tier === 'single' ? 'grade_only' : 'free')
         };
         localStorage.setItem('ethiolearn_user_profile', JSON.stringify(updatedProfile));
-        localStorage.setItem('ethiolearn_payment_approved', 'true');
+        localStorage.setItem('ethiolearn_user', JSON.stringify(updatedProfile));
+        if (isPremium) {
+          localStorage.setItem('ethiolearn_payment_approved', 'true');
+        } else {
+          localStorage.removeItem('ethiolearn_payment_approved');
+        }
         window.dispatchEvent(new Event('auth-change'));
       }
     } catch (_) {}

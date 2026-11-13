@@ -769,6 +769,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
   const handleStudentTierChange = async (studentId: string, tier: 'free' | 'single' | 'all') => {
     if (!user) return;
     try {
+      const targetStudent = students.find(s => s.id === studentId || s.phone_number === studentId);
+      let targetPhone = targetStudent?.phone_number || (studentId.startsWith('+') || /^\d+$/.test(studentId) ? studentId : '');
+
       // 1. Optimistically update local students list
       setStudents(prev => prev.map(s => {
         if (s.id === studentId || s.phone_number === studentId) {
@@ -786,7 +789,6 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
       // 2. Directly update localStorage so client sync is instant
       try {
         const storedStr = localStorage.getItem('ethiolearn_admin_students');
-        let targetStudentPhone = '';
         if (storedStr) {
           const list = JSON.parse(storedStr);
           const rawTargetDigits = String(studentId || '').replace(/[^\d]/g, '');
@@ -796,7 +798,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
             return rawTargetDigits.length >= 9 && sDigits.includes(rawTargetDigits.slice(-9));
           });
           if (st) {
-            targetStudentPhone = st.phone_number;
+            if (!targetPhone) targetPhone = st.phone_number;
             st.is_premium = tier !== 'free';
             st.payment_tier = tier;
             st.unlocked_grades = tier === 'all' ? ['all'] : (tier === 'single' ? [st.grade_id || 'grade-12-natural'] : []);
@@ -807,8 +809,6 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
         const curId = localStorage.getItem('ethiolearn_user_id');
         const curPhone = localStorage.getItem('ethiolearn_phone');
         const curDigits = String(curPhone || '').replace(/[^\d]/g, '');
-        const targetStudent = students.find(s => s.id === studentId || s.phone_number === studentId);
-        const targetPhone = targetStudentPhone || targetStudent?.phone_number || studentId;
         const targetDigits = String(targetPhone || '').replace(/[^\d]/g, '');
         const isSessionMatch = curId === studentId || curPhone === studentId || curPhone === targetPhone || (curDigits.length >= 9 && targetDigits.length >= 9 && curDigits.slice(-9) === targetDigits.slice(-9));
         if (isSessionMatch) {
@@ -821,33 +821,42 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
             p.paid_amount = tier === 'all' ? 300 : (tier === 'single' ? 200 : 0);
             localStorage.setItem('ethiolearn_user_profile', JSON.stringify(p));
             localStorage.setItem('ethiolearn_user', JSON.stringify(p));
+            if (tier !== 'free') {
+              localStorage.setItem('ethiolearn_payment_approved', 'true');
+            } else {
+              localStorage.removeItem('ethiolearn_payment_approved');
+            }
             window.dispatchEvent(new Event('auth-change'));
           }
         }
       } catch (_) {}
 
       // 3. Send request to backend
-      const res = await fetch(`/api/admin/students/${encodeURIComponent(studentId)}/tier`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.id
-        },
-        body: JSON.stringify({ tier, grade_id: 'grade-12-natural' })
-      });
-      if (res.ok) {
-        if (targetPhone) {
-          const isAll = tier === 'all';
-          broadcastStudentApproval({
-            phone_number: targetPhone,
-            tier: tier as any,
-            unlocked_grades: isAll ? ['all'] : ['grade-12-natural'],
-            is_premium: tier !== 'free',
-            approved_at: new Date().toISOString()
-          }).catch(() => {});
-        }
-        await fetchAdminData();
+      try {
+        await fetch(`/api/admin/students/${encodeURIComponent(studentId)}/tier`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': user.id
+          },
+          body: JSON.stringify({ tier, grade_id: targetStudent?.grade_id || 'grade-12-natural' })
+        });
+      } catch (_) {}
+
+      // 4. Broadcast to cloud sync bus and persistent cloud master state
+      const phoneToBroadcast = targetPhone || studentId;
+      if (phoneToBroadcast) {
+        const isAll = tier === 'all';
+        await broadcastStudentApproval({
+          phone_number: phoneToBroadcast,
+          tier: tier as any,
+          unlocked_grades: isAll ? ['all'] : (tier === 'single' ? [targetStudent?.grade_id || 'grade-12-natural'] : []),
+          is_premium: tier !== 'free',
+          approved_at: new Date().toISOString()
+        }).catch(() => {});
       }
+
+      await fetchAdminData();
     } catch (err) {
       console.error(err);
     }
@@ -860,27 +869,29 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
         ? `/api/admin/payments/${receiptId}/approve`
         : `/api/admin/payments/${receiptId}/approve-tier`;
       
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user?.id || 'usr-admin-1'
-        },
-        body: JSON.stringify({ tier })
-      });
-      if (res.ok) {
-        if (targetReceipt && (targetReceipt.student_phone || targetReceipt.user_id)) {
-          const isAll = tier === 'all' || tier === 'upgrade';
-          broadcastStudentApproval({
-            phone_number: targetReceipt.student_phone || '',
-            tier: isAll ? 'all' : 'single',
-            unlocked_grades: isAll ? ['all'] : [targetReceipt.target_grade_id || 'grade-12-natural'],
-            is_premium: true,
-            approved_at: new Date().toISOString()
-          }).catch(() => {});
-        }
-        fetchAdminData();
+      try {
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-user-id': user?.id || 'usr-admin-1'
+          },
+          body: JSON.stringify({ tier })
+        });
+      } catch (_) {}
+
+      if (targetReceipt && (targetReceipt.student_phone || targetReceipt.user_id)) {
+        const isAll = tier === 'all' || tier === 'upgrade';
+        await broadcastStudentApproval({
+          phone_number: targetReceipt.student_phone || targetReceipt.user_id || '',
+          tier: isAll ? 'all' : 'single',
+          unlocked_grades: isAll ? ['all'] : [targetReceipt.target_grade_id || 'grade-12-natural'],
+          is_premium: true,
+          approved_at: new Date().toISOString()
+        }).catch(() => {});
       }
+      setViewingReceipt(null);
+      await fetchAdminData();
     } catch (err) {
       console.error(err);
     }
@@ -1419,12 +1430,18 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                       </td>
                       <td className="p-4">
                         <div className="font-bold text-white">
-                          {rcpt.upgrade_all_grades || rcpt.amount_birr === 300 
-                            ? (rcpt.amount_birr === 100 ? 'All Grades Upgrade' : 'All Grades Access')
-                            : (rcpt.target_grade_id || 'Single Grade')}
+                          {rcpt.amount_birr === 300
+                            ? 'All Grades Access'
+                            : rcpt.amount_birr === 100 || (rcpt.upgrade_all_grades && rcpt.amount_birr !== 200)
+                            ? 'All Grades Upgrade'
+                            : (rcpt.target_grade_id || 'Single Grade Access')}
                         </div>
                         <div className="text-[10px] font-bold text-emerald-400">
-                          {rcpt.amount_birr ? `${rcpt.amount_birr} ETB` : '200 ETB'}
+                          {rcpt.amount_birr === 300
+                            ? '300 ETB'
+                            : rcpt.amount_birr === 100
+                            ? '100 ETB'
+                            : `${rcpt.amount_birr || 200} ETB`}
                         </div>
                       </td>
                       <td className="p-4">
@@ -1454,16 +1471,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                       <td className="p-4 text-right">
                         {rcpt.status === 'pending' ? (
                           <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-2">
-                            {rcpt.amount_birr === 100 || rcpt.upgrade_all_grades ? (
-                              <button
-                                onClick={() => handleApproveTier(rcpt.id, 'upgrade')}
-                                className="px-3 py-1.5 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
-                                title="Approve 100 Birr All Grades Upgrade"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Approve 100 Birr (Upgrade)</span>
-                              </button>
-                            ) : rcpt.amount_birr === 300 ? (
+                            {rcpt.amount_birr === 300 ? (
                               <button
                                 onClick={() => handleApproveTier(rcpt.id, 'all')}
                                 className="px-3 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
@@ -1471,6 +1479,15 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
                                 <span>Approve 300 Birr (All Grades)</span>
+                              </button>
+                            ) : rcpt.amount_birr === 100 || (rcpt.upgrade_all_grades && rcpt.amount_birr !== 200) ? (
+                              <button
+                                onClick={() => handleApproveTier(rcpt.id, 'upgrade')}
+                                className="px-3 py-1.5 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+                                title="Approve 100 Birr All Grades Upgrade"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approve 100 Birr (Upgrade)</span>
                               </button>
                             ) : (
                               <button
@@ -1885,9 +1902,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                         {st.grade || 'Grade 12'}
                       </td>
                       <td className="p-4">
-                        {st.is_premium ? (
+                        {st.is_premium && st.payment_tier !== 'free' ? (
                           <div>
-                            {st.unlocked_grades?.includes('all') || !st.unlocked_grades || st.unlocked_grades.length > 1 ? (
+                            {st.payment_tier === 'all' || st.unlocked_grades?.includes('all') ? (
                               <span className="px-2 py-0.5 rounded bg-teal-500/20 text-teal-300 border border-teal-500/40 text-[10px] font-bold block w-fit">
                                 All Grades (300 ETB)
                               </span>
@@ -1917,7 +1934,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                       </td>
                       <td className="p-4 text-right flex items-center justify-end gap-1.5">
                         <select
-                          value={st.is_premium ? (st.unlocked_grades?.includes('all') ? 'all' : 'single') : 'free'}
+                          value={st.is_premium && st.payment_tier !== 'free' ? (st.payment_tier === 'all' || st.unlocked_grades?.includes('all') ? 'all' : 'single') : 'free'}
                           onChange={(e) => handleStudentTierChange(st.id, e.target.value as any)}
                           className="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-emerald-500"
                         >
@@ -3293,21 +3310,21 @@ If Δ < 0: no real roots.`}
                   >
                     Reject
                   </button>
-                  {viewingReceipt.amount_birr === 100 || viewingReceipt.upgrade_all_grades ? (
-                    <button
-                      onClick={() => handleApproveTier(viewingReceipt.id, 'upgrade')}
-                      className="px-4 py-2 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Approve 100 Birr (Upgrade)</span>
-                    </button>
-                  ) : viewingReceipt.amount_birr === 300 ? (
+                  {viewingReceipt.amount_birr === 300 ? (
                     <button
                       onClick={() => handleApproveTier(viewingReceipt.id, 'all')}
                       className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Approve 300 Birr (All Grades)</span>
+                    </button>
+                  ) : viewingReceipt.amount_birr === 100 || (viewingReceipt.upgrade_all_grades && viewingReceipt.amount_birr !== 200) ? (
+                    <button
+                      onClick={() => handleApproveTier(viewingReceipt.id, 'upgrade')}
+                      className="px-4 py-2 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Approve 100 Birr (Upgrade)</span>
                     </button>
                   ) : (
                     <button

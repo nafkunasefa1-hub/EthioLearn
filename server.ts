@@ -3377,6 +3377,39 @@ app.get('/api/admin/students', (req: Request, res: Response) => {
   const profiles = db.getProfiles(); res.json(profiles.filter(p => p.role === 'student' || p.phone_number === '+251975949200' || p.id.includes('nafkun')));
 });
 
+app.post('/api/admin/students/:id/tier', (req: Request, res: Response) => {
+  const user = getRequestUser(req);
+  if (user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  const student = db.getProfileById(req.params.id) || db.getProfiles().find(p => p.phone_number === req.params.id || p.id === req.params.id);
+  if (!student) return res.status(404).json({ error: 'Student not found' });
+  
+  const { tier, grade_id } = req.body; // 'free' | 'single' | 'all'
+  const isPremium = tier !== 'free';
+  const unlockedGrades = tier === 'all' ? ['all'] : (tier === 'single' ? [grade_id || student.grade_id || 'grade-12-natural'] : []);
+  const paidAmount = tier === 'all' ? 300 : (tier === 'single' ? 200 : 0);
+
+  const updated = db.updateProfile(student.id, {
+    is_premium: isPremium,
+    payment_tier: tier,
+    unlocked_grades: unlockedGrades,
+    paid_amount: paidAmount,
+    subscription_type: tier === 'all' ? 'all_grades' : (tier === 'single' ? 'grade_only' : 'free')
+  });
+
+  db.addAuditLog({
+    id: `audit-${Date.now()}`,
+    admin_id: user.id,
+    admin_email: user.email || 'admin@ethiolearn.edu.et',
+    action: `Student tier updated to ${tier} (${paidAmount} ETB)`,
+    target_type: 'profiles',
+    target_id: student.id,
+    metadata: { phone: student.phone_number, name: student.full_name, tier, paid_amount: paidAmount },
+    created_at: new Date().toISOString()
+  });
+
+  res.json({ success: true, student: updated });
+});
+
 app.post('/api/admin/students/:id/toggle-access', (req: Request, res: Response) => {
   const user = getRequestUser(req);
   if (user.role !== 'admin') return res.status(403).json({ error: 'Admin access required' });

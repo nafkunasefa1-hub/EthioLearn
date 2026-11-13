@@ -85,6 +85,8 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const [isUpgrading, setIsUpgrading] = useState(false);
+  const [checkingApproval, setCheckingApproval] = useState(false);
+  const [approvalFeedback, setApprovalFeedback] = useState<{ type: 'success' | 'pending' | 'error'; message: string } | null>(null);
 
   const fetchPaymentData = async () => {
     try {
@@ -98,6 +100,83 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
       if (rcptRes.ok) setExistingReceipt(await rcptRes.json());
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleCheckApprovalStatus = async () => {
+    setCheckingApproval(true);
+    setApprovalFeedback(null);
+    try {
+      const phone = user?.phone_number || (user as any)?.phone || localStorage.getItem('ethiolearn_phone') || '';
+      let remoteAppr = null;
+      if (phone) {
+        try {
+          remoteAppr = await fetchRemoteApprovalForPhone(phone);
+        } catch (_) {}
+      }
+
+      await fetchPaymentData();
+      await refreshProfile();
+
+      if (remoteAppr && (remoteAppr.is_premium || remoteAppr.tier !== 'free')) {
+        const cached = localStorage.getItem('ethiolearn_user_profile');
+        if (cached) {
+          try {
+            const u = JSON.parse(cached);
+            u.is_premium = true;
+            u.payment_tier = remoteAppr.tier;
+            u.unlocked_grades = remoteAppr.unlocked_grades || (remoteAppr.tier === 'all' ? ['all'] : [u.grade_id || 'grade-12-natural']);
+            u.paid_amount = remoteAppr.tier === 'all' ? 300 : (remoteAppr.tier === 'single' ? 200 : 0);
+            u.subscription_type = remoteAppr.tier === 'all' ? 'all_grades' : 'grade_only';
+            localStorage.setItem('ethiolearn_user_profile', JSON.stringify(u));
+            localStorage.setItem('ethiolearn_user', JSON.stringify(u));
+          } catch (_) {}
+        }
+        localStorage.setItem('ethiolearn_payment_approved', 'true');
+        setExistingReceipt(prev => prev ? { ...prev, status: 'approved' } : null);
+        window.dispatchEvent(new Event('auth-change'));
+
+        const planName = remoteAppr.tier === 'all' ? 'All Grades (300 ETB)' : 'Single Grade (200 ETB)';
+        setApprovalFeedback({
+          type: 'success',
+          message: `🎉 Access Approved! Your account is unlocked for ${planName}. Redirecting to your dashboard...`
+        });
+        setTimeout(() => {
+          onNavigate('dashboard');
+        }, 1500);
+        return;
+      }
+
+      const currentCached = localStorage.getItem('ethiolearn_user_profile');
+      let currentIsPremium = false;
+      if (currentCached) {
+        try {
+          const u = JSON.parse(currentCached);
+          if (u.is_premium && u.payment_tier !== 'free') currentIsPremium = true;
+        } catch (_) {}
+      }
+
+      if (existingReceipt?.status === 'approved' || currentIsPremium) {
+        setApprovalFeedback({
+          type: 'success',
+          message: '🎉 Access Approved! Your premium account is active. Redirecting to your dashboard...'
+        });
+        setTimeout(() => {
+          onNavigate('dashboard');
+        }, 1500);
+      } else {
+        setApprovalFeedback({
+          type: 'pending',
+          message: '⏳ It is not yet approved. The administrator is verifying your payment slip. Please allow a few minutes or click Speed up on Telegram.'
+        });
+      }
+    } catch (err) {
+      setApprovalFeedback({
+        type: 'pending',
+        message: '⏳ Verification still in progress. The administrator has not approved your payment slip yet.'
+      });
+    } finally {
+      setCheckingApproval(false);
     }
   };
 
@@ -424,16 +503,27 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
           <p className="text-slate-300 text-xs max-w-md mx-auto leading-relaxed">
             The administrator will verify your payment slip and click approve. Once approved, your chosen grade content will unlock immediately.
           </p>
+
+          {approvalFeedback && (
+            <div className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 max-w-md mx-auto ${
+              approvalFeedback.type === 'success' 
+                ? 'bg-emerald-950/90 border border-emerald-500/80 text-emerald-300'
+                : approvalFeedback.type === 'error'
+                ? 'bg-red-950/90 border border-red-500/80 text-red-300'
+                : 'bg-amber-950/90 border border-amber-500/80 text-amber-300 animate-pulse'
+            }`}>
+              <span>{approvalFeedback.message}</span>
+            </div>
+          )}
+
           <div className="pt-2 flex flex-wrap justify-center gap-3">
             <button
-              onClick={async () => {
-                await fetchPaymentData();
-                await refreshProfile();
-              }}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-950/40"
+              onClick={handleCheckApprovalStatus}
+              disabled={checkingApproval}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-emerald-950/40"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>Check Approval Status</span>
+              <RefreshCw className={`w-3.5 h-3.5 ${checkingApproval ? 'animate-spin' : ''}`} />
+              <span>{checkingApproval ? 'Checking Approval...' : 'Check Approval Status'}</span>
             </button>
             <a
               href="https://t.me/wiznfk4"

@@ -2164,7 +2164,15 @@ class Database {
     rcpt.reviewed_at = new Date().toISOString();
     rcpt.reviewed_by = adminEmail;
 
-    const user = this.getProfileById(rcpt.user_id);
+    let user = this.getProfileById(rcpt.user_id);
+    if (!user && rcpt.student_phone) {
+      const cleanSlipPhone = rcpt.student_phone.replace(/[^\d]/g, '');
+      user = this.getProfiles().find(p => {
+        if (!p.phone_number) return false;
+        const pClean = p.phone_number.replace(/[^\d]/g, '');
+        return cleanSlipPhone.length >= 9 && pClean.length >= 9 && (cleanSlipPhone.slice(-9) === pClean.slice(-9));
+      });
+    }
     if (user) {
       const unlocked = new Set(user.unlocked_grades || []);
       const isAllAccess = Boolean(rcpt.upgrade_all_grades || rcpt.amount_birr === 300 || rcpt.amount_birr === 100);
