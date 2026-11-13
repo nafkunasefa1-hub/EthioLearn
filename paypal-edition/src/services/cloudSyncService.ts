@@ -137,10 +137,27 @@ async function postToRealtimeBus(eventPayload: Record<string, any>): Promise<boo
   }
 }
 
+function toBase64Utf8(str: string): string {
+  try {
+    if (typeof Buffer !== 'undefined') {
+      return Buffer.from(str, 'utf8').toString('base64');
+    }
+    const bytes = new TextEncoder().encode(str);
+    let binary = '';
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  } catch (_) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+}
+
 /**
  * Fetches the master state object from cloud storage (hosted on Hugging Face CDN)
  */
-async function getCloudMasterState(): Promise<Record<string, any>> {
+export async function getCloudMasterState(): Promise<Record<string, any>> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 3500);
@@ -160,15 +177,13 @@ async function getCloudMasterState(): Promise<Record<string, any>> {
 /**
  * Updates the master state object in cloud storage via Hugging Face Hub commit API
  */
-async function updateCloudMasterState(dataUpdate: Record<string, any>): Promise<boolean> {
+export async function updateCloudMasterState(dataUpdate: Record<string, any>): Promise<boolean> {
   try {
     const jsonStr = JSON.stringify(dataUpdate);
-    const b64 = typeof btoa !== 'undefined'
-      ? btoa(unescape(encodeURIComponent(jsonStr)))
-      : Buffer.from(jsonStr).toString('base64');
+    const b64 = toBase64Utf8(jsonStr);
 
     const ndjson = JSON.stringify({ key: 'header', value: { summary: 'Sync update ' + Date.now() } }) + '\n' +
-                   JSON.stringify({ key: 'file', value: { content: b64, path: 'sync_state.json', encoding: 'base64' } });
+                   JSON.stringify({ key: 'file', value: { path: 'sync_state.json', content: b64, encoding: 'base64' } });
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6000);
@@ -595,9 +610,67 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
     } catch (_) {}
   }
 
-  // 3. Admin approval broadcast -> Instantly unlocks student phone
+  // 3. Admin approval broadcast -> Instantly unlocks student phone & synchronizes admin consoles
   if (eventType === 'student_approval' && (payload.phone_number || payload.user_id)) {
     try {
+      const approvedPhone = String(payload.phone_number || '').replace(/[^\d]/g, '');
+      const targetId = String(payload.user_id || payload.student_id || '');
+      const isAll = payload.tier === 'all';
+      const isPremium = payload.is_premium !== false && payload.tier !== 'free';
+
+      // A. ALWAYS update local ethiolearn_admin_students on any device/browser
+      try {
+        const adminStr = localStorage.getItem('ethiolearn_admin_students');
+        if (adminStr) {
+          const list = JSON.parse(adminStr);
+          if (Array.isArray(list)) {
+            let adminMod = false;
+            list.forEach((s: any) => {
+              const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
+              if ((targetId && s.id === targetId) || (sClean.length >= 9 && approvedPhone.length >= 9 && sClean.slice(-9) === approvedPhone.slice(-9))) {
+                s.is_premium = isPremium;
+                s.payment_tier = payload.tier || (isPremium ? 'single' : 'free');
+                s.unlocked_grades = payload.unlocked_grades || (isAll ? ['all'] : (isPremium ? [s.grade_id || 'grade-12-natural'] : []));
+                s.paid_amount = payload.tier === 'all' ? 300 : (payload.tier === 'single' ? 200 : 0);
+                s.updated_at = new Date().toISOString();
+                adminMod = true;
+              }
+            });
+            if (adminMod) {
+              localStorage.setItem('ethiolearn_admin_students', JSON.stringify(list));
+            }
+          }
+        }
+      } catch (_) {}
+
+      // B. ALWAYS update local ethiolearn_admin_payments on any device/browser
+      try {
+        const paymentsStr = localStorage.getItem('ethiolearn_admin_payments');
+        if (paymentsStr) {
+          const pList = JSON.parse(paymentsStr);
+          if (Array.isArray(pList)) {
+            let payMod = false;
+            pList.forEach((p: any) => {
+              const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
+              if ((targetId && p.user_id === targetId) || (pClean.length >= 9 && approvedPhone.length >= 9 && pClean.slice(-9) === approvedPhone.slice(-9))) {
+                p.status = isPremium ? 'approved' : 'pending';
+                p.reviewed_at = payload.approved_at || new Date().toISOString();
+                p.reviewed_by = 'admin@ethiolearn.edu.et';
+                payMod = true;
+              }
+            });
+            if (payMod) {
+              localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(pList));
+            }
+          }
+        }
+      } catch (_) {}
+
+      // Dispatch events so any open Admin Console immediately updates counts
+      window.dispatchEvent(new CustomEvent('cloud-student-received', { detail: payload }));
+      window.dispatchEvent(new CustomEvent('cloud-payment-received', { detail: payload }));
+
+      // C. If active user matches the approved student, unlock their profile immediately
       let myProfile: any = null;
       try {
         const pStr = localStorage.getItem('ethiolearn_user_profile');
@@ -605,16 +678,12 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
       } catch (_) {}
 
       const myPhone = String(myProfile?.phone_number || myProfile?.phone || localStorage.getItem('ethiolearn_phone') || '').replace(/[^\d]/g, '');
-      const approvedPhone = String(payload.phone_number || '').replace(/[^\d]/g, '');
       const myId = String(myProfile?.id || localStorage.getItem('ethiolearn_user_id') || '');
-      const targetId = String(payload.user_id || payload.student_id || '');
 
       const phoneMatch = myPhone.length >= 9 && approvedPhone.length >= 9 && (approvedPhone.includes(myPhone.slice(-9)) || myPhone.includes(approvedPhone.slice(-9)));
       const idMatch = Boolean(myId && targetId && myId === targetId);
 
       if (phoneMatch || idMatch) {
-        const isAll = payload.tier === 'all';
-        const isPremium = payload.is_premium !== false && payload.tier !== 'free';
         const updatedProfile = {
           ...myProfile,
           is_premium: isPremium,
@@ -628,43 +697,6 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
         if (isPremium) {
           localStorage.setItem('ethiolearn_payment_approved', 'true');
           localStorage.setItem('ethiolearn_payment_tier', updatedProfile.payment_tier);
-
-          // Update local ethiolearn_admin_students on device so it never reverts
-          try {
-            const adminStr = localStorage.getItem('ethiolearn_admin_students');
-            if (adminStr) {
-              const list = JSON.parse(adminStr);
-              if (Array.isArray(list)) {
-                list.forEach((s: any) => {
-                  const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
-                  if (s.id === myId || (sClean.length >= 9 && approvedPhone.length >= 9 && sClean.slice(-9) === approvedPhone.slice(-9))) {
-                    s.is_premium = true;
-                    s.payment_tier = updatedProfile.payment_tier;
-                    s.unlocked_grades = updatedProfile.unlocked_grades;
-                    s.paid_amount = updatedProfile.paid_amount;
-                  }
-                });
-                localStorage.setItem('ethiolearn_admin_students', JSON.stringify(list));
-              }
-            }
-          } catch (_) {}
-
-          // Update local ethiolearn_admin_payments on device
-          try {
-            const paymentsStr = localStorage.getItem('ethiolearn_admin_payments');
-            if (paymentsStr) {
-              const pList = JSON.parse(paymentsStr);
-              if (Array.isArray(pList)) {
-                pList.forEach((p: any) => {
-                  const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
-                  if ((pClean.length >= 9 && approvedPhone.length >= 9 && pClean.slice(-9) === approvedPhone.slice(-9)) || (p.user_id && p.user_id === myId)) {
-                    p.status = 'approved';
-                  }
-                });
-                localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(pList));
-              }
-            }
-          } catch (_) {}
 
           // Update local ethiolearn_my_receipt
           try {

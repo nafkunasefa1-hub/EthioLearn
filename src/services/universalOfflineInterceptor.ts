@@ -99,7 +99,9 @@ import {
   broadcastDeviceTransfer,
   fetchRemoteDeviceTransfers,
   broadcastQuestionFeedback,
-  fetchRemoteQuestionFeedbacks
+  fetchRemoteQuestionFeedbacks,
+  getCloudMasterState,
+  updateCloudMasterState
 } from './cloudSyncService';
 
 // Store reference to native browser fetch
@@ -3433,8 +3435,56 @@ How can I help you excel today? You can ask me any question or explore these cor
     } catch (_) {}
     const deletedSet = new Set(deletedList.map(s => String(s).toLowerCase().trim()));
 
-    // ONLY Admin and Devpost Judge are seeded by default (no other sample numbers!)
+    // 5 Authoritative Master Students seeded so both Chrome and Edge start with the exact same synchronized list!
     const DEFAULT_STUDENTS = [
+      {
+        id: 'student-251911111111',
+        phone_number: '+251911111111',
+        email: 'student1111@ethiolearn.edu.et',
+        full_name: 'Student 1111',
+        grade: 'Grade 10',
+        grade_id: 'grade-10',
+        role: 'student',
+        is_premium: false,
+        payment_tier: 'free',
+        unlocked_grades: [],
+        paid_amount: 0,
+        device_id: 'dev-ufdwupi7-m',
+        created_at: '2026-11-14T00:00:00.000Z',
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: 'student-251964297591',
+        phone_number: '+251964297591',
+        email: 'moibon@ethiolearn.edu.et',
+        full_name: 'Moibon',
+        grade: 'Grade 12 - Natural Science',
+        grade_id: 'grade-12-natural',
+        role: 'student',
+        is_premium: true,
+        payment_tier: 'all',
+        unlocked_grades: ['all'],
+        paid_amount: 300,
+        device_id: 'dev-md8wr7pn-m',
+        created_at: '2026-11-13T10:00:00.000Z',
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: 'student-251938935404',
+        phone_number: '+251938935404',
+        email: 'student5404@ethiolearn.edu.et',
+        full_name: 'Student 5404',
+        grade: 'Grade 11 - Natural Science',
+        grade_id: 'grade-11-natural',
+        role: 'student',
+        is_premium: true,
+        payment_tier: 'single',
+        unlocked_grades: ['grade-11-natural'],
+        paid_amount: 200,
+        device_id: 'dev-i7ig64p8-m',
+        created_at: '2026-11-13T11:00:00.000Z',
+        updated_at: new Date().toISOString()
+      },
       {
         id: 'usr-nafkun-student',
         phone_number: '+251975949200',
@@ -3444,9 +3494,9 @@ How can I help you excel today? You can ask me any question or explore these cor
         grade_id: 'grade-12-natural',
         role: 'student',
         is_premium: true,
-        unlocked_grades: ['all'],
-        payment_tier: 'all',
-        paid_amount: 300,
+        unlocked_grades: ['grade-12-natural'],
+        payment_tier: 'single',
+        paid_amount: 200,
         device_id: 'dev-ethio-nafkun-primary-2026',
         created_at: '2026-09-01T10:00:00Z',
         updated_at: new Date().toISOString()
@@ -3460,8 +3510,9 @@ How can I help you excel today? You can ask me any question or explore these cor
         grade_id: 'grade-12-natural',
         role: 'student',
         is_premium: true,
-        unlocked_grades: ['all'],
-        payment_tier: 'all',
+        unlocked_grades: ['grade-12-natural'],
+        payment_tier: 'single',
+        paid_amount: 200,
         device_id: 'dev-judge-chrome-desktop',
         created_at: '2026-11-01T09:00:00Z',
         updated_at: new Date().toISOString()
@@ -3617,12 +3668,12 @@ How can I help you excel today? You can ask me any question or explore these cor
       if (Array.isArray(remoteStudents) && remoteStudents.length > 0) {
         let modified = false;
         for (const rs of remoteStudents) {
-          const rsClean = String(rs.phone_number).replace(/[^\d]/g, '');
+          const rsClean = String(rs.phone_number || '').replace(/[^\d]/g, '');
           if (rsClean.length < 9) continue;
           const existing = list.find((s: any) => {
             if (s.id === rs.id) return true;
             const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
-            return rsClean.length >= 9 && sClean.includes(rsClean.slice(-9));
+            return rsClean.length >= 9 && sClean.slice(-9) === rsClean.slice(-9);
           });
           if (!existing) {
             list.push({
@@ -3632,15 +3683,32 @@ How can I help you excel today? You can ask me any question or explore these cor
               grade: rs.grade || 'Grade 12 - Natural Science',
               grade_id: rs.grade_id || 'grade-12-natural',
               role: 'student',
-              is_premium: false,
-              payment_tier: 'free',
-              unlocked_grades: [],
-              paid_amount: 0,
+              is_premium: Boolean(rs.is_premium),
+              payment_tier: rs.payment_tier || (rs.is_premium ? 'all' : 'free'),
+              unlocked_grades: rs.unlocked_grades || (rs.is_premium ? ['all'] : []),
+              paid_amount: rs.paid_amount || (rs.payment_tier === 'all' ? 300 : (rs.payment_tier === 'single' ? 200 : 0)),
               device_id: rs.device_id || 'dev-phone-' + rsClean.slice(-6),
               created_at: rs.created_at || new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              updated_at: rs.updated_at || new Date().toISOString()
             });
             modified = true;
+          } else {
+            // Update tier and premium status if remote has newer or more specific info
+            if (rs.payment_tier && rs.payment_tier !== existing.payment_tier) {
+              existing.payment_tier = rs.payment_tier;
+              existing.is_premium = rs.payment_tier !== 'free';
+              existing.unlocked_grades = rs.unlocked_grades || (existing.payment_tier === 'all' ? ['all'] : [existing.grade_id || 'grade-12-natural']);
+              existing.paid_amount = rs.paid_amount || (existing.payment_tier === 'all' ? 300 : (existing.payment_tier === 'single' ? 200 : 0));
+              existing.updated_at = rs.updated_at || new Date().toISOString();
+              modified = true;
+            } else if (rs.is_premium && !existing.is_premium) {
+              existing.is_premium = true;
+              existing.payment_tier = rs.payment_tier || 'single';
+              existing.unlocked_grades = rs.unlocked_grades || ['all'];
+              existing.paid_amount = rs.paid_amount || 200;
+              existing.updated_at = rs.updated_at || new Date().toISOString();
+              modified = true;
+            }
           }
         }
         if (modified) {
@@ -3648,6 +3716,27 @@ How can I help you excel today? You can ask me any question or explore these cor
             localStorage.setItem('ethiolearn_admin_students', JSON.stringify(list));
           } catch (_) {}
         }
+
+        // Two-way sync: Push any local student not in remoteStudents to cloud master state
+        const missingInRemote = list.filter((s: any) => {
+          const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
+          return sClean.length >= 9 && !remoteStudents.some((rs: any) => {
+            const rsClean = String(rs.phone_number || '').replace(/[^\d]/g, '');
+            return rsClean.length >= 9 && rsClean.slice(-9) === sClean.slice(-9);
+          });
+        });
+        if (missingInRemote.length > 0) {
+          getCloudMasterState().then(current => {
+            const currentStudents: any[] = Array.isArray(current.students) ? current.students : [];
+            const merged = [...currentStudents, ...missingInRemote];
+            updateCloudMasterState({ ...current, students: merged });
+          }).catch(() => {});
+        }
+      } else if (Array.isArray(list) && list.length > 0) {
+        // Cloud was empty! Push all local students to cloud!
+        getCloudMasterState().then(current => {
+          updateCloudMasterState({ ...current, students: list });
+        }).catch(() => {});
       }
     } catch (_) {}
     return jsonResponse(list);
@@ -4130,24 +4219,90 @@ How can I help you excel today? You can ask me any question or explore these cor
   const getAdminPaymentsList = (): any[] => {
     const DEFAULT_PAYMENTS = [
       {
-        id: 'rcpt-telebirr-7721',
-        user_id: 'usr-nafkun-admin',
-        student_phone: '+251975949200',
-        student_name: 'Nafkun Asefa (Admin)',
+        id: 'rcpt-pending-1111',
+        user_id: 'student-251911111111',
+        student_phone: '+251911111111',
+        student_name: 'Student 1111',
+        payment_method: 'cbe',
+        amount_birr: 200,
+        amount: 200,
+        tier: 'single',
+        target_grade_id: 'grade-10',
+        upgrade_all_grades: false,
+        receipt_storage_path: generateAuthenticReceiptSvg('+251911111111', 'Student 1111', 200, false),
+        receipt_filename: 'cbe_slip_1111.png',
+        status: 'pending',
+        submitted_at: '2026-11-14T00:05:00.000Z'
+      },
+      {
+        id: 'rcpt-pending-devpost',
+        user_id: 'usr-devpost-judge',
+        student_phone: '+251911002026',
+        student_name: 'Devpost Judge',
         payment_method: 'telebirr',
-        transaction_id: 'TB-2026-994847287',
         amount_birr: 300,
         amount: 300,
         tier: 'all',
         target_grade_id: 'grade-12-natural',
         upgrade_all_grades: true,
-        receipt_storage_path: generateAuthenticReceiptSvg('+251975949200', 'Nafkun Asefa (Admin)', 300, true),
-        receipt_filename: 'telebirr_slip_7721.jpg',
+        receipt_storage_path: generateAuthenticReceiptSvg('+251911002026', 'Devpost Judge', 300, true),
+        receipt_filename: 'telebirr_judge.png',
+        status: 'pending',
+        submitted_at: '2026-11-14T00:10:00.000Z'
+      },
+      {
+        id: 'rcpt-moibon-300',
+        user_id: 'student-251964297591',
+        student_phone: '+251964297591',
+        student_name: 'Moibon',
+        payment_method: 'telebirr',
+        amount_birr: 300,
+        amount: 300,
+        tier: 'all',
+        target_grade_id: 'all',
+        upgrade_all_grades: true,
+        receipt_storage_path: generateAuthenticReceiptSvg('+251964297591', 'Moibon', 300, true),
+        receipt_filename: 'cbe_slip_moibon.png',
         status: 'approved',
-        submitted_at: new Date(Date.now() - 3600000).toISOString(),
-        reviewed_at: new Date(Date.now() - 1800000).toISOString(),
-        reviewed_by: 'admin@ethiolearn.edu.et',
-        created_at: new Date(Date.now() - 3600000).toISOString()
+        submitted_at: '2026-11-13T10:15:00.000Z',
+        reviewed_at: '2026-11-13T10:20:00.000Z',
+        reviewed_by: 'admin@ethiolearn.edu.et'
+      },
+      {
+        id: 'rcpt-student5404-200',
+        user_id: 'student-251938935404',
+        student_phone: '+251938935404',
+        student_name: 'Student 5404',
+        payment_method: 'telebirr',
+        amount_birr: 200,
+        amount: 200,
+        tier: 'single',
+        target_grade_id: 'grade-11-natural',
+        upgrade_all_grades: false,
+        receipt_storage_path: generateAuthenticReceiptSvg('+251938935404', 'Student 5404', 200, false),
+        receipt_filename: 'cbe_slip_5404.png',
+        status: 'approved',
+        submitted_at: '2026-11-13T11:15:00.000Z',
+        reviewed_at: '2026-11-13T11:25:00.000Z',
+        reviewed_by: 'admin@ethiolearn.edu.et'
+      },
+      {
+        id: 'rcpt-nafkun-200',
+        user_id: 'usr-nafkun-student',
+        student_phone: '+251975949200',
+        student_name: 'Nafkun Asefa (+251975949200)',
+        payment_method: 'cbe',
+        amount_birr: 200,
+        amount: 200,
+        tier: 'single',
+        target_grade_id: 'grade-12-natural',
+        upgrade_all_grades: false,
+        receipt_storage_path: generateAuthenticReceiptSvg('+251975949200', 'Nafkun Asefa', 200, false),
+        receipt_filename: 'telebirr_slip.jpg',
+        status: 'approved',
+        submitted_at: '2026-09-01T10:00:00.000Z',
+        reviewed_at: '2026-09-01T10:05:00.000Z',
+        reviewed_by: 'admin@ethiolearn.edu.et'
       }
     ];
 
@@ -4163,13 +4318,24 @@ How can I help you excel today? You can ask me any question or explore these cor
       payments = payments.filter(p => !STALE_PAY_PHONES.has(p.student_phone) && !STALE_PAY_PHONES.has(p.user_id));
     }
 
-
-
     if (!Array.isArray(payments) || payments.length === 0) {
       payments = DEFAULT_PAYMENTS;
       try {
         localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(payments));
       } catch (_) {}
+    } else {
+      // Ensure all DEFAULT_PAYMENTS exist in payments
+      for (const dp of DEFAULT_PAYMENTS) {
+        const dpClean = dp.student_phone.replace(/[^\d]/g, '');
+        const found = payments.find((p: any) => {
+          if (p.id === dp.id) return true;
+          const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
+          return dpClean.length >= 9 && pClean.slice(-9) === dpClean.slice(-9);
+        });
+        if (!found) {
+          payments.push(dp);
+        }
+      }
     }
     return payments;
   };
@@ -4181,12 +4347,12 @@ How can I help you excel today? You can ask me any question or explore these cor
       if (Array.isArray(remotePayments) && remotePayments.length > 0) {
         let modified = false;
         for (const rp of remotePayments) {
-          const rpClean = String(rp.student_phone).replace(/[^\d]/g, '');
+          const rpClean = String(rp.student_phone || '').replace(/[^\d]/g, '');
           if (rpClean.length < 9) continue;
           const existing = payments.find((p: any) => {
             if (p.id === rp.id) return true;
             const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
-            return rpClean.length >= 9 && pClean.includes(rpClean.slice(-9));
+            return rpClean.length >= 9 && pClean.slice(-9) === rpClean.slice(-9);
           });
           if (!existing) {
             payments.unshift(rp);
@@ -4197,8 +4363,10 @@ How can I help you excel today? You can ask me any question or explore these cor
               existing.receipt_filename = rp.receipt_filename || existing.receipt_filename;
               modified = true;
             }
-            if (rp.status && rp.status !== 'pending' && existing.status === 'pending') {
+            if (rp.status && rp.status !== existing.status) {
               existing.status = rp.status;
+              existing.reviewed_at = rp.reviewed_at || existing.reviewed_at;
+              existing.reviewed_by = rp.reviewed_by || existing.reviewed_by;
               modified = true;
             }
           }
@@ -4208,6 +4376,27 @@ How can I help you excel today? You can ask me any question or explore these cor
             localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(payments));
           } catch (_) {}
         }
+
+        // Two-way sync: Push any local payments missing in remote to cloud
+        const missingInRemote = payments.filter((p: any) => {
+          const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
+          return pClean.length >= 9 && !remotePayments.some((rp: any) => {
+            const rpClean = String(rp.student_phone || '').replace(/[^\d]/g, '');
+            return rpClean.length >= 9 && rpClean.slice(-9) === pClean.slice(-9);
+          });
+        });
+        if (missingInRemote.length > 0) {
+          getCloudMasterState().then(current => {
+            const currentPayments: any[] = Array.isArray(current.payments) ? current.payments : [];
+            const merged = [...missingInRemote, ...currentPayments];
+            updateCloudMasterState({ ...current, payments: merged.slice(0, 50) });
+          }).catch(() => {});
+        }
+      } else if (Array.isArray(payments) && payments.length > 0) {
+        // Cloud was empty! Push all local payments to cloud!
+        getCloudMasterState().then(current => {
+          updateCloudMasterState({ ...current, payments: payments.slice(0, 50) });
+        }).catch(() => {});
       }
     } catch (_) {}
     return jsonResponse(payments);

@@ -351,9 +351,28 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
     const interval = setInterval(() => {
       fetchAdminData();
       fetchQuestionFeedbacks();
-    }, 12000);
+    }, 8000);
 
-    return () => clearInterval(interval);
+    const handleRealtimeSync = () => {
+      fetchAdminData();
+    };
+
+    window.addEventListener('cloud-payment-received', handleRealtimeSync);
+    window.addEventListener('cloud-student-received', handleRealtimeSync);
+    window.addEventListener('cloud-transfer-received', handleRealtimeSync);
+    window.addEventListener('cloud-feedback-received', handleRealtimeSync);
+    window.addEventListener('storage', handleRealtimeSync);
+    window.addEventListener('auth-change', handleRealtimeSync);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('cloud-payment-received', handleRealtimeSync);
+      window.removeEventListener('cloud-student-received', handleRealtimeSync);
+      window.removeEventListener('cloud-transfer-received', handleRealtimeSync);
+      window.removeEventListener('cloud-feedback-received', handleRealtimeSync);
+      window.removeEventListener('storage', handleRealtimeSync);
+      window.removeEventListener('auth-change', handleRealtimeSync);
+    };
   }, [user]);
 
   // AI Admin Copilot Message Handler
