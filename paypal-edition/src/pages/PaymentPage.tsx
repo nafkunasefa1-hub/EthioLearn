@@ -21,7 +21,7 @@ import {
 import { PaymentSettings, ReceiptVerification } from '../types';
 import { broadcastPaymentReceipt, fetchRemoteApprovalForPhone } from '../services/cloudSyncService';
 
-// Fast client-side image compressor: downsizes heavy mobile camera photos (4MB-8MB) into crisp 1200px JPEGs (~150KB)
+// Fast client-side image compressor: downsizes heavy mobile camera photos (4MB-8MB) into ultra-compact JPEGs (~28KB)
 const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: string }> => {
   return new Promise((resolve) => {
     if (!file.type || !file.type.startsWith('image/')) {
@@ -37,7 +37,7 @@ const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: 
       img.onload = () => {
         let width = img.width;
         let height = img.height;
-        const maxDim = 1280;
+        const maxDim = 720;
         if (width > maxDim || height > maxDim) {
           if (width > height) {
             height = Math.round((height * maxDim) / width);
@@ -53,10 +53,10 @@ const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: 
         const ctx = canvas.getContext('2d');
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.58);
           canvas.toBlob((blob) => {
             resolve({ blob: blob || file, dataUrl });
-          }, 'image/jpeg', 0.82);
+          }, 'image/jpeg', 0.58);
         } else {
           resolve({ blob: file, dataUrl: String(e.target?.result || '') });
         }

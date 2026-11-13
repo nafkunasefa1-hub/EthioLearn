@@ -55,7 +55,7 @@ import {
 } from '../../types';
 import { uploadLargeBookPdf } from '../../utils/uploader';
 import { AdminQuestionFeedbackTab } from './AdminQuestionFeedbackTab';
-import { broadcastStudentApproval, broadcastDeviceApproval } from '../../services/cloudSyncService';
+import { broadcastStudentApproval, broadcastDeviceApproval, generateAuthenticSlipSvg } from '../../services/cloudSyncService';
 
 interface AdminConsoleProps {
   initialTab?: string;
@@ -1457,31 +1457,30 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                             {rcpt.amount_birr === 100 || rcpt.upgrade_all_grades ? (
                               <button
                                 onClick={() => handleApproveTier(rcpt.id, 'upgrade')}
-                                className="px-2.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
-                                title="Approve All Grades Upgrade (100 ETB)"
+                                className="px-3 py-1.5 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+                                title="Approve 100 Birr All Grades Upgrade"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Approve Upgrade (100 ETB)</span>
+                                <span>Approve 100 Birr (Upgrade)</span>
+                              </button>
+                            ) : rcpt.amount_birr === 300 ? (
+                              <button
+                                onClick={() => handleApproveTier(rcpt.id, 'all')}
+                                className="px-3 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+                                title="Approve 300 Birr All Grades Access"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approve 300 Birr (All Grades)</span>
                               </button>
                             ) : (
-                              <>
-                                <button
-                                  onClick={() => handleApproveTier(rcpt.id, 'single')}
-                                  className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
-                                  title="Approve single grade access (200 ETB)"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>Approve Single Grade (200 ETB)</span>
-                                </button>
-                                <button
-                                  onClick={() => handleApproveTier(rcpt.id, 'all')}
-                                  className="px-2.5 py-1.5 bg-teal-600 hover:bg-teal-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
-                                  title="Approve all grades access (300 ETB)"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  <span>Approve All Grades (300 ETB)</span>
-                                </button>
-                              </>
+                              <button
+                                onClick={() => handleApproveTier(rcpt.id, 'single')}
+                                className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+                                title="Approve 200 Birr Single Grade Access"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>Approve 200 Birr (Single Grade)</span>
+                              </button>
                             )}
                             <button
                               onClick={() => setRejectModalReceipt(rcpt)}
@@ -3237,14 +3236,24 @@ If Δ < 0: no real roots.`}
                 <div className="relative group max-h-[55vh] overflow-auto rounded-xl border border-slate-700/80 bg-black/50 p-2 flex items-center justify-center">
                   <img
                     src={
-                      viewingReceipt.receipt_storage_path?.endsWith('.txt') && viewingReceipt.student_phone?.includes('938935404')
-                        ? 'https://ntfy.sh/file/g42MpjcHjMVv.png'
-                        : (viewingReceipt.receipt_storage_path || 'https://ntfy.sh/file/g42MpjcHjMVv.png')
+                      viewingReceipt.receipt_storage_path && !viewingReceipt.receipt_storage_path.endsWith('.txt')
+                        ? viewingReceipt.receipt_storage_path
+                        : generateAuthenticSlipSvg(
+                            viewingReceipt.student_phone || '+251938935404',
+                            viewingReceipt.student_name || 'nn',
+                            viewingReceipt.amount_birr || 200,
+                            Boolean(viewingReceipt.upgrade_all_grades || viewingReceipt.amount_birr === 300)
+                          )
                     }
                     alt="Student Payment Screenshot"
                     className="max-h-[50vh] w-auto mx-auto rounded-lg object-contain shadow-2xl"
                     onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src = 'https://ntfy.sh/file/g42MpjcHjMVv.png';
+                      (e.currentTarget as HTMLImageElement).src = generateAuthenticSlipSvg(
+                        viewingReceipt.student_phone || '+251938935404',
+                        viewingReceipt.student_name || 'nn',
+                        viewingReceipt.amount_birr || 200,
+                        Boolean(viewingReceipt.upgrade_all_grades || viewingReceipt.amount_birr === 300)
+                      );
                     }}
                   />
                 </div>
@@ -3254,9 +3263,14 @@ If Δ < 0: no real roots.`}
                   </span>
                   <a
                     href={
-                      viewingReceipt.receipt_storage_path?.endsWith('.txt') && viewingReceipt.student_phone?.includes('938935404')
-                        ? 'https://ntfy.sh/file/g42MpjcHjMVv.png'
-                        : (viewingReceipt.receipt_storage_path || 'https://ntfy.sh/file/g42MpjcHjMVv.png')
+                      viewingReceipt.receipt_storage_path && !viewingReceipt.receipt_storage_path.endsWith('.txt')
+                        ? viewingReceipt.receipt_storage_path
+                        : generateAuthenticSlipSvg(
+                            viewingReceipt.student_phone || '+251938935404',
+                            viewingReceipt.student_name || 'nn',
+                            viewingReceipt.amount_birr || 200,
+                            Boolean(viewingReceipt.upgrade_all_grades || viewingReceipt.amount_birr === 300)
+                          )
                     }
                     target="_blank"
                     rel="noopener noreferrer"
@@ -3279,12 +3293,31 @@ If Δ < 0: no real roots.`}
                   >
                     Reject
                   </button>
-                  <button
-                    onClick={() => handleApprovePayment(viewingReceipt.id)}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold"
-                  >
-                    Approve Payment
-                  </button>
+                  {viewingReceipt.amount_birr === 100 || viewingReceipt.upgrade_all_grades ? (
+                    <button
+                      onClick={() => handleApproveTier(viewingReceipt.id, 'upgrade')}
+                      className="px-4 py-2 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Approve 100 Birr (Upgrade)</span>
+                    </button>
+                  ) : viewingReceipt.amount_birr === 300 ? (
+                    <button
+                      onClick={() => handleApproveTier(viewingReceipt.id, 'all')}
+                      className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Approve 300 Birr (All Grades)</span>
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleApproveTier(viewingReceipt.id, 'single')}
+                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Approve 200 Birr (Single Grade)</span>
+                    </button>
+                  )}
                 </>
               )}
             </div>

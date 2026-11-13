@@ -4176,7 +4176,7 @@ How can I help you excel today? You can ask me any question or explore these cor
             payments.unshift(rp);
             modified = true;
           } else {
-            if (rp.receipt_storage_path && rp.receipt_storage_path.startsWith('http') && rp.receipt_storage_path !== existing.receipt_storage_path) {
+            if (rp.receipt_storage_path && rp.receipt_storage_path !== existing.receipt_storage_path) {
               existing.receipt_storage_path = rp.receipt_storage_path;
               existing.receipt_filename = rp.receipt_filename || existing.receipt_filename;
               modified = true;
