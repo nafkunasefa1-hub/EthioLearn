@@ -332,15 +332,14 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
       });
 
       if (res.ok) {
-        setSubmitSuccess(true);
-
-        // Explicitly broadcast to cloud channel so Admin on Web receives screenshot immediately
+        const resData = await res.json().catch(() => ({}));
         const studentPhone = user?.phone_number || (user as any)?.phone || '';
         const studentName = user?.full_name || 'Student';
         const isUpgrade = Boolean(isUpgrading && isPaidSingleGrade);
         const planAmount = isUpgrade ? 100 : (selectedPlan === 'all' ? 300 : 200);
         const finalAmount = Number(chosenAmount) || planAmount;
-        broadcastPaymentReceipt({
+
+        const submittedReceipt: ReceiptVerification = resData.receipt || {
           id: `rcpt-${Date.now()}`,
           user_id: user?.id,
           student_phone: studentPhone,
@@ -350,10 +349,20 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
           target_grade_id: (selectedPlan === 'all' || isUpgrade) ? 'all' : (user?.grade_id || 'grade-12-natural'),
           upgrade_all_grades: isUpgrade,
           receipt_storage_path: receiptDataUrl,
-          receipt_filename: selectedFile.name || 'payment_screenshot.jpg',
+          receipt_filename: selectedFile?.name || 'payment_screenshot.jpg',
           status: 'pending',
           submitted_at: new Date().toISOString()
-        }, uploadBlob).then(cloudUrl => {
+        };
+
+        setExistingReceipt(submittedReceipt);
+        setSubmitSuccess(true);
+        setApprovalFeedback({
+          type: 'pending',
+          message: '⏳ Screenshot sent successfully! Waiting for Admin verification and approval.'
+        });
+
+        // Explicitly broadcast to cloud channel so Admin on Web receives screenshot immediately
+        broadcastPaymentReceipt(submittedReceipt, uploadBlob).then(cloudUrl => {
           if (cloudUrl) {
             try {
               const myRcpt = localStorage.getItem('ethiolearn_my_receipt');
@@ -451,13 +460,30 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
             </button>
           </div>
         </div>
-      ) : existingReceipt && existingReceipt.status === 'pending' ? (
+      ) : (existingReceipt && existingReceipt.status === 'pending') || submitSuccess ? (
         /* Pending Verification Banner */
         <div className="bg-amber-950/30 border border-amber-500/50 rounded-3xl p-8 text-center space-y-4 shadow-xl">
-          <div className="w-16 h-16 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mx-auto border border-amber-500/30">
-            <Clock className="w-8 h-8 animate-pulse" />
+          <div className="w-16 h-16 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mx-auto border border-emerald-500/30">
+            <CheckCircle2 className="w-8 h-8 text-emerald-400" />
           </div>
-          <h2 className="text-2xl font-bold text-white">Payment Screenshot Received & Under Review</h2>
+
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>Screenshot Sent Successfully</span>
+          </div>
+
+          <h2 className="text-2xl sm:text-3xl font-black text-white">
+            Your Payment Screenshot Has Been Sent & Is Waiting for Approval
+          </h2>
+
+          <p className="text-slate-200 text-xs sm:text-sm max-w-lg mx-auto leading-relaxed bg-slate-900/80 border border-slate-800 rounded-2xl p-4 shadow-sm">
+            We have received your payment screenshot! The administrator has been notified to verify your payment. <span className="text-emerald-400 font-semibold">Your premium access will automatically unlock as soon as the administrator approves it.</span>
+          </p>
+
+          <div className="flex items-center justify-center gap-2 text-xs text-amber-400 font-medium">
+            <Clock className="w-3.5 h-3.5 animate-spin" />
+            <span>Waiting for Admin approval (auto-checking every few seconds)...</span>
+          </div>
           {/* Display Student's Actual Submitted Screenshot */}
           {(existingReceipt?.receipt_storage_path || previewUrl) && (
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 max-w-sm mx-auto text-center space-y-2">
@@ -824,6 +850,18 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
                   <div className="p-3 bg-red-950/80 border border-red-500/60 rounded-xl text-xs text-red-200 flex items-center gap-2">
                     <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
                     <span>{submitError}</span>
+                  </div>
+                )}
+
+                {submitSuccess && (
+                  <div className="p-4 bg-emerald-950/90 border border-emerald-500 rounded-2xl text-xs text-emerald-200 flex items-start gap-3 shadow-lg">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="text-sm font-bold text-white">Screenshot Sent Successfully!</div>
+                      <p className="text-slate-300">
+                        Your payment screenshot has been sent to the Admin and is currently waiting for approval. Your account will automatically unlock as soon as the Admin approves it.
+                      </p>
+                    </div>
                   </div>
                 )}
 
