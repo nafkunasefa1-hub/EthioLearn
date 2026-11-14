@@ -1,8 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
-    }
+    match /ethiolearn_students/{doc} { allow read, write: if true; }
+    match /ethiolearn_payments/{doc} { allow read, write: if true; }
+    match /ethiolearn_approvals/{doc} { allow read, write: if true; }
+    match /ethiolearn_transfers/{doc} { allow read, write: if true; }
+    match /ethiolearn_feedbacks/{doc} { allow read, write: if true; }
+    match /ethiolearn_deleted/{doc} { allow read, write: if true; }
   }
 }

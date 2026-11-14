@@ -1,7 +1,7 @@
 /**
- * EthioLearn Cloud Synchronization Service
+ * EthioLearn Cloud Synchronization Service (Firebase Firestore + Real-Time SSE Bus)
  *
- * Provides reliable, mutex-serialized, two-way synchronization between students
+ * Provides persistent, zero-secret-in-client, two-way synchronization between students
  * on Android APK / mobile / web and administrators across all browsers
  * (Chrome, Edge, Safari) on https://nafkunasefa1-ethiolearn-paypal.static.hf.space.
  */
@@ -9,22 +9,17 @@
 const SMEE_SYNC_URL = 'https://smee.io/ethiolearn_sync_prod_2026';
 const NTFY_EVENTS_URL = 'https://ntfy.sh/ethiolearn_events_v3_prod';
 
-// Build-time Hugging Face write/read token injected via Vite env (.env.local)
-let _viteHfToken = '';
-try {
-  // @ts-ignore - Vite / esbuild statically replaces import.meta.env.VITE_HF_TOKEN from .env.local
-  _viteHfToken = import.meta.env.VITE_HF_TOKEN || '';
-} catch {}
-const HF_TOKEN = String(
-  _viteHfToken ||
-  (typeof process !== 'undefined' && process.env && process.env.VITE_HF_TOKEN) ||
-  (typeof globalThis !== 'undefined' && (globalThis as any).__ETHIOLEARN_HF_TOKEN__) ||
-  ''
-).trim();
+// Public Firebase Web Config for EthioLearn Firestore (auth & security enforced by Firestore Rules)
+const FIREBASE_PROJECT_ID = 'ethiolearn-d7042';
+const FIREBASE_API_KEY = 'AIzaSyBDncqEYSoNaU-xZODUQnopiZy46e5sOGM';
+const FIRESTORE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents`;
 
-const HF_COMMIT_URL = 'https://huggingface.co/api/spaces/nafkunasefa1/ethiolearn-paypal/commit/main';
-const HF_RAW_SYNC_URL = 'https://huggingface.co/spaces/nafkunasefa1/ethiolearn-paypal/raw/main/sync_state.json';
-const HF_STATIC_SYNC_URL = 'https://nafkunasefa1-ethiolearn-paypal.static.hf.space/sync_state.json';
+const COL_STUDENTS = 'ethiolearn_students';
+const COL_PAYMENTS = 'ethiolearn_payments';
+const COL_APPROVALS = 'ethiolearn_approvals';
+const COL_TRANSFERS = 'ethiolearn_transfers';
+const COL_FEEDBACKS = 'ethiolearn_feedbacks';
+const COL_DELETED = 'ethiolearn_deleted';
 
 export interface RemoteStudentRegistration {
   id: string;
@@ -133,6 +128,97 @@ function recordMatchesPhoneOrId(rec: any, targetId?: string, phone?: string): bo
   return false;
 }
 
+function safeDocId(raw: string, prefix: string): string {
+  const cleaned = String(raw || '')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 120);
+  return cleaned ? `${prefix}_${cleaned}` : `${prefix}_${Date.now()}`;
+}
+
+function studentDocId(studentId?: string, phone?: string): string {
+  const pk = normalizePhoneKey(phone);
+  if (pk.length >= 9) return `stu_${pk}`;
+  return safeDocId(studentId || '', 'stu');
+}
+
+function approvalDocId(userId?: string, phone?: string): string {
+  const pk = normalizePhoneKey(phone);
+  if (pk.length >= 9) return `appr_${pk}`;
+  return safeDocId(userId || '', 'appr');
+}
+
+function sortNewestFirst(items: any[]): any[] {
+  return [...items].sort((a, b) => {
+    const ta = new Date(a?.updated_at || a?.reviewed_at || a?.approved_at || a?.submitted_at || a?.requested_at || a?.created_at || 0).getTime() || 0;
+    const tb = new Date(b?.updated_at || b?.reviewed_at || b?.approved_at || b?.submitted_at || b?.requested_at || b?.created_at || 0).getTime() || 0;
+    return tb - ta;
+  });
+}
+
+function toFsValue(val: any): Record<string, any> {
+  if (val === null || val === undefined) return { nullValue: null };
+  if (typeof val === 'boolean') return { booleanValue: val };
+  if (typeof val === 'number') {
+    if (!Number.isFinite(val)) return { integerValue: '0' };
+    if (Number.isInteger(val) && Math.abs(val) <= 9007199254740991) {
+      return { integerValue: String(val) };
+    }
+    return { doubleValue: val };
+  }
+  if (typeof val === 'string') return { stringValue: val };
+  if (Array.isArray(val)) {
+    return { arrayValue: { values: val.filter((v) => v !== undefined).map(toFsValue) } };
+  }
+  if (typeof val === 'object') {
+    return { mapValue: { fields: toFsFields(val) } };
+  }
+  return { stringValue: String(val) };
+}
+
+function toFsFields(obj: Record<string, any>): Record<string, any> {
+  const fields: Record<string, any> = {};
+  if (!obj || typeof obj !== 'object') return fields;
+  for (const [k, v] of Object.entries(obj)) {
+    if (v === undefined || k === '__fsDocId') continue;
+    fields[k] = toFsValue(v);
+  }
+  return fields;
+}
+
+function fromFsValue(v: any): any {
+  if (!v || typeof v !== 'object') return null;
+  if ('stringValue' in v) return String(v.stringValue);
+  if ('booleanValue' in v) return Boolean(v.booleanValue);
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return Number(v.doubleValue);
+  if ('timestampValue' in v) return String(v.timestampValue);
+  if ('nullValue' in v) return null;
+  if ('arrayValue' in v) {
+    const arr = v.arrayValue?.values;
+    return Array.isArray(arr) ? arr.map(fromFsValue) : [];
+  }
+  if ('mapValue' in v) {
+    return fromFsFields(v.mapValue?.fields || {});
+  }
+  return null;
+}
+
+function fromFsFields(fields: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {};
+  if (!fields || typeof fields !== 'object') return out;
+  for (const [k, v] of Object.entries(fields)) {
+    out[k] = fromFsValue(v);
+  }
+  return out;
+}
+
+function docNameToId(name?: string): string {
+  const s = String(name || '');
+  const idx = s.lastIndexOf('/');
+  return idx >= 0 ? s.slice(idx + 1) : s;
+}
+
 /**
  * Generates an authentic CBE digital transfer receipt SVG as a Data URL
  */
@@ -208,23 +294,6 @@ async function postToRealtimeBus(eventPayload: Record<string, any>): Promise<boo
   return Boolean(r1 || r2);
 }
 
-function toBase64Utf8(str: string): string {
-  try {
-    if (typeof Buffer !== 'undefined') {
-      return Buffer.from(str, 'utf8').toString('base64');
-    }
-    const bytes = new TextEncoder().encode(str);
-    let binary = '';
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
-  } catch (_) {
-    return btoa(unescape(encodeURIComponent(str)));
-  }
-}
-
 function parseList(val: any): any[] {
   if (Array.isArray(val)) return val;
   if (typeof val === 'string') {
@@ -240,44 +309,16 @@ function normalizeCloudState(raw: any): CloudMasterState {
   const obj = raw && typeof raw === 'object' ? raw : {};
   return {
     ...obj,
-    students: parseList(obj.students),
-    payments: parseList(obj.payments),
-    approvals: parseList(obj.approvals),
-    transfers: parseList(obj.transfers),
-    feedbacks: parseList(obj.feedbacks),
+    students: sortNewestFirst(parseList(obj.students)),
+    payments: sortNewestFirst(parseList(obj.payments)),
+    approvals: sortNewestFirst(parseList(obj.approvals)),
+    transfers: sortNewestFirst(parseList(obj.transfers)),
+    feedbacks: sortNewestFirst(parseList(obj.feedbacks)),
     deleted_students: parseList(obj.deleted_students)
   };
 }
 
-/**
- * Balances storage size so sync_state.json stays fast and compact across mobile devices
- * while always preserving student registrations and active/pending payment screenshots.
- */
-function balanceCloudState(state: CloudMasterState): CloudMasterState {
-  const next: CloudMasterState = {
-    students: parseList(state.students).slice(0, 200),
-    payments: parseList(state.payments).slice(0, 60),
-    approvals: parseList(state.approvals).slice(0, 200),
-    transfers: parseList(state.transfers).slice(0, 50),
-    feedbacks: parseList(state.feedbacks).slice(0, 80),
-    deleted_students: parseList(state.deleted_students).slice(0, 200),
-    updated_at: new Date().toISOString()
-  };
-
-  // Keep payload comfortably under ~1.4MB by trimming oldest *already-reviewed* receipt blobs if needed
-  let serialized = JSON.stringify(next);
-  if (serialized.length > 1400000 && next.payments.length > 10) {
-    for (let i = next.payments.length - 1; i >= 10 && serialized.length > 1400000; i--) {
-      if (next.payments[i].status !== 'pending' && next.payments[i].receipt_storage_path) {
-        next.payments[i] = { ...next.payments[i], receipt_storage_path: '' };
-        serialized = JSON.stringify(next);
-      }
-    }
-  }
-  return next;
-}
-
-// Short read coalescing cache (1.2s) + strict sequential mutation mutex queue
+// Short read coalescing cache (250ms) + sequential mutation queue
 let inFlightReadPromise: Promise<{ ok: boolean; notFound?: boolean; state: CloudMasterState }> | null = null;
 let lastReadCache: { ts: number; result: { ok: boolean; notFound?: boolean; state: CloudMasterState } } | null = null;
 let mutationQueue: Promise<any> = Promise.resolve();
@@ -286,19 +327,132 @@ function invalidateReadCache() {
   lastReadCache = null;
 }
 
-async function fetchJsonWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response | null> {
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response | null> {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
-    const res = await fetch(url, {
+    return await fetch(url, {
       ...options,
       signal: controller ? controller.signal : undefined
     });
-    return res;
   } catch (_) {
     return null;
   } finally {
     if (timer) clearTimeout(timer);
+  }
+}
+
+async function getFsDoc(collection: string, docId: string): Promise<{ ok: boolean; notFound?: boolean; data: any }> {
+  const url = `${FIRESTORE_BASE_URL}/${collection}/${encodeURIComponent(docId)}?key=${FIREBASE_API_KEY}`;
+  const res = await fetchWithTimeout(url, { cache: 'no-store' }, 9000);
+  if (!res) return { ok: false, data: null };
+  if (res.status === 404) return { ok: true, notFound: true, data: null };
+  if (!res.ok) return { ok: false, data: null };
+  try {
+    const json = await res.json();
+    const data = fromFsFields(json.fields || {});
+    data.__fsDocId = docNameToId(json.name) || docId;
+    return { ok: true, data };
+  } catch (_) {
+    return { ok: false, data: null };
+  }
+}
+
+async function putFsDoc(collection: string, docId: string, obj: Record<string, any>): Promise<boolean> {
+  const url = `${FIRESTORE_BASE_URL}/${collection}/${encodeURIComponent(docId)}?key=${FIREBASE_API_KEY}`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: toFsFields(obj) })
+    },
+    14000
+  );
+  return Boolean(res && res.ok);
+}
+
+async function deleteFsDoc(collection: string, docId: string): Promise<boolean> {
+  const url = `${FIRESTORE_BASE_URL}/${collection}/${encodeURIComponent(docId)}?key=${FIREBASE_API_KEY}`;
+  const res = await fetchWithTimeout(url, { method: 'DELETE' }, 9000);
+  return Boolean(res && (res.ok || res.status === 404));
+}
+
+async function listFsCollection(collection: string): Promise<{ ok: boolean; docs: any[] }> {
+  const docs: any[] = [];
+  let pageToken = '';
+  for (let page = 0; page < 15; page++) {
+    const tokenPart = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
+    const url = `${FIRESTORE_BASE_URL}/${collection}?pageSize=300${tokenPart}&key=${FIREBASE_API_KEY}`;
+    const res = await fetchWithTimeout(url, { cache: 'no-store' }, 12000);
+    if (!res || !res.ok) {
+      return { ok: false, docs: [] };
+    }
+    try {
+      const json = await res.json();
+      const batch = Array.isArray(json.documents) ? json.documents : [];
+      for (const d of batch) {
+        const parsed = fromFsFields(d.fields || {});
+        parsed.__fsDocId = docNameToId(d.name);
+        docs.push(parsed);
+      }
+      if (!json.nextPageToken) break;
+      pageToken = json.nextPageToken;
+    } catch (_) {
+      return { ok: false, docs: [] };
+    }
+  }
+  return { ok: true, docs };
+}
+
+function stripFsMeta(doc: any): any {
+  if (!doc || typeof doc !== 'object') return doc;
+  const { __fsDocId, ...rest } = doc;
+  return rest;
+}
+
+async function runWithRetry(fn: () => Promise<boolean>): Promise<boolean> {
+  const task = async (): Promise<boolean> => {
+    const delays = [0, 350, 900];
+    for (let i = 0; i < delays.length; i++) {
+      if (delays[i] > 0) await new Promise(r => setTimeout(r, delays[i]));
+      invalidateReadCache();
+      try {
+        if (await fn()) {
+          invalidateReadCache();
+          return true;
+        }
+      } catch (_) {}
+    }
+    return false;
+  };
+  const run = mutationQueue.then(task, task);
+  mutationQueue = run.catch(() => false);
+  return run;
+}
+
+async function blobToDataUrl(blob: Blob): Promise<string> {
+  if (typeof FileReader !== 'undefined') {
+    return new Promise((resolve) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.onerror = () => resolve('');
+        reader.readAsDataURL(blob);
+      } catch (_) {
+        resolve('');
+      }
+    });
+  }
+  try {
+    const ab = await blob.arrayBuffer();
+    const bytes = new Uint8Array(ab);
+    let bin = '';
+    for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    const b64 = typeof btoa !== 'undefined' ? btoa(bin) : Buffer.from(ab).toString('base64');
+    return `data:${blob.type || 'image/png'};base64,${b64}`;
+  } catch (_) {
+    return '';
   }
 }
 
@@ -312,54 +466,36 @@ export async function readCloudMasterStateStrict(bypassCache = false): Promise<{
   }
 
   const exec = (async (): Promise<{ ok: boolean; notFound?: boolean; state: CloudMasterState }> => {
-    const bust = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const [stRes, payRes, apprRes, trRes, fbRes, delRes] = await Promise.all([
+      listFsCollection(COL_STUDENTS),
+      listFsCollection(COL_PAYMENTS),
+      listFsCollection(COL_APPROVALS),
+      listFsCollection(COL_TRANSFERS),
+      listFsCollection(COL_FEEDBACKS),
+      listFsCollection(COL_DELETED)
+    ]);
 
-    // 1. Authoritative Raw HF endpoint (authenticated, zero CDN cache lag)
-    const rawRes = await fetchJsonWithTimeout(
-      `${HF_RAW_SYNC_URL}?t=${bust}`,
-      {
-        cache: 'no-store',
-        headers: {
-          'Authorization': `Bearer ${HF_TOKEN}`,
-          'Cache-Control': 'no-cache'
-        }
-      },
-      12000
-    );
-
-    if (rawRes) {
-      if (rawRes.ok) {
-        try {
-          const json = await rawRes.json();
-          const result = { ok: true, state: normalizeCloudState(json) };
-          lastReadCache = { ts: Date.now(), result };
-          return result;
-        } catch (_) {}
-      } else if (rawRes.status === 404) {
-        return { ok: false, notFound: true, state: normalizeCloudState({}) };
-      }
+    if (!stRes.ok || !payRes.ok || !apprRes.ok || !trRes.ok || !fbRes.ok || !delRes.ok) {
+      return { ok: false, state: normalizeCloudState({}) };
     }
 
-    // 2. Static Space CDN fallback (if raw HF temporarily unreachable)
-    const cdnRes = await fetchJsonWithTimeout(
-      `${HF_STATIC_SYNC_URL}?t=${bust}`,
-      {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' }
-      },
-      9000
-    );
+    const deletedTokens = delRes.docs
+      .map((d: any) => String(d.key || String(d.__fsDocId || '').replace(/^del_/, '')).trim())
+      .filter(Boolean);
 
-    if (cdnRes && cdnRes.ok) {
-      try {
-        const json = await cdnRes.json();
-        const result = { ok: true, state: normalizeCloudState(json) };
-        lastReadCache = { ts: Date.now(), result };
-        return result;
-      } catch (_) {}
-    }
+    const state = normalizeCloudState({
+      students: stRes.docs.map(stripFsMeta),
+      payments: payRes.docs.map(stripFsMeta),
+      approvals: apprRes.docs.map(stripFsMeta),
+      transfers: trRes.docs.map(stripFsMeta),
+      feedbacks: fbRes.docs.map(stripFsMeta),
+      deleted_students: deletedTokens,
+      updated_at: new Date().toISOString()
+    });
 
-    return { ok: false, state: normalizeCloudState({}) };
+    const result = { ok: true, state };
+    lastReadCache = { ts: Date.now(), result };
+    return result;
   })();
 
   if (!bypassCache) {
@@ -373,7 +509,7 @@ export async function readCloudMasterStateStrict(bypassCache = false): Promise<{
 }
 
 /**
- * Fetches the authoritative master state object from Hugging Face cloud storage.
+ * Fetches the authoritative master state object from Firestore cloud storage.
  */
 export async function getCloudMasterState(forceFresh = false): Promise<CloudMasterState & { __synced?: boolean }> {
   const res = await readCloudMasterStateStrict(forceFresh);
@@ -384,76 +520,52 @@ export async function getCloudMasterState(forceFresh = false): Promise<CloudMast
 }
 
 /**
- * Writes the master state object directly to Hugging Face repository via Commit API.
+ * Synchronizes a complete master state snapshot to Firestore collections.
  */
-export async function updateCloudMasterState(dataUpdate: Record<string, any>, summary = 'Sync update'): Promise<boolean> {
-  const balanced = balanceCloudState(normalizeCloudState(dataUpdate));
-  const jsonStr = JSON.stringify(balanced);
-  const b64 = toBase64Utf8(jsonStr);
+export async function updateCloudMasterState(dataUpdate: Record<string, any>, _summary = 'Sync update'): Promise<boolean> {
+  return runWithRetry(async () => {
+    const next = normalizeCloudState(dataUpdate);
+    const currentRes = await readCloudMasterStateStrict(true);
+    if (!currentRes.ok) return false;
 
-  const ndjson =
-    JSON.stringify({ key: 'header', value: { summary: `${summary} ${Date.now()}` } }) +
-    '\n' +
-    JSON.stringify({ key: 'file', value: { path: 'sync_state.json', content: b64, encoding: 'base64' } });
+    const ops: Promise<boolean>[] = [];
 
-  const res = await fetchJsonWithTimeout(
-    HF_COMMIT_URL,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${HF_TOKEN}`,
-        'Content-Type': 'application/x-ndjson'
-      },
-      body: ndjson
-    },
-    22000
-  );
-
-  if (res && res.ok) {
-    lastReadCache = {
-      ts: Date.now(),
-      result: { ok: true, state: balanced }
+    const syncCollection = async (
+      col: string,
+      items: any[],
+      idFn: (item: any) => string
+    ) => {
+      const existing = await listFsCollection(col);
+      if (!existing.ok) throw new Error('Collection list failed: ' + col);
+      const keepIds = new Set<string>();
+      for (const item of items) {
+        const docId = idFn(item);
+        keepIds.add(docId);
+        ops.push(putFsDoc(col, docId, stripFsMeta(item)));
+      }
+      for (const oldDoc of existing.docs) {
+        if (oldDoc.__fsDocId && !keepIds.has(oldDoc.__fsDocId)) {
+          ops.push(deleteFsDoc(col, oldDoc.__fsDocId));
+        }
+      }
     };
-    return true;
-  }
-  return false;
+
+    await syncCollection(COL_STUDENTS, next.students, (s) => studentDocId(s.id, s.phone_number || s.phone));
+    await syncCollection(COL_PAYMENTS, next.payments, (p) => safeDocId(p.id, 'pay'));
+    await syncCollection(COL_APPROVALS, next.approvals, (a) => approvalDocId(a.user_id, a.phone_number));
+    await syncCollection(COL_TRANSFERS, next.transfers, (t) => safeDocId(t.id, 'tr'));
+    await syncCollection(COL_FEEDBACKS, next.feedbacks, (f) => safeDocId(f.id, 'fb'));
+
+    const delItems = (next.deleted_students || []).map((k: string) => ({ key: String(k), deleted_at: new Date().toISOString() }));
+    await syncCollection(COL_DELETED, delItems, (d) => safeDocId(d.key, 'del'));
+
+    const results = await Promise.all(ops);
+    return results.every(Boolean);
+  });
 }
 
 /**
- * Serializes all read-modify-write mutations through a queue + retries
- * so concurrent writes across multiple actions never clobber each other or overwrite with empty state.
- */
-function enqueueCloudMutation(
-  mutator: (current: CloudMasterState) => CloudMasterState,
-  summary: string
-): Promise<boolean> {
-  const task = async (): Promise<boolean> => {
-    const delays = [0, 450, 1100];
-    for (let attempt = 0; attempt < delays.length; attempt++) {
-      if (delays[attempt] > 0) {
-        await new Promise(r => setTimeout(r, delays[attempt]));
-      }
-      invalidateReadCache();
-      const readRes = await readCloudMasterStateStrict(true);
-      if (!readRes.ok && !readRes.notFound) {
-        continue;
-      }
-      const nextState = mutator(readRes.state);
-      const ok = await updateCloudMasterState(nextState, summary);
-      if (ok) {
-        return true;
-      }
-    }
-    return false;
-  };
-
-  const run = mutationQueue.then(task, task);
-  mutationQueue = run.catch(() => false);
-  return run;
-}
-
-/**
- * Broadcasts a new student registration to cloud
+ * Broadcasts a new student registration to Firestore and clears matching deletion tombstones.
  */
 export async function broadcastStudentRegistration(student: RemoteStudentRegistration): Promise<boolean> {
   postToRealtimeBus({
@@ -461,57 +573,76 @@ export async function broadcastStudentRegistration(student: RemoteStudentRegistr
     ...student
   }).catch(() => {});
 
-  return enqueueCloudMutation((current) => {
-    const list: RemoteStudentRegistration[] = [...current.students];
-    const exIdx = list.findIndex(s => recordMatchesPhoneOrId(s, student.id, student.phone_number));
-    if (exIdx >= 0) {
-      // Preserve existing paid tier if re-registering/updating profile unless explicitly paid
-      const existing = list[exIdx];
-      list[exIdx] = {
-        ...existing,
-        ...student,
-        is_premium: existing.is_premium || student.is_premium || false,
-        payment_tier: (existing.payment_tier && existing.payment_tier !== 'free') ? existing.payment_tier : (student.payment_tier || 'free'),
-        unlocked_grades: (existing.unlocked_grades && existing.unlocked_grades.length > 0) ? existing.unlocked_grades : (student.unlocked_grades || []),
-        paid_amount: existing.paid_amount || student.paid_amount || 0,
-        updated_at: new Date().toISOString()
-      };
-    } else {
-      list.unshift({
-        ...student,
-        is_premium: student.is_premium || false,
-        payment_tier: student.payment_tier || 'free',
-        unlocked_grades: student.unlocked_grades || [],
-        paid_amount: student.paid_amount || 0,
-        updated_at: new Date().toISOString()
-      });
+  return runWithRetry(async () => {
+    const docId = studentDocId(student.id, student.phone_number);
+    const [existingDocRes, delRes] = await Promise.all([
+      getFsDoc(COL_STUDENTS, docId),
+      listFsCollection(COL_DELETED)
+    ]);
+    if (!existingDocRes.ok) return false;
+
+    const existing = existingDocRes.data ? stripFsMeta(existingDocRes.data) : null;
+    const payload: RemoteStudentRegistration = existing
+      ? {
+          ...existing,
+          ...student,
+          is_premium: existing.is_premium || student.is_premium || false,
+          payment_tier: (existing.payment_tier && existing.payment_tier !== 'free') ? existing.payment_tier : (student.payment_tier || 'free'),
+          unlocked_grades: (existing.unlocked_grades && existing.unlocked_grades.length > 0) ? existing.unlocked_grades : (student.unlocked_grades || []),
+          paid_amount: existing.paid_amount || student.paid_amount || 0,
+          updated_at: new Date().toISOString()
+        }
+      : {
+          ...student,
+          is_premium: student.is_premium || false,
+          payment_tier: student.payment_tier || 'free',
+          unlocked_grades: student.unlocked_grades || [],
+          paid_amount: student.paid_amount || 0,
+          updated_at: new Date().toISOString()
+        };
+
+    const writeOk = await putFsDoc(COL_STUDENTS, docId, payload);
+    if (!writeOk) return false;
+
+    // Clear any matching deletion tombstone so newly registered account is never hidden
+    if (delRes.ok) {
+      const phoneKey = normalizePhoneKey(student.phone_number);
+      const idKey = String(student.id || '').toLowerCase();
+      const deletions: Promise<boolean>[] = [];
+      for (const d of delRes.docs) {
+        const token = String(d.key || String(d.__fsDocId || '').replace(/^del_/, '')).toLowerCase();
+        if (token === idKey || (phoneKey && token.includes(phoneKey))) {
+          if (d.__fsDocId) deletions.push(deleteFsDoc(COL_DELETED, d.__fsDocId));
+        }
+      }
+      if (deletions.length > 0) await Promise.all(deletions);
     }
 
-    // Clear any deleted tombstone for this phone/id so newly registered account isn't hidden
-    const phoneKey = normalizePhoneKey(student.phone_number);
-    const idKey = String(student.id || '').toLowerCase();
-    const filteredDeleted = (current.deleted_students || []).filter((d: string) => {
-      const dl = String(d || '').toLowerCase();
-      return dl !== idKey && (!phoneKey || !dl.includes(phoneKey));
-    });
-
-    return {
-      ...current,
-      students: list,
-      deleted_students: filteredDeleted
-    };
-  }, 'Register student');
+    return true;
+  });
 }
 
 /**
- * Broadcasts a payment receipt submission with screenshot
+ * Broadcasts a payment receipt submission with screenshot to Firestore.
  */
 export async function broadcastPaymentReceipt(
   receipt: RemotePaymentSubmission,
-  _fileBlob?: Blob | File | null
+  fileBlob?: Blob | File | null
 ): Promise<string | null> {
   let screenshot = receipt.receipt_storage_path || '';
+  if (!screenshot && fileBlob) {
+    screenshot = await blobToDataUrl(fileBlob);
+  }
   if (!screenshot) {
+    screenshot = generateAuthenticSlipSvg(
+      receipt.student_phone,
+      receipt.student_name,
+      receipt.amount_birr,
+      receipt.upgrade_all_grades || receipt.amount_birr === 300
+    );
+  }
+  // Keep well under Firestore 1 MiB per-document ceiling
+  if (screenshot.length > 820000) {
     screenshot = generateAuthenticSlipSvg(
       receipt.student_phone,
       receipt.student_name,
@@ -533,30 +664,27 @@ export async function broadcastPaymentReceipt(
     ...cleanReceipt
   }).catch(() => {});
 
-  const ok = await enqueueCloudMutation((current) => {
-    const payments: any[] = [...current.payments];
-    // Match exact receipt ID or replace any older *pending* submission from the same student phone
-    const exIdx = payments.findIndex(p =>
-      p.id === cleanReceipt.id ||
-      (p.status === 'pending' && recordMatchesPhoneOrId(p, cleanReceipt.user_id, cleanReceipt.student_phone))
-    );
-
-    if (exIdx >= 0) {
-      payments.splice(exIdx, 1);
+  const ok = await runWithRetry(async () => {
+    const newDocId = safeDocId(cleanReceipt.id, 'pay');
+    const existingList = await listFsCollection(COL_PAYMENTS);
+    if (existingList.ok) {
+      const cleanup: Promise<boolean>[] = [];
+      for (const p of existingList.docs) {
+        const samePending = p.status === 'pending' && recordMatchesPhoneOrId(p, cleanReceipt.user_id, cleanReceipt.student_phone);
+        if ((p.id === cleanReceipt.id || samePending) && p.__fsDocId && p.__fsDocId !== newDocId) {
+          cleanup.push(deleteFsDoc(COL_PAYMENTS, p.__fsDocId));
+        }
+      }
+      if (cleanup.length > 0) await Promise.all(cleanup);
     }
-    payments.unshift(cleanReceipt);
-
-    return {
-      ...current,
-      payments
-    };
-  }, 'Submit payment receipt');
+    return putFsDoc(COL_PAYMENTS, newDocId, cleanReceipt);
+  });
 
   return ok ? cleanReceipt.receipt_storage_path || 'synced' : null;
 }
 
 /**
- * Broadcasts an approval when admin activates, approves receipt, or modifies student tier
+ * Broadcasts an approval when admin activates, approves receipt, or modifies student tier.
  */
 export async function broadcastStudentApproval(approval: RemoteStudentApproval): Promise<boolean> {
   postToRealtimeBus({
@@ -564,89 +692,96 @@ export async function broadcastStudentApproval(approval: RemoteStudentApproval):
     ...approval
   }).catch(() => {});
 
-  return enqueueCloudMutation((current) => {
-    const approvals: RemoteStudentApproval[] = [...current.approvals];
-    const exIdx = approvals.findIndex(a => recordMatchesPhoneOrId(a, approval.user_id, approval.phone_number));
-
-    if (exIdx >= 0) {
-      approvals[exIdx] = { ...approvals[exIdx], ...approval };
-    } else {
-      approvals.unshift(approval);
-    }
-
+  return runWithRetry(async () => {
     const isAll = approval.tier === 'all';
     const isPaid = Boolean(approval.is_premium && approval.tier !== 'free');
     const resolvedGrades = isAll
       ? ['all']
-      : (isPaid ? (approval.unlocked_grades?.length ? approval.unlocked_grades : ['grade-12-natural']) : []);
+      : (isPaid ? (approval.unlocked_grades?.length ? approval.unlocked_grades : [approval.grade_id || 'grade-12-natural']) : []);
 
-    // Update payment status in cloud ONLY when explicitly approving/activating (or targeted receipt_id)
-    const payments: any[] = current.payments.map(p => {
-      const targetMatch = approval.receipt_id
-        ? p.id === approval.receipt_id
-        : (recordMatchesPhoneOrId(p, approval.user_id, approval.phone_number) && p.status === 'pending');
+    const [stRes, payRes] = await Promise.all([
+      listFsCollection(COL_STUDENTS),
+      isPaid ? listFsCollection(COL_PAYMENTS) : Promise.resolve({ ok: true, docs: [] as any[] })
+    ]);
+    if (!stRes.ok || (isPaid && !payRes.ok)) return false;
 
-      if (!targetMatch) return p;
+    // Resolve authoritative phone / user_id from matching student if one side was omitted
+    const matchedStudents = stRes.docs.filter((s) => recordMatchesPhoneOrId(s, approval.user_id, approval.phone_number));
+    const resolvedPhone = approval.phone_number || matchedStudents[0]?.phone_number || '';
+    const resolvedUserId = approval.user_id || matchedStudents[0]?.id;
 
-      if (isPaid) {
-        return {
-          ...p,
-          status: 'approved',
-          amount_birr: isAll ? (p.amount_birr === 100 ? 100 : 300) : 200,
-          upgrade_all_grades: isAll,
-          reviewed_at: approval.approved_at || new Date().toISOString(),
-          reviewed_by: 'admin@ethiolearn.edu.et'
-        };
-      }
-      return p;
-    });
+    const cleanApproval: RemoteStudentApproval = {
+      ...approval,
+      phone_number: resolvedPhone,
+      ...(resolvedUserId ? { user_id: resolvedUserId } : {}),
+      is_premium: isPaid,
+      tier: isPaid ? approval.tier : 'free',
+      unlocked_grades: resolvedGrades,
+      approved_at: approval.approved_at || new Date().toISOString()
+    };
 
-    // Update student record in cloud (upsert if missing from students list so all admin views reflect tier)
-    const students: any[] = [...current.students];
-    let updatedStudent = false;
-    for (let i = 0; i < students.length; i++) {
-      if (recordMatchesPhoneOrId(students[i], approval.user_id, approval.phone_number)) {
-        students[i] = {
-          ...students[i],
+    const writeOps: Promise<boolean>[] = [
+      putFsDoc(COL_APPROVALS, approvalDocId(resolvedUserId, resolvedPhone), cleanApproval)
+    ];
+
+    if (matchedStudents.length > 0) {
+      for (const st of matchedStudents) {
+        const updatedStu = {
+          ...stripFsMeta(st),
           is_premium: isPaid,
           payment_tier: isPaid ? approval.tier : 'free',
           unlocked_grades: resolvedGrades,
           paid_amount: approval.tier === 'all' ? 300 : (approval.tier === 'single' ? 200 : 0),
-          updated_at: approval.approved_at || new Date().toISOString()
+          updated_at: cleanApproval.approved_at
         };
-        updatedStudent = true;
+        writeOps.push(putFsDoc(COL_STUDENTS, st.__fsDocId || studentDocId(st.id, st.phone_number), updatedStu));
       }
-    }
-
-    if (!updatedStudent && approval.phone_number) {
-      const pRef = payments.find(p => recordMatchesPhoneOrId(p, approval.user_id, approval.phone_number));
-      const cleanDigits = normalizePhoneKey(approval.phone_number);
-      students.unshift({
-        id: approval.user_id || `student-251${cleanDigits}`,
-        phone_number: approval.phone_number,
+    } else if (resolvedPhone) {
+      const pRef = payRes.docs.find((p) => recordMatchesPhoneOrId(p, resolvedUserId, resolvedPhone));
+      const cleanDigits = normalizePhoneKey(resolvedPhone);
+      const newStu = {
+        id: resolvedUserId || `student-251${cleanDigits}`,
+        phone_number: resolvedPhone,
         full_name: pRef?.student_name || `Student ${cleanDigits.slice(-4)}`,
-        grade_id: pRef?.target_grade_id && pRef.target_grade_id !== 'all' ? pRef.target_grade_id : 'grade-12-natural',
+        grade_id: pRef?.target_grade_id && pRef.target_grade_id !== 'all' ? pRef.target_grade_id : (approval.grade_id || 'grade-12-natural'),
         role: 'student',
         is_premium: isPaid,
         payment_tier: isPaid ? approval.tier : 'free',
         unlocked_grades: resolvedGrades,
         paid_amount: approval.tier === 'all' ? 300 : (approval.tier === 'single' ? 200 : 0),
-        created_at: approval.approved_at || new Date().toISOString(),
-        updated_at: approval.approved_at || new Date().toISOString()
-      });
+        created_at: cleanApproval.approved_at,
+        updated_at: cleanApproval.approved_at
+      };
+      writeOps.push(putFsDoc(COL_STUDENTS, studentDocId(newStu.id, resolvedPhone), newStu));
     }
 
-    return {
-      ...current,
-      approvals,
-      payments,
-      students
-    };
-  }, 'Update student approval');
+    // Update payment status ONLY when approving/activating (keep history intact on Free Trial downgrade)
+    if (isPaid) {
+      for (const p of payRes.docs) {
+        const targetMatch = approval.receipt_id
+          ? p.id === approval.receipt_id
+          : (recordMatchesPhoneOrId(p, resolvedUserId, resolvedPhone) && p.status === 'pending');
+        if (targetMatch && p.__fsDocId) {
+          const updatedPay = {
+            ...stripFsMeta(p),
+            status: 'approved',
+            amount_birr: isAll ? (Number(p.amount_birr) === 100 ? 100 : 300) : 200,
+            upgrade_all_grades: isAll,
+            reviewed_at: cleanApproval.approved_at,
+            reviewed_by: 'admin@ethiolearn.edu.et'
+          };
+          writeOps.push(putFsDoc(COL_PAYMENTS, p.__fsDocId, updatedPay));
+        }
+      }
+    }
+
+    const res = await Promise.all(writeOps);
+    return res.every(Boolean);
+  });
 }
 
 /**
- * Broadcasts payment rejection to cloud so student and all admin browsers see the rejection
+ * Broadcasts payment rejection to Firestore so student and all admin browsers see the rejection.
  */
 export async function broadcastPaymentRejection(receiptId: string, studentPhone: string, reason: string): Promise<boolean> {
   postToRealtimeBus({
@@ -657,25 +792,31 @@ export async function broadcastPaymentRejection(receiptId: string, studentPhone:
     reviewed_at: new Date().toISOString()
   }).catch(() => {});
 
-  return enqueueCloudMutation((current) => {
-    const payments = current.payments.map(p => {
+  return runWithRetry(async () => {
+    const payRes = await listFsCollection(COL_PAYMENTS);
+    if (!payRes.ok) return false;
+    const ops: Promise<boolean>[] = [];
+    for (const p of payRes.docs) {
       if (p.id === receiptId || (studentPhone && phonesMatch(p.student_phone, studentPhone) && p.status === 'pending')) {
-        return {
-          ...p,
-          status: 'rejected',
-          rejection_reason: reason,
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: 'admin@ethiolearn.edu.et'
-        };
+        if (p.__fsDocId) {
+          ops.push(putFsDoc(COL_PAYMENTS, p.__fsDocId, {
+            ...stripFsMeta(p),
+            status: 'rejected',
+            rejection_reason: reason,
+            reviewed_at: new Date().toISOString(),
+            reviewed_by: 'admin@ethiolearn.edu.et'
+          }));
+        }
       }
-      return p;
-    });
-    return { ...current, payments };
-  }, 'Reject payment receipt');
+    }
+    if (ops.length === 0) return true;
+    const res = await Promise.all(ops);
+    return res.every(Boolean);
+  });
 }
 
 /**
- * Broadcasts student removal to cloud so all admin browsers stay synchronized
+ * Broadcasts student removal to Firestore so all admin browsers stay synchronized.
  */
 export async function broadcastStudentDeletion(studentId: string, phoneNumber?: string): Promise<boolean> {
   postToRealtimeBus({
@@ -684,26 +825,52 @@ export async function broadcastStudentDeletion(studentId: string, phoneNumber?: 
     phone_number: phoneNumber
   }).catch(() => {});
 
-  return enqueueCloudMutation((current) => {
-    const deleted = new Set<string>(current.deleted_students || []);
-    if (studentId) deleted.add(String(studentId).toLowerCase());
+  return runWithRetry(async () => {
+    const [stRes, payRes, apprRes] = await Promise.all([
+      listFsCollection(COL_STUDENTS),
+      listFsCollection(COL_PAYMENTS),
+      listFsCollection(COL_APPROVALS)
+    ]);
+    if (!stRes.ok || !payRes.ok || !apprRes.ok) return false;
+
+    const ops: Promise<boolean>[] = [];
+    const tokens = new Set<string>();
+    if (studentId) tokens.add(String(studentId).toLowerCase());
     if (phoneNumber) {
       const k = normalizePhoneKey(phoneNumber);
-      if (k) deleted.add(k);
+      if (k) tokens.add(k);
     }
 
-    return {
-      ...current,
-      students: current.students.filter(s => !recordMatchesPhoneOrId(s, studentId, phoneNumber)),
-      payments: current.payments.filter(p => !recordMatchesPhoneOrId(p, studentId, phoneNumber)),
-      approvals: current.approvals.filter(a => !recordMatchesPhoneOrId(a, studentId, phoneNumber)),
-      deleted_students: Array.from(deleted)
-    };
-  }, 'Delete student');
+    for (const s of stRes.docs) {
+      if (recordMatchesPhoneOrId(s, studentId, phoneNumber) && s.__fsDocId) {
+        if (s.id) tokens.add(String(s.id).toLowerCase());
+        const pk = normalizePhoneKey(s.phone_number);
+        if (pk) tokens.add(pk);
+        ops.push(deleteFsDoc(COL_STUDENTS, s.__fsDocId));
+      }
+    }
+    for (const p of payRes.docs) {
+      if (recordMatchesPhoneOrId(p, studentId, phoneNumber) && p.__fsDocId) {
+        ops.push(deleteFsDoc(COL_PAYMENTS, p.__fsDocId));
+      }
+    }
+    for (const a of apprRes.docs) {
+      if (recordMatchesPhoneOrId(a, studentId, phoneNumber) && a.__fsDocId) {
+        ops.push(deleteFsDoc(COL_APPROVALS, a.__fsDocId));
+      }
+    }
+
+    for (const tok of tokens) {
+      ops.push(putFsDoc(COL_DELETED, safeDocId(tok, 'del'), { key: tok, deleted_at: new Date().toISOString() }));
+    }
+
+    const res = await Promise.all(ops);
+    return res.every(Boolean);
+  });
 }
 
 /**
- * Broadcasts an approved device transfer from admin to cloud
+ * Broadcasts an approved device transfer from admin to Firestore.
  */
 export async function broadcastDeviceApproval(phoneNumber: string, newDeviceId: string, transferId?: string): Promise<boolean> {
   postToRealtimeBus({
@@ -713,50 +880,95 @@ export async function broadcastDeviceApproval(phoneNumber: string, newDeviceId: 
     approved_at: new Date().toISOString()
   }).catch(() => {});
 
-  return enqueueCloudMutation((current) => {
-    const transfers = current.transfers.map(t => {
-      if ((transferId && t.id === transferId) || phonesMatch(t.phone_number, phoneNumber)) {
-        return { ...t, status: 'approved' };
+  return runWithRetry(async () => {
+    const [trRes, stRes] = await Promise.all([
+      listFsCollection(COL_TRANSFERS),
+      listFsCollection(COL_STUDENTS)
+    ]);
+    if (!trRes.ok || !stRes.ok) return false;
+
+    const ops: Promise<boolean>[] = [];
+    for (const t of trRes.docs) {
+      if (((transferId && t.id === transferId) || phonesMatch(t.phone_number, phoneNumber)) && t.__fsDocId) {
+        ops.push(putFsDoc(COL_TRANSFERS, t.__fsDocId, { ...stripFsMeta(t), status: 'approved' }));
       }
-      return t;
-    });
-    const students = current.students.map(s => {
-      if (phonesMatch(s.phone_number, phoneNumber)) {
-        return { ...s, device_id: newDeviceId, premium_device_id: newDeviceId, updated_at: new Date().toISOString() };
+    }
+    for (const s of stRes.docs) {
+      if (phonesMatch(s.phone_number, phoneNumber) && s.__fsDocId) {
+        ops.push(putFsDoc(COL_STUDENTS, s.__fsDocId, {
+          ...stripFsMeta(s),
+          device_id: newDeviceId,
+          premium_device_id: newDeviceId,
+          updated_at: new Date().toISOString()
+        }));
       }
-      return s;
-    });
-    return { ...current, transfers, students };
-  }, 'Approve device transfer');
+    }
+    const res = await Promise.all(ops);
+    return res.every(Boolean);
+  });
 }
 
 /**
- * Broadcasts a rejected device transfer to cloud
+ * Broadcasts a rejected device transfer to Firestore.
  */
 export async function broadcastDeviceTransferRejection(transferId: string): Promise<boolean> {
-  return enqueueCloudMutation((current) => ({
-    ...current,
-    transfers: current.transfers.map(t => t.id === transferId ? { ...t, status: 'rejected' } : t)
-  }), 'Reject device transfer');
+  return runWithRetry(async () => {
+    const trDocId = safeDocId(transferId, 'tr');
+    const docRes = await getFsDoc(COL_TRANSFERS, trDocId);
+    if (docRes.ok && docRes.data) {
+      return putFsDoc(COL_TRANSFERS, trDocId, { ...stripFsMeta(docRes.data), status: 'rejected' });
+    }
+    const listRes = await listFsCollection(COL_TRANSFERS);
+    if (!listRes.ok) return false;
+    const match = listRes.docs.find((t) => t.id === transferId);
+    if (!match || !match.__fsDocId) return true;
+    return putFsDoc(COL_TRANSFERS, match.__fsDocId, { ...stripFsMeta(match), status: 'rejected' });
+  });
 }
 
 /**
- * Checks if current phone number or user ID has a remote approval/tier from the admin
+ * Checks if current phone number or user ID has a remote approval/tier from the admin.
+ * Uses direct document lookup first (~250ms, <1 KB) with collection scan fallback.
  */
 export async function fetchRemoteApprovalForPhone(phone: string, userId?: string): Promise<RemoteStudentApproval | null> {
   const cleanDigits = normalizePhoneKey(phone);
   if (cleanDigits.length < 9 && !userId) return null;
 
   try {
+    // Fast direct lookup path by canonical phone key
+    if (cleanDigits.length >= 9) {
+      const [apprDirect, stuDirect] = await Promise.all([
+        getFsDoc(COL_APPROVALS, `appr_${cleanDigits}`),
+        getFsDoc(COL_STUDENTS, `stu_${cleanDigits}`)
+      ]);
+
+      if (apprDirect.ok && apprDirect.data) {
+        return stripFsMeta(apprDirect.data) as RemoteStudentApproval;
+      }
+
+      if (stuDirect.ok && stuDirect.data) {
+        const sFound = stripFsMeta(stuDirect.data);
+        const isPaid = Boolean(sFound.is_premium && sFound.payment_tier !== 'free');
+        const tier = (sFound.payment_tier || (isPaid ? 'single' : 'free')) as 'free' | 'single' | 'all';
+        return {
+          phone_number: phone,
+          user_id: userId || sFound.id,
+          tier,
+          unlocked_grades: sFound.unlocked_grades || (tier === 'all' ? ['all'] : (isPaid ? [sFound.grade_id || 'grade-12-natural'] : [])),
+          is_premium: isPaid,
+          approved_at: sFound.updated_at || new Date().toISOString()
+        };
+      }
+    }
+
+    // Fallback scan for userId-keyed or legacy documents
     const res = await readCloudMasterStateStrict(true);
     if (!res.ok) return null;
     const current = res.state;
 
-    // 1. Direct approval record (always authoritative for both Paid AND Free downgrades)
     const found = current.approvals.find(a => recordMatchesPhoneOrId(a, userId, phone));
     if (found) return found;
 
-    // 2. Updated student tier in cloud
     const sFound = current.students.find(s => recordMatchesPhoneOrId(s, userId, phone));
     if (sFound) {
       const isPaid = Boolean(sFound.is_premium && sFound.payment_tier !== 'free');
@@ -771,7 +983,6 @@ export async function fetchRemoteApprovalForPhone(phone: string, userId?: string
       };
     }
 
-    // 3. Approved payment in cloud
     const pFound = current.payments.find(p => recordMatchesPhoneOrId(p, userId, phone) && p.status === 'approved');
     if (pFound) {
       const isAll = Number(pFound.amount_birr) === 300 || Number(pFound.amount_birr) === 100 || Boolean(pFound.upgrade_all_grades);
@@ -792,7 +1003,7 @@ export async function fetchRemoteApprovalForPhone(phone: string, userId?: string
 }
 
 /**
- * Broadcasts an account device transfer request from student
+ * Broadcasts an account device transfer request from student.
  */
 export async function broadcastDeviceTransfer(req: RemoteDeviceTransfer): Promise<boolean> {
   postToRealtimeBus({
@@ -800,29 +1011,23 @@ export async function broadcastDeviceTransfer(req: RemoteDeviceTransfer): Promis
     ...req
   }).catch(() => {});
 
-  return enqueueCloudMutation((current) => {
-    const transfers = [...current.transfers];
-    const exIdx = transfers.findIndex(t => t.id === req.id);
-    if (exIdx >= 0) transfers[exIdx] = { ...transfers[exIdx], ...req };
-    else transfers.unshift(req);
-    return { ...current, transfers };
-  }, 'Submit device transfer');
+  return runWithRetry(() => putFsDoc(COL_TRANSFERS, safeDocId(req.id, 'tr'), req));
 }
 
 /**
- * Polls remote device transfer requests
+ * Polls remote device transfer requests.
  */
 export async function fetchRemoteDeviceTransfers(): Promise<RemoteDeviceTransfer[]> {
   try {
-    const res = await readCloudMasterStateStrict(false);
-    return res.state.transfers;
+    const res = await listFsCollection(COL_TRANSFERS);
+    return res.ok ? sortNewestFirst(res.docs.map(stripFsMeta)) : [];
   } catch (_) {
     return [];
   }
 }
 
 /**
- * Broadcasts a student question error / correction appeal
+ * Broadcasts a student question error / correction appeal.
  */
 export async function broadcastQuestionFeedback(fb: RemoteQuestionFeedback): Promise<boolean> {
   postToRealtimeBus({
@@ -830,61 +1035,67 @@ export async function broadcastQuestionFeedback(fb: RemoteQuestionFeedback): Pro
     ...fb
   }).catch(() => {});
 
-  return enqueueCloudMutation((current) => {
-    const feedbacks = [...current.feedbacks];
-    const exIdx = feedbacks.findIndex(f => f.id === fb.id);
-    if (exIdx >= 0) feedbacks[exIdx] = { ...feedbacks[exIdx], ...fb };
-    else feedbacks.unshift(fb);
-    return { ...current, feedbacks };
-  }, 'Submit question feedback');
+  return runWithRetry(() => putFsDoc(COL_FEEDBACKS, safeDocId(fb.id, 'fb'), fb));
 }
 
 /**
- * Broadcasts admin question feedback update/deletion
+ * Broadcasts admin question feedback update/deletion.
  */
 export async function broadcastQuestionFeedbackUpdate(fbId: string, status?: string, remove = false): Promise<boolean> {
-  return enqueueCloudMutation((current) => {
+  return runWithRetry(async () => {
+    const docId = safeDocId(fbId, 'fb');
     if (remove) {
-      return { ...current, feedbacks: current.feedbacks.filter(f => f.id !== fbId) };
+      const delOk = await deleteFsDoc(COL_FEEDBACKS, docId);
+      const listRes = await listFsCollection(COL_FEEDBACKS);
+      if (listRes.ok) {
+        const extra = listRes.docs.filter((f) => f.id === fbId && f.__fsDocId);
+        if (extra.length > 0) await Promise.all(extra.map((f) => deleteFsDoc(COL_FEEDBACKS, f.__fsDocId)));
+      }
+      return delOk;
     }
-    return {
-      ...current,
-      feedbacks: current.feedbacks.map(f => f.id === fbId ? { ...f, ...(status ? { status } : {}) } : f)
-    };
-  }, remove ? 'Delete feedback' : 'Update feedback status');
+    const existing = await getFsDoc(COL_FEEDBACKS, docId);
+    if (existing.ok && existing.data) {
+      return putFsDoc(COL_FEEDBACKS, docId, { ...stripFsMeta(existing.data), ...(status ? { status } : {}) });
+    }
+    const listRes = await listFsCollection(COL_FEEDBACKS);
+    if (!listRes.ok) return false;
+    const match = listRes.docs.find((f) => f.id === fbId);
+    if (!match || !match.__fsDocId) return true;
+    return putFsDoc(COL_FEEDBACKS, match.__fsDocId, { ...stripFsMeta(match), ...(status ? { status } : {}) });
+  });
 }
 
 /**
- * Polls remote question feedback / appeals
+ * Polls remote question feedback / appeals.
  */
 export async function fetchRemoteQuestionFeedbacks(): Promise<RemoteQuestionFeedback[]> {
   try {
-    const res = await readCloudMasterStateStrict(false);
-    return res.state.feedbacks;
+    const res = await listFsCollection(COL_FEEDBACKS);
+    return res.ok ? sortNewestFirst(res.docs.map(stripFsMeta)) : [];
   } catch (_) {
     return [];
   }
 }
 
 /**
- * Polls the cloud channel for all student registrations
+ * Polls cloud for all student registrations.
  */
 export async function fetchRemoteRegistrations(): Promise<RemoteStudentRegistration[]> {
   try {
-    const res = await readCloudMasterStateStrict(false);
-    return res.state.students;
+    const res = await listFsCollection(COL_STUDENTS);
+    return res.ok ? sortNewestFirst(res.docs.map(stripFsMeta)) : [];
   } catch (_) {
     return [];
   }
 }
 
 /**
- * Polls the cloud channel for all payment submissions with screenshots
+ * Polls cloud for all payment submissions with screenshots.
  */
 export async function fetchRemotePayments(): Promise<RemotePaymentSubmission[]> {
   try {
-    const res = await readCloudMasterStateStrict(false);
-    return res.state.payments;
+    const res = await listFsCollection(COL_PAYMENTS);
+    return res.ok ? sortNewestFirst(res.docs.map(stripFsMeta)) : [];
   } catch (_) {
     return [];
   }
@@ -958,7 +1169,6 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
   invalidateReadCache();
   const eventType = payload.event;
 
-  // 1. Payment submission from a student
   if (eventType === 'payment_submission' && payload.student_phone) {
     try {
       const stored = localStorage.getItem('ethiolearn_admin_payments');
@@ -974,7 +1184,6 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
     } catch (_) {}
   }
 
-  // 2. Payment rejection
   if (eventType === 'payment_rejection' && payload.phone_number) {
     try {
       const myPhone = localStorage.getItem('ethiolearn_phone') || '';
@@ -991,7 +1200,6 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
     } catch (_) {}
   }
 
-  // 3. Student registration
   if (eventType === 'student_registration' && payload.phone_number) {
     try {
       const stored = localStorage.getItem('ethiolearn_admin_students');
@@ -1007,12 +1215,10 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
     } catch (_) {}
   }
 
-  // 4. Student deletion
   if (eventType === 'student_deleted') {
     window.dispatchEvent(new CustomEvent('cloud-student-received', { detail: payload }));
   }
 
-  // 5. Admin approval broadcast -> Instantly unlocks student phone & synchronizes admin consoles
   if (eventType === 'student_approval' && (payload.phone_number || payload.user_id)) {
     try {
       const targetId = String(payload.user_id || payload.student_id || '');
@@ -1022,7 +1228,6 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
       const nextGrades = payload.unlocked_grades || (isAll ? ['all'] : (isPremium ? ['grade-12-natural'] : []));
       const nextPaidAmount = nextTier === 'all' ? 300 : (nextTier === 'single' ? 200 : 0);
 
-      // A. Update local ethiolearn_admin_students
       try {
         const adminStr = localStorage.getItem('ethiolearn_admin_students');
         if (adminStr) {
@@ -1046,7 +1251,6 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
         }
       } catch (_) {}
 
-      // B. Update pending receipts ONLY if approved (do not turn approved receipts back to pending on free downgrade)
       if (isPremium) {
         try {
           const paymentsStr = localStorage.getItem('ethiolearn_admin_payments');
@@ -1073,7 +1277,6 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
       window.dispatchEvent(new CustomEvent('cloud-student-received', { detail: payload }));
       window.dispatchEvent(new CustomEvent('cloud-payment-received', { detail: payload }));
 
-      // C. If active non-admin student matches the approved student, unlock/update their profile immediately
       let myProfile: any = null;
       try {
         const pStr = localStorage.getItem('ethiolearn_user_profile');
@@ -1118,7 +1321,6 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
     } catch (_) {}
   }
 
-  // 6. Device approval
   if (eventType === 'device_approval' && payload.phone_number) {
     try {
       const pStr = localStorage.getItem('ethiolearn_user_profile');
@@ -1131,7 +1333,6 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
     } catch (_) {}
   }
 
-  // 7. Device transfer appeal
   if (eventType === 'device_transfer') {
     try {
       const stored = localStorage.getItem('ethiolearn_admin_device_transfers');
@@ -1144,7 +1345,6 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
     } catch (_) {}
   }
 
-  // 8. Question feedback
   if (eventType === 'question_feedback') {
     try {
       const stored = localStorage.getItem('ethiolearn_admin_question_feedback');
@@ -1158,7 +1358,6 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
   }
 }
 
-// Automatically start real-time SSE listener in browser/mobile context
 if (typeof window !== 'undefined') {
   initRealtimeEventSource();
 }
