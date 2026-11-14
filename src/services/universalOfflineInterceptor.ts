@@ -137,7 +137,7 @@ let didCleanResetV5 = false;
 function ensureCleanResetV5(): void {
   if (didCleanResetV5 || typeof localStorage === 'undefined') return;
   didCleanResetV5 = true;
-  if (localStorage.getItem('ethiolearn_clean_reset_v5') === 'true') return;
+  if (localStorage.getItem('ethiolearn_clean_reset_v6') === 'true') return;
   try {
     localStorage.removeItem('ethiolearn_admin_students');
     localStorage.removeItem('ethiolearn_admin_payments');
@@ -149,6 +149,7 @@ function ensureCleanResetV5(): void {
     localStorage.removeItem('ethiolearn_last_uploaded_receipt_image');
     localStorage.removeItem('ethiolearn_payment_approved');
     localStorage.removeItem('ethiolearn_payment_tier');
+    localStorage.removeItem('ethiolearn_device_approved');
 
     const profStr = localStorage.getItem('ethiolearn_user_profile');
     if (profStr) {
@@ -162,7 +163,7 @@ function ensureCleanResetV5(): void {
         localStorage.removeItem('ethiolearn_token');
       }
     }
-    localStorage.setItem('ethiolearn_clean_reset_v5', 'true');
+    localStorage.setItem('ethiolearn_clean_reset_v6', 'true');
   } catch (_) {}
 }
 
@@ -1678,27 +1679,31 @@ async function handleOfflineApiRequest(
       phonesMatch(s.phone || s.phone_number, cleanPhone)
     );
 
-    if (!foundStudent && typeof navigator !== 'undefined' && navigator.onLine !== false) {
+    if (typeof navigator !== 'undefined' && navigator.onLine !== false) {
       try {
         const remoteList = await fetchRemoteRegistrations();
         const remoteMatch = remoteList.find((rs: any) => phonesMatch(rs.phone_number, cleanPhone));
         if (remoteMatch) {
           foundStudent = {
-            id: remoteMatch.id,
+            ...(foundStudent || {}),
+            id: remoteMatch.id || foundStudent?.id,
             phone: remoteMatch.phone_number,
-            name: remoteMatch.full_name,
-            full_name: remoteMatch.full_name,
-            password: remoteMatch.password || 'Student@123',
-            grade_id: remoteMatch.grade_id || 'grade-12-natural',
-            grade: remoteMatch.grade,
-            stream: remoteMatch.stream,
-            is_premium: remoteMatch.is_premium,
-            payment_tier: remoteMatch.payment_tier,
-            unlocked_grades: remoteMatch.unlocked_grades,
-            paid_amount: remoteMatch.paid_amount,
-            created_at: remoteMatch.created_at
+            name: remoteMatch.full_name || foundStudent?.name,
+            full_name: remoteMatch.full_name || foundStudent?.full_name,
+            password: remoteMatch.password || foundStudent?.password || 'Student@123',
+            grade_id: remoteMatch.grade_id || foundStudent?.grade_id || 'grade-12-natural',
+            grade: remoteMatch.grade || foundStudent?.grade,
+            stream: remoteMatch.stream || foundStudent?.stream,
+            device_id: remoteMatch.device_id || foundStudent?.device_id,
+            is_premium: remoteMatch.is_premium ?? foundStudent?.is_premium,
+            payment_tier: remoteMatch.payment_tier || foundStudent?.payment_tier,
+            unlocked_grades: remoteMatch.unlocked_grades || foundStudent?.unlocked_grades,
+            paid_amount: remoteMatch.paid_amount ?? foundStudent?.paid_amount,
+            created_at: remoteMatch.created_at || foundStudent?.created_at
           };
-          registeredStudents.push(foundStudent);
+          const exIdx = registeredStudents.findIndex((s: any) => phonesMatch(s.phone || s.phone_number, cleanPhone));
+          if (exIdx >= 0) registeredStudents[exIdx] = foundStudent;
+          else registeredStudents.push(foundStudent);
           safeSetLocalStorage('ethiolearn_registered_students', JSON.stringify(registeredStudents));
         }
       } catch (_) {}
@@ -1721,6 +1726,33 @@ async function handleOfflineApiRequest(
         error: 'INCORRECT_PASSWORD',
         message: 'The password is incorrect. Please check your password and try again.'
       }, 401);
+    }
+
+    // 3. Enforce 1-Account = 1-Device Lock unless an approved Device Transfer exists for this device
+    const reqDeviceId = String(body.device_id || '').trim();
+    const boundDeviceId = String(foundStudent.device_id || '').trim();
+    if (
+      reqDeviceId &&
+      boundDeviceId &&
+      boundDeviceId !== 'ethiolearn-device-1' &&
+      boundDeviceId !== reqDeviceId
+    ) {
+      let transferApproved = localStorage.getItem('ethiolearn_device_approved') === 'true';
+      if (!transferApproved && typeof navigator !== 'undefined' && navigator.onLine !== false) {
+        try {
+          const remoteTransfers = await fetchRemoteDeviceTransfers();
+          transferApproved = remoteTransfers.some(
+            (t: any) => t.status === 'approved' && phonesMatch(t.phone_number, cleanPhone) && (!t.new_device_id || t.new_device_id === reqDeviceId)
+          );
+        } catch (_) {}
+      }
+      if (!transferApproved) {
+        return jsonResponse({
+          error: 'DEVICE_LOCKED',
+          message: 'You can only use your account on your FIRST phone. One account cannot be opened on multiple devices. Please use your original phone to sign in, or submit a Device Change Appeal.'
+        }, 403);
+      }
+      foundStudent.device_id = reqDeviceId;
     }
 
     // Query authoritative admin students list & cloud for actual tier status
@@ -2100,12 +2132,41 @@ async function handleOfflineApiRequest(
     const newDevId = body.new_device_id || localStorage.getItem('ethiolearn_device_id') || 'dev-unknown';
     const reason = body.reason || 'Requested account transfer to new device';
 
+    let resolvedName = body.student_name || (curProfile && phonesMatch(curProfile.phone_number, curPhone) ? curProfile.full_name : '') || '';
+    let resolvedUserId = (curProfile && phonesMatch(curProfile.phone_number, curPhone) ? curProfile.id : '') || '';
+    let resolvedOldDevice = (curProfile && phonesMatch(curProfile.phone_number, curPhone) ? curProfile.device_id : '') || '';
+
+    if (!resolvedName || !resolvedOldDevice) {
+      try {
+        const regList = JSON.parse(localStorage.getItem('ethiolearn_registered_students') || '[]');
+        const match = Array.isArray(regList) ? regList.find((s: any) => phonesMatch(s.phone || s.phone_number, curPhone)) : null;
+        if (match) {
+          resolvedName = resolvedName || match.full_name || match.name || '';
+          resolvedUserId = resolvedUserId || match.id || '';
+          resolvedOldDevice = resolvedOldDevice || match.device_id || '';
+        }
+      } catch (_) {}
+    }
+
+    if ((!resolvedName || !resolvedOldDevice) && typeof navigator !== 'undefined' && navigator.onLine !== false) {
+      try {
+        const remoteList = await fetchRemoteRegistrations();
+        const remoteMatch = remoteList.find((rs: any) => phonesMatch(rs.phone_number, curPhone));
+        if (remoteMatch) {
+          resolvedName = resolvedName || remoteMatch.full_name || '';
+          resolvedUserId = resolvedUserId || remoteMatch.id || '';
+          resolvedOldDevice = resolvedOldDevice || remoteMatch.device_id || '';
+        }
+      } catch (_) {}
+    }
+
+    const cleanDigits = String(curPhone || '').replace(/[^\d]/g, '').slice(-9);
     const newTransfer: any = {
       id: `dt-${Date.now()}`,
-      user_id: curProfile?.id || localStorage.getItem('ethiolearn_user_id') || undefined,
+      user_id: resolvedUserId || (cleanDigits ? `student-251${cleanDigits}` : undefined),
       phone_number: curPhone,
-      student_name: curProfile?.full_name || body.student_name || 'Student',
-      old_device_id: curProfile?.device_id || 'dev-primary',
+      student_name: resolvedName || (cleanDigits ? `Student ${cleanDigits.slice(-4)}` : 'Student'),
+      old_device_id: resolvedOldDevice || 'dev-primary',
       new_device_id: newDevId,
       reason,
       status: 'pending' as const,

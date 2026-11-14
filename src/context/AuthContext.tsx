@@ -4,6 +4,7 @@ import { apiFetchJson } from '../utils/api';
 import {
   fetchRemoteApprovalForPhone,
   fetchRemoteRegistrations,
+  fetchRemoteDeviceTransfers,
   broadcastStudentRegistration,
   phonesMatch
 } from '../services/cloudSyncService';
@@ -379,20 +380,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       phonesMatch(s.phone || s.phone_number, normPhone)
     );
 
-    if (!foundStudent && navigator.onLine !== false) {
+    if (navigator.onLine !== false) {
       try {
         const remoteList = await fetchRemoteRegistrations();
         const remoteMatch = remoteList.find((rs: any) => phonesMatch(rs.phone_number, normPhone));
         if (remoteMatch) {
           foundStudent = {
-            id: remoteMatch.id,
+            ...(foundStudent || {}),
+            id: remoteMatch.id || foundStudent?.id,
             phone: remoteMatch.phone_number,
-            name: remoteMatch.full_name,
-            password: remoteMatch.password || 'Student@123',
-            grade_id: remoteMatch.grade_id || 'grade-12-natural',
-            grade: remoteMatch.grade
+            name: remoteMatch.full_name || foundStudent?.name,
+            password: remoteMatch.password || foundStudent?.password || 'Student@123',
+            grade_id: remoteMatch.grade_id || foundStudent?.grade_id || 'grade-12-natural',
+            grade: remoteMatch.grade || foundStudent?.grade,
+            device_id: remoteMatch.device_id || foundStudent?.device_id
           };
-          registeredStudents.push(foundStudent);
+          const exIdx = registeredStudents.findIndex((s: any) => phonesMatch(s.phone || s.phone_number, normPhone));
+          if (exIdx >= 0) registeredStudents[exIdx] = foundStudent;
+          else registeredStudents.push(foundStudent);
           localStorage.setItem('ethiolearn_registered_students', JSON.stringify(registeredStudents));
         }
       } catch (_) {}
@@ -415,6 +420,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error: 'INCORRECT_PASSWORD',
         message: 'The password is incorrect. Please check your password and try again.'
       };
+    }
+
+    const boundDeviceId = String(foundStudent.device_id || '').trim();
+    if (boundDeviceId && deviceId && boundDeviceId !== 'ethiolearn-device-1' && boundDeviceId !== deviceId) {
+      let transferApproved = localStorage.getItem('ethiolearn_device_approved') === 'true';
+      if (!transferApproved && navigator.onLine !== false) {
+        try {
+          const remoteTransfers = await fetchRemoteDeviceTransfers();
+          transferApproved = remoteTransfers.some(
+            (t: any) => t.status === 'approved' && phonesMatch(t.phone_number, normPhone) && (!t.new_device_id || t.new_device_id === deviceId)
+          );
+        } catch (_) {}
+      }
+      if (!transferApproved) {
+        return {
+          success: false,
+          error: 'DEVICE_LOCKED',
+          message: 'You can only use your account on your FIRST phone. One account cannot be opened on multiple devices. Please use your original phone to sign in, or submit a Device Change Appeal.'
+        };
+      }
+      foundStudent.device_id = deviceId;
     }
 
     // Look up tier in authoritative admin students list & cloud

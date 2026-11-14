@@ -63,7 +63,9 @@
       // Clear stale service worker caches on page load to ensure fresh live code updates (web only)
       if (typeof window !== 'undefined' && !window.Capacitor) {
         try {
+          const APP_SW_VERSION = '2026-11-14-v6';
           const hadController = Boolean(navigator.serviceWorker && navigator.serviceWorker.controller);
+          const prevVersion = localStorage.getItem('el_app_sw_version');
           const swPromise = ('serviceWorker' in navigator)
             ? navigator.serviceWorker.getRegistrations().then(function(registrations) {
                 return Promise.all(registrations.map(function(r) { return r.unregister().catch(function() {}); }));
@@ -74,11 +76,14 @@
                 return Promise.all(names.map(function(name) { return caches.delete(name).catch(function() {}); }));
               }).catch(function() {})
             : Promise.resolve();
-          if (hadController && !sessionStorage.getItem('el_sw_purged')) {
+          if ((hadController || prevVersion !== APP_SW_VERSION) && !sessionStorage.getItem('el_sw_purged_v6')) {
             Promise.all([swPromise, cachePromise]).then(function() {
-              sessionStorage.setItem('el_sw_purged', '1');
+              localStorage.setItem('el_app_sw_version', APP_SW_VERSION);
+              sessionStorage.setItem('el_sw_purged_v6', '1');
               window.location.reload();
             });
+          } else {
+            localStorage.setItem('el_app_sw_version', APP_SW_VERSION);
           }
         } catch (_) {}
       }

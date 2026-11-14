@@ -351,10 +351,11 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
     const interval = setInterval(() => {
       fetchAdminData();
       fetchQuestionFeedbacks();
-    }, 8000);
+    }, 4000);
 
     const handleRealtimeSync = () => {
       fetchAdminData();
+      fetchQuestionFeedbacks();
     };
 
     window.addEventListener('cloud-payment-received', handleRealtimeSync);
@@ -431,11 +432,13 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
         headers: { 'x-user-id': user.id }
       });
       if (res.ok) {
-        if (targetReceipt && (targetReceipt.student_phone || targetReceipt.user_id)) {
+        const data = await res.json().catch(() => null);
+        if (!data?.cloud_synced && targetReceipt && (targetReceipt.student_phone || targetReceipt.user_id)) {
           const isAll = targetReceipt.upgrade_all_grades || targetReceipt.amount_birr === 300 || targetReceipt.amount_birr === 100;
-          broadcastStudentApproval({
+          await broadcastStudentApproval({
             phone_number: targetReceipt.student_phone || '',
             user_id: targetReceipt.user_id,
+            receipt_id: receiptId,
             tier: isAll ? 'all' : 'single',
             unlocked_grades: isAll ? ['all'] : [targetReceipt.target_grade_id || 'grade-12-natural'],
             is_premium: true,

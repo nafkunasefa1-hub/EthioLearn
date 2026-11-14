@@ -1,13 +1,16 @@
 /**
- * EthioLearn Cloud Synchronization Service (Firebase Firestore + Real-Time SSE Bus)
+ * EthioLearn Cloud Synchronization Service
+ * Dual-Engine Architecture: Firebase Firestore (Primary) + ntfy.sh Persistent State Log & Real-Time SSE (IPv4 Fast Path)
  *
- * Provides persistent, zero-secret-in-client, two-way synchronization between students
- * on Android APK / mobile / web and administrators across all browsers
- * (Chrome, Edge, Safari) on https://nafkunasefa1-ethiolearn-paypal.static.hf.space.
+ * Guarantees two-way synchronization between students on Android APK / mobile web
+ * and administrators across all browsers (Chrome, Edge, Safari) on
+ * https://nafkunasefa1-ethiolearn-paypal.static.hf.space, even when mobile carriers
+ * throttle or stall IPv6 routes to Google APIs.
  */
 
 const SMEE_SYNC_URL = 'https://smee.io/ethiolearn_sync_prod_2026';
-const NTFY_EVENTS_URL = 'https://ntfy.sh/ethiolearn_events_v3_prod';
+const NTFY_EVENTS_URL = 'https://ntfy.sh/ethiolearn_events_v4_prod';
+const NTFY_STATE_URL = 'https://ntfy.sh/ethiolearn_state_v4_prod';
 
 // Public Firebase Web Config for EthioLearn Firestore (auth & security enforced by Firestore Rules)
 const FIREBASE_PROJECT_ID = 'ethiolearn-d7042';
@@ -148,12 +151,14 @@ function approvalDocId(userId?: string, phone?: string): string {
   return safeDocId(userId || '', 'appr');
 }
 
+function recordTimestampMs(item: any): number {
+  if (!item || typeof item !== 'object') return 0;
+  const raw = item.updated_at || item.reviewed_at || item.approved_at || item.submitted_at || item.requested_at || item.created_at || 0;
+  return new Date(raw).getTime() || 0;
+}
+
 function sortNewestFirst(items: any[]): any[] {
-  return [...items].sort((a, b) => {
-    const ta = new Date(a?.updated_at || a?.reviewed_at || a?.approved_at || a?.submitted_at || a?.requested_at || a?.created_at || 0).getTime() || 0;
-    const tb = new Date(b?.updated_at || b?.reviewed_at || b?.approved_at || b?.submitted_at || b?.requested_at || b?.created_at || 0).getTime() || 0;
-    return tb - ta;
-  });
+  return [...items].sort((a, b) => recordTimestampMs(b) - recordTimestampMs(a));
 }
 
 function toFsValue(val: any): Record<string, any> {
@@ -258,9 +263,24 @@ export function generateAuthenticSlipSvg(phone: string, name: string, amount: nu
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response | null> {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller ? controller.signal : undefined
+    });
+  } catch (_) {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * Low-level dispatch to real-time notification buses (smee.io + ntfy.sh)
- * Strips heavy image payloads when pushing to SSE notification buses.
+ * Uses CORS-simple POST for ntfy.sh so mobile networks skip OPTIONS preflight.
  */
 async function postToRealtimeBus(eventPayload: Record<string, any>): Promise<boolean> {
   const lightPayload: Record<string, any> = { ...eventPayload };
@@ -270,11 +290,11 @@ async function postToRealtimeBus(eventPayload: Record<string, any>): Promise<boo
   }
 
   const bodyStr = JSON.stringify(lightPayload);
-  const p1 = fetch(SMEE_SYNC_URL, {
+  const p1 = fetchWithTimeout(SMEE_SYNC_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: bodyStr
-  }).then(r => r.ok).catch(() => false);
+  }, 6000).then(r => Boolean(r && r.ok)).catch(() => false);
 
   const ntfyBrief = JSON.stringify({
     event: lightPayload.event,
@@ -284,14 +304,342 @@ async function postToRealtimeBus(eventPayload: Record<string, any>): Promise<boo
     status: lightPayload.status,
     ts: Date.now()
   });
-  const p2 = fetch(NTFY_EVENTS_URL, {
+  const p2 = fetchWithTimeout(NTFY_EVENTS_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: ntfyBrief
-  }).then(r => r.ok).catch(() => false);
+  }, 6000).then(r => Boolean(r && r.ok)).catch(() => false);
 
   const [r1, r2] = await Promise.all([p1, p2]);
   return Boolean(r1 || r2);
+}
+
+/**
+ * Appends a state mutation event to ntfy.sh persistent state log (IPv4 fast path).
+ * Uses a CORS-simple POST (no custom headers) so mobile browsers and Android WebViews
+ * transmit in a single roundtrip without OPTIONS preflight.
+ */
+async function appendNtfyStateOp(opPayload: Record<string, any>): Promise<boolean> {
+  const record = {
+    ...opPayload,
+    ts: opPayload.ts || new Date().toISOString()
+  };
+  const res = await fetchWithTimeout(
+    NTFY_STATE_URL,
+    {
+      method: 'POST',
+      body: JSON.stringify(record)
+    },
+    10000
+  );
+  return Boolean(res && res.ok);
+}
+
+const ntfyAttachmentCache = new Map<string, any>();
+
+interface NtfyLogStateResult {
+  ok: boolean;
+  resetTsMs: number;
+  deletedMap: Map<string, number>; // token -> timestamp ms
+  removedFeedbackIds: Set<string>;
+  state: CloudMasterState;
+}
+
+/**
+ * Reads and replays the persistent state log from ntfy.sh (IPv4 fast path).
+ */
+async function readNtfyStateLog(): Promise<NtfyLogStateResult> {
+  const emptyResult: NtfyLogStateResult = {
+    ok: false,
+    resetTsMs: 0,
+    deletedMap: new Map(),
+    removedFeedbackIds: new Set(),
+    state: normalizeCloudState({})
+  };
+
+  const res = await fetchWithTimeout(`${NTFY_STATE_URL}/json?poll=1&since=all`, { cache: 'no-store' }, 7500);
+  if (!res || !res.ok) return emptyResult;
+
+  try {
+    const text = await res.text();
+    const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+    const rawEnvelopes: any[] = [];
+    for (const line of lines) {
+      try {
+        const env = JSON.parse(line);
+        if (env && env.event === 'message') {
+          rawEnvelopes.push(env);
+        }
+      } catch (_) {}
+    }
+
+    // Resolve any attachments in parallel (cached by message ID)
+    const ops: Array<{ envTimeMs: number; data: any }> = [];
+    await Promise.all(
+      rawEnvelopes.map(async (env, idx) => {
+        let parsed: any = null;
+        if (env.attachment?.url) {
+          if (ntfyAttachmentCache.has(env.id)) {
+            parsed = ntfyAttachmentCache.get(env.id);
+          } else {
+            const attRes = await fetchWithTimeout(env.attachment.url, {}, 7500);
+            if (attRes && attRes.ok) {
+              try {
+                parsed = await attRes.json();
+                ntfyAttachmentCache.set(env.id, parsed);
+              } catch (_) {}
+            }
+          }
+        } else if (typeof env.message === 'string' && env.message.trim().startsWith('{')) {
+          try {
+            parsed = JSON.parse(env.message);
+          } catch (_) {}
+        }
+        if (parsed && parsed.op) {
+          const tsMs = (parsed.ts ? new Date(parsed.ts).getTime() : 0) || ((env.time || 0) * 1000) + idx;
+          ops.push({ envTimeMs: tsMs, data: parsed });
+        }
+      })
+    );
+
+    ops.sort((a, b) => a.envTimeMs - b.envTimeMs);
+
+    let students: any[] = [];
+    let payments: any[] = [];
+    let approvals: any[] = [];
+    let transfers: any[] = [];
+    let feedbacks: any[] = [];
+    let deletedMap = new Map<string, number>();
+    let removedFeedbackIds = new Set<string>();
+    let resetTsMs = 0;
+
+    const addDeleteToken = (tok: string, tsMs: number) => {
+      const clean = String(tok || '').toLowerCase().trim();
+      if (clean) deletedMap.set(clean, tsMs);
+    };
+
+    const clearDeleteTokensFor = (id?: string, phone?: string) => {
+      const idKey = String(id || '').toLowerCase().trim();
+      const pk = normalizePhoneKey(phone);
+      for (const k of Array.from(deletedMap.keys())) {
+        if ((idKey && k === idKey) || (pk.length >= 9 && k.includes(pk))) {
+          deletedMap.delete(k);
+        }
+      }
+    };
+
+    for (const item of ops) {
+      const entry = item.data;
+      const tsIso = entry.ts || new Date(item.envTimeMs).toISOString();
+      const tsMs = item.envTimeMs;
+
+      if (entry.op === 'reset_all' && entry.state) {
+        const st = normalizeCloudState(entry.state);
+        students = [...st.students];
+        payments = [...st.payments];
+        approvals = [...st.approvals];
+        transfers = [...st.transfers];
+        feedbacks = [...st.feedbacks];
+        deletedMap = new Map();
+        for (const d of st.deleted_students || []) {
+          addDeleteToken(d, tsMs);
+        }
+        removedFeedbackIds = new Set();
+        resetTsMs = tsMs;
+        continue;
+      }
+
+      if (entry.op === 'student_registration' && entry.student) {
+        const stu = entry.student;
+        clearDeleteTokensFor(stu.id, stu.phone_number);
+        const exIdx = students.findIndex(s => recordMatchesPhoneOrId(s, stu.id, stu.phone_number));
+        if (exIdx >= 0) {
+          const ex = students[exIdx];
+          students[exIdx] = {
+            ...ex,
+            ...stu,
+            is_premium: ex.is_premium || stu.is_premium || false,
+            payment_tier: (ex.payment_tier && ex.payment_tier !== 'free') ? ex.payment_tier : (stu.payment_tier || 'free'),
+            unlocked_grades: (ex.unlocked_grades && ex.unlocked_grades.length > 0) ? ex.unlocked_grades : (stu.unlocked_grades || []),
+            paid_amount: ex.paid_amount || stu.paid_amount || 0,
+            updated_at: stu.updated_at || tsIso
+          };
+        } else {
+          students.push({
+            ...stu,
+            is_premium: stu.is_premium || false,
+            payment_tier: stu.payment_tier || 'free',
+            unlocked_grades: stu.unlocked_grades || [],
+            paid_amount: stu.paid_amount || 0,
+            updated_at: stu.updated_at || tsIso
+          });
+        }
+      } else if (entry.op === 'payment_submission' && entry.payment) {
+        const pay = entry.payment;
+        payments = payments.filter(p => {
+          if (p.id === pay.id) return false;
+          if (p.status === 'pending' && recordMatchesPhoneOrId(p, pay.user_id, pay.student_phone)) return false;
+          return true;
+        });
+        payments.unshift({ ...pay, submitted_at: pay.submitted_at || tsIso });
+      } else if (entry.op === 'student_approval' && entry.approval) {
+        const appr: RemoteStudentApproval = entry.approval;
+        const isAll = appr.tier === 'all';
+        const isPaid = Boolean(appr.is_premium && appr.tier !== 'free');
+        const resolvedGrades = isAll
+          ? ['all']
+          : (isPaid ? (appr.unlocked_grades?.length ? appr.unlocked_grades : [appr.grade_id || 'grade-12-natural']) : []);
+
+        const matchedStu = students.filter(s => recordMatchesPhoneOrId(s, appr.user_id, appr.phone_number));
+        const resolvedPhone = appr.phone_number || matchedStu[0]?.phone_number || '';
+        const resolvedUserId = appr.user_id || matchedStu[0]?.id;
+
+        const cleanAppr: RemoteStudentApproval = {
+          ...appr,
+          phone_number: resolvedPhone,
+          ...(resolvedUserId ? { user_id: resolvedUserId } : {}),
+          is_premium: isPaid,
+          tier: isPaid ? appr.tier : 'free',
+          unlocked_grades: resolvedGrades,
+          approved_at: appr.approved_at || tsIso
+        };
+
+        approvals = approvals.filter(a => !recordMatchesPhoneOrId(a, resolvedUserId, resolvedPhone));
+        approvals.unshift(cleanAppr);
+
+        if (matchedStu.length > 0) {
+          students = students.map(s => {
+            if (!recordMatchesPhoneOrId(s, resolvedUserId, resolvedPhone)) return s;
+            return {
+              ...s,
+              is_premium: isPaid,
+              payment_tier: isPaid ? appr.tier : 'free',
+              unlocked_grades: resolvedGrades,
+              paid_amount: appr.tier === 'all' ? 300 : (appr.tier === 'single' ? 200 : 0),
+              updated_at: cleanAppr.approved_at
+            };
+          });
+        } else if (resolvedPhone) {
+          const pRef = payments.find(p => recordMatchesPhoneOrId(p, resolvedUserId, resolvedPhone));
+          const cleanDigits = normalizePhoneKey(resolvedPhone);
+          students.push({
+            id: resolvedUserId || `student-251${cleanDigits}`,
+            phone_number: resolvedPhone,
+            full_name: pRef?.student_name || `Student ${cleanDigits.slice(-4)}`,
+            grade_id: pRef?.target_grade_id && pRef.target_grade_id !== 'all' ? pRef.target_grade_id : (appr.grade_id || 'grade-12-natural'),
+            role: 'student',
+            is_premium: isPaid,
+            payment_tier: isPaid ? appr.tier : 'free',
+            unlocked_grades: resolvedGrades,
+            paid_amount: appr.tier === 'all' ? 300 : (appr.tier === 'single' ? 200 : 0),
+            created_at: cleanAppr.approved_at,
+            updated_at: cleanAppr.approved_at
+          });
+        }
+
+        if (isPaid) {
+          payments = payments.map(p => {
+            const targetMatch = appr.receipt_id
+              ? p.id === appr.receipt_id
+              : (recordMatchesPhoneOrId(p, resolvedUserId, resolvedPhone) && p.status === 'pending');
+            if (!targetMatch) return p;
+            return {
+              ...p,
+              status: 'approved',
+              amount_birr: isAll ? (Number(p.amount_birr) === 100 ? 100 : 300) : 200,
+              upgrade_all_grades: isAll,
+              reviewed_at: cleanAppr.approved_at,
+              reviewed_by: 'admin@ethiolearn.edu.et'
+            };
+          });
+        }
+      } else if (entry.op === 'payment_rejection') {
+        payments = payments.map(p => {
+          if (p.id === entry.receipt_id || (entry.phone_number && phonesMatch(p.student_phone, entry.phone_number) && p.status === 'pending')) {
+            return {
+              ...p,
+              status: 'rejected',
+              rejection_reason: entry.rejection_reason || 'Rejected by administrator',
+              reviewed_at: entry.reviewed_at || tsIso,
+              reviewed_by: 'admin@ethiolearn.edu.et'
+            };
+          }
+          return p;
+        });
+      } else if (entry.op === 'student_deleted') {
+        if (entry.id) addDeleteToken(entry.id, tsMs);
+        if (entry.phone_number) {
+          addDeleteToken(entry.phone_number, tsMs);
+          const pk = normalizePhoneKey(entry.phone_number);
+          if (pk) addDeleteToken(pk, tsMs);
+        }
+        for (const s of students) {
+          if (recordMatchesPhoneOrId(s, entry.id, entry.phone_number)) {
+            if (s.id) addDeleteToken(s.id, tsMs);
+            const pk = normalizePhoneKey(s.phone_number);
+            if (pk) addDeleteToken(pk, tsMs);
+          }
+        }
+        students = students.filter(s => !recordMatchesPhoneOrId(s, entry.id, entry.phone_number));
+        payments = payments.filter(p => !recordMatchesPhoneOrId(p, entry.id, entry.phone_number));
+        approvals = approvals.filter(a => !recordMatchesPhoneOrId(a, entry.id, entry.phone_number));
+        transfers = transfers.filter(t => !recordMatchesPhoneOrId(t, entry.id, entry.phone_number));
+      } else if (entry.op === 'device_transfer' && entry.transfer) {
+        const tr = entry.transfer;
+        transfers = transfers.filter(t => t.id !== tr.id);
+        transfers.unshift(tr);
+      } else if (entry.op === 'device_approval') {
+        transfers = transfers.map(t => {
+          if ((entry.transfer_id && t.id === entry.transfer_id) || phonesMatch(t.phone_number, entry.phone_number)) {
+            return { ...t, status: 'approved' };
+          }
+          return t;
+        });
+        students = students.map(s => {
+          if (phonesMatch(s.phone_number, entry.phone_number)) {
+            return {
+              ...s,
+              device_id: entry.new_device_id,
+              premium_device_id: entry.new_device_id,
+              updated_at: tsIso
+            };
+          }
+          return s;
+        });
+      } else if (entry.op === 'device_transfer_rejection') {
+        transfers = transfers.map(t => t.id === entry.transfer_id ? { ...t, status: 'rejected' } : t);
+      } else if (entry.op === 'question_feedback' && entry.feedback) {
+        const fb = entry.feedback;
+        removedFeedbackIds.delete(fb.id);
+        feedbacks = feedbacks.filter(f => f.id !== fb.id);
+        feedbacks.unshift(fb);
+      } else if (entry.op === 'question_feedback_update') {
+        if (entry.remove) {
+          removedFeedbackIds.add(entry.id);
+          feedbacks = feedbacks.filter(f => f.id !== entry.id);
+        } else {
+          feedbacks = feedbacks.map(f => f.id === entry.id ? { ...f, ...(entry.status ? { status: entry.status } : {}) } : f);
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      resetTsMs,
+      deletedMap,
+      removedFeedbackIds,
+      state: normalizeCloudState({
+        students,
+        payments,
+        approvals,
+        transfers,
+        feedbacks,
+        deleted_students: Array.from(deletedMap.keys()),
+        updated_at: new Date().toISOString()
+      })
+    };
+  } catch (_) {
+    return emptyResult;
+  }
 }
 
 function parseList(val: any): any[] {
@@ -327,24 +675,9 @@ function invalidateReadCache() {
   lastReadCache = null;
 }
 
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response | null> {
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-  try {
-    return await fetch(url, {
-      ...options,
-      signal: controller ? controller.signal : undefined
-    });
-  } catch (_) {
-    return null;
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
-
 async function getFsDoc(collection: string, docId: string): Promise<{ ok: boolean; notFound?: boolean; data: any }> {
   const url = `${FIRESTORE_BASE_URL}/${collection}/${encodeURIComponent(docId)}?key=${FIREBASE_API_KEY}`;
-  const res = await fetchWithTimeout(url, { cache: 'no-store' }, 9000);
+  const res = await fetchWithTimeout(url, { cache: 'no-store' }, 6500);
   if (!res) return { ok: false, data: null };
   if (res.status === 404) return { ok: true, notFound: true, data: null };
   if (!res.ok) return { ok: false, data: null };
@@ -367,24 +700,24 @@ async function putFsDoc(collection: string, docId: string, obj: Record<string, a
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: toFsFields(obj) })
     },
-    14000
+    10000
   );
   return Boolean(res && res.ok);
 }
 
 async function deleteFsDoc(collection: string, docId: string): Promise<boolean> {
   const url = `${FIRESTORE_BASE_URL}/${collection}/${encodeURIComponent(docId)}?key=${FIREBASE_API_KEY}`;
-  const res = await fetchWithTimeout(url, { method: 'DELETE' }, 9000);
+  const res = await fetchWithTimeout(url, { method: 'DELETE' }, 6500);
   return Boolean(res && (res.ok || res.status === 404));
 }
 
 async function listFsCollection(collection: string): Promise<{ ok: boolean; docs: any[] }> {
   const docs: any[] = [];
   let pageToken = '';
-  for (let page = 0; page < 15; page++) {
+  for (let page = 0; page < 10; page++) {
     const tokenPart = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : '';
     const url = `${FIRESTORE_BASE_URL}/${collection}?pageSize=300${tokenPart}&key=${FIREBASE_API_KEY}`;
-    const res = await fetchWithTimeout(url, { cache: 'no-store' }, 12000);
+    const res = await fetchWithTimeout(url, { cache: 'no-store' }, 7500);
     if (!res || !res.ok) {
       return { ok: false, docs: [] };
     }
@@ -413,7 +746,7 @@ function stripFsMeta(doc: any): any {
 
 async function runWithRetry(fn: () => Promise<boolean>): Promise<boolean> {
   const task = async (): Promise<boolean> => {
-    const delays = [0, 350, 900];
+    const delays = [0, 300, 750];
     for (let i = 0; i < delays.length; i++) {
       if (delays[i] > 0) await new Promise(r => setTimeout(r, delays[i]));
       invalidateReadCache();
@@ -456,6 +789,80 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
   }
 }
 
+async function compressDataUrlIfNeeded(dataUrl: string): Promise<string> {
+  if (!dataUrl || !dataUrl.startsWith('data:image/') || dataUrl.startsWith('data:image/svg+xml')) {
+    return dataUrl;
+  }
+  if (dataUrl.length <= 140000 || typeof document === 'undefined' || typeof Image === 'undefined') {
+    return dataUrl;
+  }
+  return new Promise((resolve) => {
+    try {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const maxDim = 620;
+          let width = img.width || 600;
+          let height = img.height || 800;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(dataUrl);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          let out = canvas.toDataURL('image/jpeg', 0.54);
+          if (out.length > 60000) {
+            out = canvas.toDataURL('image/jpeg', 0.42);
+          }
+          resolve(out || dataUrl);
+        } catch (_) {
+          resolve(dataUrl);
+        }
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    } catch (_) {
+      resolve(dataUrl);
+    }
+  });
+}
+
+function isRecordDeleted(deletedMap: Map<string, number>, rec: any): boolean {
+  if (!rec || deletedMap.size === 0) return false;
+  const recTs = recordTimestampMs(rec);
+  const idLower = String(rec.id || rec.user_id || '').toLowerCase().trim();
+  const phoneRaw = String(rec.phone_number || rec.student_phone || rec.phone || '').toLowerCase().trim();
+  const pk = normalizePhoneKey(phoneRaw);
+
+  for (const [tok, delTs] of deletedMap.entries()) {
+    if (!tok) continue;
+    const matched =
+      (idLower && tok === idLower) ||
+      (phoneRaw && tok === phoneRaw) ||
+      (pk.length >= 9 && tok.includes(pk));
+    if (matched) {
+      // If the record was newly created/updated AFTER the deletion timestamp, it was re-registered!
+      if (recTs > 0 && delTs > 0 && recTs > delTs + 500) {
+        return false;
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 export async function readCloudMasterStateStrict(bypassCache = false): Promise<{ ok: boolean; notFound?: boolean; state: CloudMasterState }> {
   const now = Date.now();
   if (!bypassCache && lastReadCache && now - lastReadCache.ts < 250) {
@@ -466,34 +873,223 @@ export async function readCloudMasterStateStrict(bypassCache = false): Promise<{
   }
 
   const exec = (async (): Promise<{ ok: boolean; notFound?: boolean; state: CloudMasterState }> => {
-    const [stRes, payRes, apprRes, trRes, fbRes, delRes] = await Promise.all([
+    const [stRes, payRes, apprRes, trRes, fbRes, delRes, ntfyRes] = await Promise.all([
       listFsCollection(COL_STUDENTS),
       listFsCollection(COL_PAYMENTS),
       listFsCollection(COL_APPROVALS),
       listFsCollection(COL_TRANSFERS),
       listFsCollection(COL_FEEDBACKS),
-      listFsCollection(COL_DELETED)
+      listFsCollection(COL_DELETED),
+      readNtfyStateLog()
     ]);
 
-    if (!stRes.ok || !payRes.ok || !apprRes.ok || !trRes.ok || !fbRes.ok || !delRes.ok) {
+    const fsOk = stRes.ok && payRes.ok && apprRes.ok && trRes.ok && fbRes.ok && delRes.ok;
+    const anyFsOk = stRes.ok || payRes.ok || apprRes.ok || trRes.ok || fbRes.ok || delRes.ok;
+
+    if (!anyFsOk && !ntfyRes.ok) {
       return { ok: false, state: normalizeCloudState({}) };
     }
 
-    const deletedTokens = delRes.docs
-      .map((d: any) => String(d.key || String(d.__fsDocId || '').replace(/^del_/, '')).trim())
-      .filter(Boolean);
+    const resetFloorMs = ntfyRes.ok ? ntfyRes.resetTsMs : 0;
+    const filterResetFloor = (docs: any[]) =>
+      resetFloorMs > 0 ? docs.filter(d => recordTimestampMs(d) >= resetFloorMs - 1000) : docs;
+
+    // 1. Merge deletion tombstones with timestamps
+    const mergedDeletedMap = new Map<string, number>();
+    if (delRes.ok) {
+      for (const d of delRes.docs) {
+        const key = String(d.key || String(d.__fsDocId || '').replace(/^del_/, '')).toLowerCase().trim();
+        const delTs = new Date(d.deleted_at || 0).getTime() || 1;
+        if (key && delTs >= resetFloorMs) {
+          mergedDeletedMap.set(key, delTs);
+        }
+      }
+    }
+    if (ntfyRes.ok) {
+      for (const [k, ts] of ntfyRes.deletedMap.entries()) {
+        const prev = mergedDeletedMap.get(k) || 0;
+        if (ts > prev) mergedDeletedMap.set(k, ts);
+      }
+    }
+
+    // If a student re-registered in ntfy or Firestore AFTER a tombstone, remove that tombstone
+    const allCandidateStudents = [
+      ...(stRes.ok ? filterResetFloor(stRes.docs.map(stripFsMeta)) : []),
+      ...(ntfyRes.ok ? ntfyRes.state.students : [])
+    ];
+    for (const s of allCandidateStudents) {
+      const sTs = recordTimestampMs(s);
+      if (!sTs) continue;
+      const idKey = String(s.id || '').toLowerCase().trim();
+      const pk = normalizePhoneKey(s.phone_number);
+      for (const [tok, delTs] of Array.from(mergedDeletedMap.entries())) {
+        if ((idKey && tok === idKey) || (pk.length >= 9 && tok.includes(pk))) {
+          if (sTs > delTs + 500) {
+            mergedDeletedMap.delete(tok);
+          }
+        }
+      }
+    }
+
+    // 2. Merge Approvals
+    const approvalsMap = new Map<string, any>();
+    const addApproval = (a: any) => {
+      if (!a || isRecordDeleted(mergedDeletedMap, a)) return;
+      const key = approvalDocId(a.user_id, a.phone_number);
+      const prev = approvalsMap.get(key);
+      if (!prev || recordTimestampMs(a) >= recordTimestampMs(prev)) {
+        approvalsMap.set(key, a);
+      }
+    };
+    if (apprRes.ok) filterResetFloor(apprRes.docs.map(stripFsMeta)).forEach(addApproval);
+    if (ntfyRes.ok) ntfyRes.state.approvals.forEach(addApproval);
+    const mergedApprovals = Array.from(approvalsMap.values());
+
+    // 3. Merge Students (and apply latest approvals)
+    const studentsMap = new Map<string, any>();
+    const addStudent = (s: any) => {
+      if (!s || isRecordDeleted(mergedDeletedMap, s)) return;
+      const key = studentDocId(s.id, s.phone_number);
+      const prev = studentsMap.get(key);
+      if (!prev) {
+        studentsMap.set(key, s);
+      } else {
+        const sNewer = recordTimestampMs(s) >= recordTimestampMs(prev);
+        const primary = sNewer ? s : prev;
+        const secondary = sNewer ? prev : s;
+        studentsMap.set(key, {
+          ...secondary,
+          ...primary,
+          password: primary.password || secondary.password
+        });
+      }
+    };
+    if (stRes.ok) filterResetFloor(stRes.docs.map(stripFsMeta)).forEach(addStudent);
+    if (ntfyRes.ok) ntfyRes.state.students.forEach(addStudent);
+
+    // Apply latest approval state onto matching students
+    for (const [k, s] of studentsMap.entries()) {
+      const appMatch = mergedApprovals.find(a => recordMatchesPhoneOrId(a, s.id, s.phone_number));
+      if (appMatch && recordTimestampMs(appMatch) >= recordTimestampMs(s)) {
+        const isPaid = Boolean(appMatch.is_premium && appMatch.tier !== 'free');
+        const tier = isPaid ? appMatch.tier : 'free';
+        studentsMap.set(k, {
+          ...s,
+          is_premium: isPaid,
+          payment_tier: tier,
+          unlocked_grades: tier === 'all' ? ['all'] : (isPaid ? (appMatch.unlocked_grades?.length ? appMatch.unlocked_grades : [s.grade_id || 'grade-12-natural']) : []),
+          paid_amount: tier === 'all' ? 300 : (tier === 'single' ? 200 : 0),
+          updated_at: appMatch.approved_at || s.updated_at
+        });
+      }
+    }
+
+    // 4. Merge Payments
+    const paymentsById = new Map<string, any>();
+    const addPayment = (p: any) => {
+      if (!p || !p.id || isRecordDeleted(mergedDeletedMap, p)) return;
+      const prev = paymentsById.get(p.id);
+      if (!prev) {
+        paymentsById.set(p.id, p);
+      } else {
+        const pNewer = recordTimestampMs(p) >= recordTimestampMs(prev);
+        const primary = pNewer ? p : prev;
+        const secondary = pNewer ? prev : p;
+        paymentsById.set(p.id, {
+          ...secondary,
+          ...primary,
+          receipt_storage_path: primary.receipt_storage_path || secondary.receipt_storage_path
+        });
+      }
+    };
+    if (payRes.ok) filterResetFloor(payRes.docs.map(stripFsMeta)).forEach(addPayment);
+    if (ntfyRes.ok) ntfyRes.state.payments.forEach(addPayment);
+
+    // Deduplicate pending payments per student (keep newest pending + all approved/rejected)
+    const sortedPayments = sortNewestFirst(Array.from(paymentsById.values()));
+    const seenPendingPhone = new Set<string>();
+    const mergedPayments: any[] = [];
+    for (const p of sortedPayments) {
+      const appMatch = mergedApprovals.find(a =>
+        a.is_premium &&
+        a.tier !== 'free' &&
+        (a.receipt_id === p.id || (p.status === 'pending' && recordMatchesPhoneOrId(p, a.user_id, a.phone_number) && recordTimestampMs(a) >= recordTimestampMs(p)))
+      );
+      const effectiveP = appMatch && p.status === 'pending'
+        ? {
+            ...p,
+            status: 'approved',
+            reviewed_at: appMatch.approved_at,
+            reviewed_by: 'admin@ethiolearn.edu.et'
+          }
+        : p;
+
+      if (effectiveP.status === 'pending') {
+        const pk = normalizePhoneKey(effectiveP.student_phone) || effectiveP.user_id || effectiveP.id;
+        if (seenPendingPhone.has(pk)) continue;
+        seenPendingPhone.add(pk);
+      }
+      mergedPayments.push(effectiveP);
+    }
+
+    // 5. Merge Device Transfers
+    const transfersById = new Map<string, any>();
+    const addTransfer = (t: any) => {
+      if (!t || !t.id || isRecordDeleted(mergedDeletedMap, t)) return;
+      const prev = transfersById.get(t.id);
+      if (!prev) {
+        transfersById.set(t.id, t);
+      } else {
+        const statusPriority = (st?: string) => (st === 'approved' || st === 'rejected' ? 2 : 1);
+        const pickCurrent = statusPriority(t.status) > statusPriority(prev.status) || recordTimestampMs(t) >= recordTimestampMs(prev);
+        transfersById.set(t.id, pickCurrent ? { ...prev, ...t } : { ...t, ...prev });
+      }
+    };
+    if (trRes.ok) filterResetFloor(trRes.docs.map(stripFsMeta)).forEach(addTransfer);
+    if (ntfyRes.ok) ntfyRes.state.transfers.forEach(addTransfer);
+
+    // Apply approved transfers onto students' device_id
+    for (const t of transfersById.values()) {
+      if (t.status === 'approved' && t.phone_number && t.new_device_id) {
+        for (const [k, s] of studentsMap.entries()) {
+          if (phonesMatch(s.phone_number, t.phone_number)) {
+            studentsMap.set(k, {
+              ...s,
+              device_id: t.new_device_id,
+              premium_device_id: t.new_device_id
+            });
+          }
+        }
+      }
+    }
+
+    // 6. Merge Question Feedbacks
+    const feedbacksById = new Map<string, any>();
+    const removedFb = ntfyRes.ok ? ntfyRes.removedFeedbackIds : new Set<string>();
+    const addFeedback = (f: any) => {
+      if (!f || !f.id || removedFb.has(f.id)) return;
+      const prev = feedbacksById.get(f.id);
+      if (!prev) {
+        feedbacksById.set(f.id, f);
+      } else {
+        const pickCurrent = (f.status && f.status !== 'pending' && prev.status === 'pending') || recordTimestampMs(f) >= recordTimestampMs(prev);
+        feedbacksById.set(f.id, pickCurrent ? { ...prev, ...f } : { ...f, ...prev });
+      }
+    };
+    if (fbRes.ok) filterResetFloor(fbRes.docs.map(stripFsMeta)).forEach(addFeedback);
+    if (ntfyRes.ok) ntfyRes.state.feedbacks.forEach(addFeedback);
 
     const state = normalizeCloudState({
-      students: stRes.docs.map(stripFsMeta),
-      payments: payRes.docs.map(stripFsMeta),
-      approvals: apprRes.docs.map(stripFsMeta),
-      transfers: trRes.docs.map(stripFsMeta),
-      feedbacks: fbRes.docs.map(stripFsMeta),
-      deleted_students: deletedTokens,
+      students: Array.from(studentsMap.values()),
+      payments: mergedPayments,
+      approvals: mergedApprovals,
+      transfers: Array.from(transfersById.values()),
+      feedbacks: Array.from(feedbacksById.values()),
+      deleted_students: Array.from(mergedDeletedMap.keys()),
       updated_at: new Date().toISOString()
     });
 
-    const result = { ok: true, state };
+    const result = { ok: Boolean(fsOk || ntfyRes.ok || anyFsOk), state };
     lastReadCache = { ts: Date.now(), result };
     return result;
   })();
@@ -509,7 +1105,7 @@ export async function readCloudMasterStateStrict(bypassCache = false): Promise<{
 }
 
 /**
- * Fetches the authoritative master state object from Firestore cloud storage.
+ * Fetches the authoritative master state object from cloud storage.
  */
 export async function getCloudMasterState(forceFresh = false): Promise<CloudMasterState & { __synced?: boolean }> {
   const res = await readCloudMasterStateStrict(forceFresh);
@@ -520,110 +1116,141 @@ export async function getCloudMasterState(forceFresh = false): Promise<CloudMast
 }
 
 /**
- * Synchronizes a complete master state snapshot to Firestore collections.
+ * Synchronizes a complete master state snapshot to both Firestore and ntfy.sh.
  */
 export async function updateCloudMasterState(dataUpdate: Record<string, any>, _summary = 'Sync update'): Promise<boolean> {
   return runWithRetry(async () => {
     const next = normalizeCloudState(dataUpdate);
-    const currentRes = await readCloudMasterStateStrict(true);
-    if (!currentRes.ok) return false;
+    const ntfyPromise = appendNtfyStateOp({
+      op: 'reset_all',
+      state: next,
+      ts: new Date().toISOString()
+    });
 
-    const ops: Promise<boolean>[] = [];
-
-    const syncCollection = async (
-      col: string,
-      items: any[],
-      idFn: (item: any) => string
-    ) => {
-      const existing = await listFsCollection(col);
-      if (!existing.ok) throw new Error('Collection list failed: ' + col);
-      const keepIds = new Set<string>();
-      for (const item of items) {
-        const docId = idFn(item);
-        keepIds.add(docId);
-        ops.push(putFsDoc(col, docId, stripFsMeta(item)));
-      }
-      for (const oldDoc of existing.docs) {
-        if (oldDoc.__fsDocId && !keepIds.has(oldDoc.__fsDocId)) {
-          ops.push(deleteFsDoc(col, oldDoc.__fsDocId));
+    const fsPromise = (async (): Promise<boolean> => {
+      const ops: Promise<boolean>[] = [];
+      const syncCollection = async (
+        col: string,
+        items: any[],
+        idFn: (item: any) => string
+      ) => {
+        const existing = await listFsCollection(col);
+        const keepIds = new Set<string>();
+        for (const item of items) {
+          const docId = idFn(item);
+          keepIds.add(docId);
+          ops.push(putFsDoc(col, docId, stripFsMeta(item)));
         }
-      }
-    };
+        if (existing.ok) {
+          for (const oldDoc of existing.docs) {
+            if (oldDoc.__fsDocId && !keepIds.has(oldDoc.__fsDocId)) {
+              ops.push(deleteFsDoc(col, oldDoc.__fsDocId));
+            }
+          }
+        }
+      };
 
-    await syncCollection(COL_STUDENTS, next.students, (s) => studentDocId(s.id, s.phone_number || s.phone));
-    await syncCollection(COL_PAYMENTS, next.payments, (p) => safeDocId(p.id, 'pay'));
-    await syncCollection(COL_APPROVALS, next.approvals, (a) => approvalDocId(a.user_id, a.phone_number));
-    await syncCollection(COL_TRANSFERS, next.transfers, (t) => safeDocId(t.id, 'tr'));
-    await syncCollection(COL_FEEDBACKS, next.feedbacks, (f) => safeDocId(f.id, 'fb'));
+      await Promise.all([
+        syncCollection(COL_STUDENTS, next.students, (s) => studentDocId(s.id, s.phone_number || s.phone)),
+        syncCollection(COL_PAYMENTS, next.payments, (p) => safeDocId(p.id, 'pay')),
+        syncCollection(COL_APPROVALS, next.approvals, (a) => approvalDocId(a.user_id, a.phone_number)),
+        syncCollection(COL_TRANSFERS, next.transfers, (t) => safeDocId(t.id, 'tr')),
+        syncCollection(COL_FEEDBACKS, next.feedbacks, (f) => safeDocId(f.id, 'fb')),
+        syncCollection(
+          COL_DELETED,
+          (next.deleted_students || []).map((k: string) => ({ key: String(k), deleted_at: new Date().toISOString() })),
+          (d) => safeDocId(d.key, 'del')
+        )
+      ]);
 
-    const delItems = (next.deleted_students || []).map((k: string) => ({ key: String(k), deleted_at: new Date().toISOString() }));
-    await syncCollection(COL_DELETED, delItems, (d) => safeDocId(d.key, 'del'));
+      const results = await Promise.all(ops);
+      return results.every(Boolean);
+    })();
 
-    const results = await Promise.all(ops);
-    return results.every(Boolean);
+    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
+    return Boolean(ntfyOk || fsOk);
   });
 }
 
 /**
- * Broadcasts a new student registration to Firestore and clears matching deletion tombstones.
+ * Broadcasts a new student registration to both Firestore and ntfy.sh and clears matching deletion tombstones.
+ * Never blocks writing on a pre-read!
  */
 export async function broadcastStudentRegistration(student: RemoteStudentRegistration): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  const basePayload: RemoteStudentRegistration = {
+    ...student,
+    is_premium: student.is_premium || false,
+    payment_tier: student.payment_tier || 'free',
+    unlocked_grades: student.unlocked_grades || [],
+    paid_amount: student.paid_amount || 0,
+    created_at: student.created_at || nowIso,
+    updated_at: nowIso
+  };
+
   postToRealtimeBus({
     event: 'student_registration',
-    ...student
+    ...basePayload
   }).catch(() => {});
 
   return runWithRetry(async () => {
-    const docId = studentDocId(student.id, student.phone_number);
-    const [existingDocRes, delRes] = await Promise.all([
-      getFsDoc(COL_STUDENTS, docId),
-      listFsCollection(COL_DELETED)
-    ]);
-    if (!existingDocRes.ok) return false;
+    const docId = studentDocId(basePayload.id, basePayload.phone_number);
+    const phoneKey = normalizePhoneKey(basePayload.phone_number);
 
-    const existing = existingDocRes.data ? stripFsMeta(existingDocRes.data) : null;
-    const payload: RemoteStudentRegistration = existing
-      ? {
-          ...existing,
-          ...student,
-          is_premium: existing.is_premium || student.is_premium || false,
-          payment_tier: (existing.payment_tier && existing.payment_tier !== 'free') ? existing.payment_tier : (student.payment_tier || 'free'),
-          unlocked_grades: (existing.unlocked_grades && existing.unlocked_grades.length > 0) ? existing.unlocked_grades : (student.unlocked_grades || []),
-          paid_amount: existing.paid_amount || student.paid_amount || 0,
-          updated_at: new Date().toISOString()
+    // 1. Fast IPv4 write to ntfy state log (never blocked by Firestore pre-read)
+    const ntfyPromise = appendNtfyStateOp({
+      op: 'student_registration',
+      student: basePayload,
+      ts: nowIso
+    });
+
+    // 2. Firestore write (merges existing premium tier if readable, otherwise writes directly)
+    const fsPromise = (async (): Promise<boolean> => {
+      let finalPayload = basePayload;
+      try {
+        const existingDocRes = await getFsDoc(COL_STUDENTS, docId);
+        if (existingDocRes.ok && existingDocRes.data) {
+          const existing = stripFsMeta(existingDocRes.data);
+          finalPayload = {
+            ...existing,
+            ...basePayload,
+            is_premium: existing.is_premium || basePayload.is_premium || false,
+            payment_tier: (existing.payment_tier && existing.payment_tier !== 'free') ? existing.payment_tier : (basePayload.payment_tier || 'free'),
+            unlocked_grades: (existing.unlocked_grades && existing.unlocked_grades.length > 0) ? existing.unlocked_grades : (basePayload.unlocked_grades || []),
+            paid_amount: existing.paid_amount || basePayload.paid_amount || 0,
+            updated_at: nowIso
+          };
         }
-      : {
-          ...student,
-          is_premium: student.is_premium || false,
-          payment_tier: student.payment_tier || 'free',
-          unlocked_grades: student.unlocked_grades || [],
-          paid_amount: student.paid_amount || 0,
-          updated_at: new Date().toISOString()
-        };
+      } catch (_) {}
 
-    const writeOk = await putFsDoc(COL_STUDENTS, docId, payload);
-    if (!writeOk) return false;
+      const writeOk = await putFsDoc(COL_STUDENTS, docId, finalPayload);
 
-    // Clear any matching deletion tombstone so newly registered account is never hidden
-    if (delRes.ok) {
-      const phoneKey = normalizePhoneKey(student.phone_number);
-      const idKey = String(student.id || '').toLowerCase();
-      const deletions: Promise<boolean>[] = [];
-      for (const d of delRes.docs) {
-        const token = String(d.key || String(d.__fsDocId || '').replace(/^del_/, '')).toLowerCase();
-        if (token === idKey || (phoneKey && token.includes(phoneKey))) {
-          if (d.__fsDocId) deletions.push(deleteFsDoc(COL_DELETED, d.__fsDocId));
+      // Clear any matching deletion tombstones non-blocking
+      const delOps: Promise<boolean>[] = [];
+      if (phoneKey) delOps.push(deleteFsDoc(COL_DELETED, safeDocId(phoneKey, 'del')));
+      if (basePayload.id) delOps.push(deleteFsDoc(COL_DELETED, safeDocId(String(basePayload.id).toLowerCase(), 'del')));
+      listFsCollection(COL_DELETED).then((delRes) => {
+        if (!delRes.ok) return;
+        const idKey = String(basePayload.id || '').toLowerCase();
+        for (const d of delRes.docs) {
+          const token = String(d.key || String(d.__fsDocId || '').replace(/^del_/, '')).toLowerCase();
+          if ((idKey && token === idKey) || (phoneKey && token.includes(phoneKey))) {
+            if (d.__fsDocId) deleteFsDoc(COL_DELETED, d.__fsDocId).catch(() => {});
+          }
         }
-      }
-      if (deletions.length > 0) await Promise.all(deletions);
-    }
+      }).catch(() => {});
+      if (delOps.length > 0) await Promise.all(delOps).catch(() => {});
 
-    return true;
+      return writeOk;
+    })();
+
+    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
+    return Boolean(ntfyOk || fsOk);
   });
 }
 
 /**
- * Broadcasts a payment receipt submission with screenshot to Firestore.
+ * Broadcasts a payment receipt submission with screenshot to both Firestore and ntfy.sh.
  */
 export async function broadcastPaymentReceipt(
   receipt: RemotePaymentSubmission,
@@ -633,16 +1260,10 @@ export async function broadcastPaymentReceipt(
   if (!screenshot && fileBlob) {
     screenshot = await blobToDataUrl(fileBlob);
   }
-  if (!screenshot) {
-    screenshot = generateAuthenticSlipSvg(
-      receipt.student_phone,
-      receipt.student_name,
-      receipt.amount_birr,
-      receipt.upgrade_all_grades || receipt.amount_birr === 300
-    );
+  if (screenshot) {
+    screenshot = await compressDataUrlIfNeeded(screenshot);
   }
-  // Keep well under Firestore 1 MiB per-document ceiling
-  if (screenshot.length > 820000) {
+  if (!screenshot || screenshot.length > 820000) {
     screenshot = generateAuthenticSlipSvg(
       receipt.student_phone,
       receipt.student_name,
@@ -651,12 +1272,13 @@ export async function broadcastPaymentReceipt(
     );
   }
 
+  const nowIso = new Date().toISOString();
   const cleanReceipt: RemotePaymentSubmission = {
     ...receipt,
     receipt_storage_path: screenshot,
     receipt_filename: receipt.receipt_filename || 'payment_screenshot.jpg',
     status: receipt.status || 'pending',
-    submitted_at: receipt.submitted_at || new Date().toISOString()
+    submitted_at: receipt.submitted_at || nowIso
   };
 
   postToRealtimeBus({
@@ -666,18 +1288,31 @@ export async function broadcastPaymentReceipt(
 
   const ok = await runWithRetry(async () => {
     const newDocId = safeDocId(cleanReceipt.id, 'pay');
-    const existingList = await listFsCollection(COL_PAYMENTS);
-    if (existingList.ok) {
-      const cleanup: Promise<boolean>[] = [];
-      for (const p of existingList.docs) {
-        const samePending = p.status === 'pending' && recordMatchesPhoneOrId(p, cleanReceipt.user_id, cleanReceipt.student_phone);
-        if ((p.id === cleanReceipt.id || samePending) && p.__fsDocId && p.__fsDocId !== newDocId) {
-          cleanup.push(deleteFsDoc(COL_PAYMENTS, p.__fsDocId));
+
+    // 1. Fast IPv4 write to ntfy state log (stores full screenshot inline or via CORS-enabled ntfy attachment)
+    const ntfyPromise = appendNtfyStateOp({
+      op: 'payment_submission',
+      payment: cleanReceipt,
+      ts: nowIso
+    });
+
+    // 2. Direct Firestore write first (never blocked by listFsCollection), then background cleanup of older pending receipts
+    const fsPromise = (async (): Promise<boolean> => {
+      const writeOk = await putFsDoc(COL_PAYMENTS, newDocId, cleanReceipt);
+      listFsCollection(COL_PAYMENTS).then((existingList) => {
+        if (!existingList.ok) return;
+        for (const p of existingList.docs) {
+          const samePending = p.status === 'pending' && recordMatchesPhoneOrId(p, cleanReceipt.user_id, cleanReceipt.student_phone);
+          if ((p.id === cleanReceipt.id || samePending) && p.__fsDocId && p.__fsDocId !== newDocId) {
+            deleteFsDoc(COL_PAYMENTS, p.__fsDocId).catch(() => {});
+          }
         }
-      }
-      if (cleanup.length > 0) await Promise.all(cleanup);
-    }
-    return putFsDoc(COL_PAYMENTS, newDocId, cleanReceipt);
+      }).catch(() => {});
+      return writeOk;
+    })();
+
+    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
+    return Boolean(ntfyOk || fsOk);
   });
 
   return ok ? cleanReceipt.receipt_storage_path || 'synced' : null;
@@ -687,138 +1322,175 @@ export async function broadcastPaymentReceipt(
  * Broadcasts an approval when admin activates, approves receipt, or modifies student tier.
  */
 export async function broadcastStudentApproval(approval: RemoteStudentApproval): Promise<boolean> {
+  const nowIso = approval.approved_at || new Date().toISOString();
+  const isAll = approval.tier === 'all';
+  const isPaid = Boolean(approval.is_premium && approval.tier !== 'free');
+  const resolvedGrades = isAll
+    ? ['all']
+    : (isPaid ? (approval.unlocked_grades?.length ? approval.unlocked_grades : [approval.grade_id || 'grade-12-natural']) : []);
+
   postToRealtimeBus({
     event: 'student_approval',
-    ...approval
+    ...approval,
+    is_premium: isPaid,
+    tier: isPaid ? approval.tier : 'free',
+    unlocked_grades: resolvedGrades,
+    approved_at: nowIso
   }).catch(() => {});
 
   return runWithRetry(async () => {
-    const isAll = approval.tier === 'all';
-    const isPaid = Boolean(approval.is_premium && approval.tier !== 'free');
-    const resolvedGrades = isAll
-      ? ['all']
-      : (isPaid ? (approval.unlocked_grades?.length ? approval.unlocked_grades : [approval.grade_id || 'grade-12-natural']) : []);
-
-    const [stRes, payRes] = await Promise.all([
-      listFsCollection(COL_STUDENTS),
-      isPaid ? listFsCollection(COL_PAYMENTS) : Promise.resolve({ ok: true, docs: [] as any[] })
-    ]);
-    if (!stRes.ok || (isPaid && !payRes.ok)) return false;
-
-    // Resolve authoritative phone / user_id from matching student if one side was omitted
-    const matchedStudents = stRes.docs.filter((s) => recordMatchesPhoneOrId(s, approval.user_id, approval.phone_number));
-    const resolvedPhone = approval.phone_number || matchedStudents[0]?.phone_number || '';
-    const resolvedUserId = approval.user_id || matchedStudents[0]?.id;
-
-    const cleanApproval: RemoteStudentApproval = {
+    const initialApproval: RemoteStudentApproval = {
       ...approval,
-      phone_number: resolvedPhone,
-      ...(resolvedUserId ? { user_id: resolvedUserId } : {}),
       is_premium: isPaid,
       tier: isPaid ? approval.tier : 'free',
       unlocked_grades: resolvedGrades,
-      approved_at: approval.approved_at || new Date().toISOString()
+      approved_at: nowIso
     };
 
-    const writeOps: Promise<boolean>[] = [
-      putFsDoc(COL_APPROVALS, approvalDocId(resolvedUserId, resolvedPhone), cleanApproval)
-    ];
+    // 1. Fast IPv4 write to ntfy state log
+    const ntfyPromise = appendNtfyStateOp({
+      op: 'student_approval',
+      approval: initialApproval,
+      ts: nowIso
+    });
 
-    if (matchedStudents.length > 0) {
-      for (const st of matchedStudents) {
-        const updatedStu = {
-          ...stripFsMeta(st),
+    // 2. Firestore write (direct write first when phone/userId is known, plus collection sync)
+    const fsPromise = (async (): Promise<boolean> => {
+      const [stRes, payRes] = await Promise.all([
+        listFsCollection(COL_STUDENTS),
+        isPaid ? listFsCollection(COL_PAYMENTS) : Promise.resolve({ ok: true, docs: [] as any[] })
+      ]);
+
+      const matchedStudents = stRes.ok
+        ? stRes.docs.filter((s) => recordMatchesPhoneOrId(s, approval.user_id, approval.phone_number))
+        : [];
+      const resolvedPhone = approval.phone_number || matchedStudents[0]?.phone_number || '';
+      const resolvedUserId = approval.user_id || matchedStudents[0]?.id;
+
+      const cleanApproval: RemoteStudentApproval = {
+        ...initialApproval,
+        phone_number: resolvedPhone,
+        ...(resolvedUserId ? { user_id: resolvedUserId } : {})
+      };
+
+      const writeOps: Promise<boolean>[] = [
+        putFsDoc(COL_APPROVALS, approvalDocId(resolvedUserId, resolvedPhone), cleanApproval)
+      ];
+
+      if (matchedStudents.length > 0) {
+        for (const st of matchedStudents) {
+          const updatedStu = {
+            ...stripFsMeta(st),
+            is_premium: isPaid,
+            payment_tier: isPaid ? approval.tier : 'free',
+            unlocked_grades: resolvedGrades,
+            paid_amount: approval.tier === 'all' ? 300 : (approval.tier === 'single' ? 200 : 0),
+            updated_at: cleanApproval.approved_at
+          };
+          writeOps.push(putFsDoc(COL_STUDENTS, st.__fsDocId || studentDocId(st.id, st.phone_number), updatedStu));
+        }
+      } else if (resolvedPhone) {
+        const pRef = payRes.ok ? payRes.docs.find((p) => recordMatchesPhoneOrId(p, resolvedUserId, resolvedPhone)) : null;
+        const cleanDigits = normalizePhoneKey(resolvedPhone);
+        const newStu = {
+          id: resolvedUserId || `student-251${cleanDigits}`,
+          phone_number: resolvedPhone,
+          full_name: pRef?.student_name || `Student ${cleanDigits.slice(-4)}`,
+          grade_id: pRef?.target_grade_id && pRef.target_grade_id !== 'all' ? pRef.target_grade_id : (approval.grade_id || 'grade-12-natural'),
+          role: 'student',
           is_premium: isPaid,
           payment_tier: isPaid ? approval.tier : 'free',
           unlocked_grades: resolvedGrades,
           paid_amount: approval.tier === 'all' ? 300 : (approval.tier === 'single' ? 200 : 0),
+          created_at: cleanApproval.approved_at,
           updated_at: cleanApproval.approved_at
         };
-        writeOps.push(putFsDoc(COL_STUDENTS, st.__fsDocId || studentDocId(st.id, st.phone_number), updatedStu));
+        writeOps.push(putFsDoc(COL_STUDENTS, studentDocId(newStu.id, resolvedPhone), newStu));
       }
-    } else if (resolvedPhone) {
-      const pRef = payRes.docs.find((p) => recordMatchesPhoneOrId(p, resolvedUserId, resolvedPhone));
-      const cleanDigits = normalizePhoneKey(resolvedPhone);
-      const newStu = {
-        id: resolvedUserId || `student-251${cleanDigits}`,
-        phone_number: resolvedPhone,
-        full_name: pRef?.student_name || `Student ${cleanDigits.slice(-4)}`,
-        grade_id: pRef?.target_grade_id && pRef.target_grade_id !== 'all' ? pRef.target_grade_id : (approval.grade_id || 'grade-12-natural'),
-        role: 'student',
-        is_premium: isPaid,
-        payment_tier: isPaid ? approval.tier : 'free',
-        unlocked_grades: resolvedGrades,
-        paid_amount: approval.tier === 'all' ? 300 : (approval.tier === 'single' ? 200 : 0),
-        created_at: cleanApproval.approved_at,
-        updated_at: cleanApproval.approved_at
-      };
-      writeOps.push(putFsDoc(COL_STUDENTS, studentDocId(newStu.id, resolvedPhone), newStu));
-    }
 
-    // Update payment status ONLY when approving/activating (keep history intact on Free Trial downgrade)
-    if (isPaid) {
-      for (const p of payRes.docs) {
-        const targetMatch = approval.receipt_id
-          ? p.id === approval.receipt_id
-          : (recordMatchesPhoneOrId(p, resolvedUserId, resolvedPhone) && p.status === 'pending');
-        if (targetMatch && p.__fsDocId) {
-          const updatedPay = {
-            ...stripFsMeta(p),
-            status: 'approved',
-            amount_birr: isAll ? (Number(p.amount_birr) === 100 ? 100 : 300) : 200,
-            upgrade_all_grades: isAll,
-            reviewed_at: cleanApproval.approved_at,
-            reviewed_by: 'admin@ethiolearn.edu.et'
-          };
-          writeOps.push(putFsDoc(COL_PAYMENTS, p.__fsDocId, updatedPay));
+      if (isPaid && payRes.ok) {
+        for (const p of payRes.docs) {
+          const targetMatch = approval.receipt_id
+            ? p.id === approval.receipt_id
+            : (recordMatchesPhoneOrId(p, resolvedUserId, resolvedPhone) && p.status === 'pending');
+          if (targetMatch && p.__fsDocId) {
+            const updatedPay = {
+              ...stripFsMeta(p),
+              status: 'approved',
+              amount_birr: isAll ? (Number(p.amount_birr) === 100 ? 100 : 300) : 200,
+              upgrade_all_grades: isAll,
+              reviewed_at: cleanApproval.approved_at,
+              reviewed_by: 'admin@ethiolearn.edu.et'
+            };
+            writeOps.push(putFsDoc(COL_PAYMENTS, p.__fsDocId, updatedPay));
+          }
         }
       }
-    }
 
-    const res = await Promise.all(writeOps);
-    return res.every(Boolean);
+      const res = await Promise.all(writeOps);
+      return res.some(Boolean);
+    })();
+
+    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
+    return Boolean(ntfyOk || fsOk);
   });
 }
 
 /**
- * Broadcasts payment rejection to Firestore so student and all admin browsers see the rejection.
+ * Broadcasts payment rejection to both Firestore and ntfy.sh.
  */
 export async function broadcastPaymentRejection(receiptId: string, studentPhone: string, reason: string): Promise<boolean> {
+  const nowIso = new Date().toISOString();
   postToRealtimeBus({
     event: 'payment_rejection',
     receipt_id: receiptId,
     phone_number: studentPhone,
     rejection_reason: reason,
-    reviewed_at: new Date().toISOString()
+    reviewed_at: nowIso
   }).catch(() => {});
 
   return runWithRetry(async () => {
-    const payRes = await listFsCollection(COL_PAYMENTS);
-    if (!payRes.ok) return false;
-    const ops: Promise<boolean>[] = [];
-    for (const p of payRes.docs) {
-      if (p.id === receiptId || (studentPhone && phonesMatch(p.student_phone, studentPhone) && p.status === 'pending')) {
-        if (p.__fsDocId) {
-          ops.push(putFsDoc(COL_PAYMENTS, p.__fsDocId, {
-            ...stripFsMeta(p),
-            status: 'rejected',
-            rejection_reason: reason,
-            reviewed_at: new Date().toISOString(),
-            reviewed_by: 'admin@ethiolearn.edu.et'
-          }));
+    const ntfyPromise = appendNtfyStateOp({
+      op: 'payment_rejection',
+      receipt_id: receiptId,
+      phone_number: studentPhone,
+      rejection_reason: reason,
+      reviewed_at: nowIso,
+      ts: nowIso
+    });
+
+    const fsPromise = (async (): Promise<boolean> => {
+      const payRes = await listFsCollection(COL_PAYMENTS);
+      if (!payRes.ok) return false;
+      const ops: Promise<boolean>[] = [];
+      for (const p of payRes.docs) {
+        if (p.id === receiptId || (studentPhone && phonesMatch(p.student_phone, studentPhone) && p.status === 'pending')) {
+          if (p.__fsDocId) {
+            ops.push(putFsDoc(COL_PAYMENTS, p.__fsDocId, {
+              ...stripFsMeta(p),
+              status: 'rejected',
+              rejection_reason: reason,
+              reviewed_at: nowIso,
+              reviewed_by: 'admin@ethiolearn.edu.et'
+            }));
+          }
         }
       }
-    }
-    if (ops.length === 0) return true;
-    const res = await Promise.all(ops);
-    return res.every(Boolean);
+      if (ops.length === 0) return true;
+      const res = await Promise.all(ops);
+      return res.every(Boolean);
+    })();
+
+    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
+    return Boolean(ntfyOk || fsOk);
   });
 }
 
 /**
- * Broadcasts student removal to Firestore so all admin browsers stay synchronized.
+ * Broadcasts student removal to both Firestore and ntfy.sh so all admin browsers stay synchronized.
  */
 export async function broadcastStudentDeletion(studentId: string, phoneNumber?: string): Promise<boolean> {
+  const nowIso = new Date().toISOString();
   postToRealtimeBus({
     event: 'student_deleted',
     id: studentId,
@@ -826,132 +1498,184 @@ export async function broadcastStudentDeletion(studentId: string, phoneNumber?: 
   }).catch(() => {});
 
   return runWithRetry(async () => {
-    const [stRes, payRes, apprRes] = await Promise.all([
-      listFsCollection(COL_STUDENTS),
-      listFsCollection(COL_PAYMENTS),
-      listFsCollection(COL_APPROVALS)
-    ]);
-    if (!stRes.ok || !payRes.ok || !apprRes.ok) return false;
+    const ntfyPromise = appendNtfyStateOp({
+      op: 'student_deleted',
+      id: studentId,
+      phone_number: phoneNumber,
+      ts: nowIso
+    });
 
-    const ops: Promise<boolean>[] = [];
-    const tokens = new Set<string>();
-    if (studentId) tokens.add(String(studentId).toLowerCase());
-    if (phoneNumber) {
-      const k = normalizePhoneKey(phoneNumber);
-      if (k) tokens.add(k);
-    }
+    const fsPromise = (async (): Promise<boolean> => {
+      const tokens = new Set<string>();
+      if (studentId) tokens.add(String(studentId).toLowerCase());
+      const pkInit = normalizePhoneKey(phoneNumber);
+      if (pkInit) tokens.add(pkInit);
 
-    for (const s of stRes.docs) {
-      if (recordMatchesPhoneOrId(s, studentId, phoneNumber) && s.__fsDocId) {
-        if (s.id) tokens.add(String(s.id).toLowerCase());
-        const pk = normalizePhoneKey(s.phone_number);
-        if (pk) tokens.add(pk);
-        ops.push(deleteFsDoc(COL_STUDENTS, s.__fsDocId));
+      const ops: Promise<boolean>[] = [];
+      // Direct deletes by deterministic IDs immediately
+      if (pkInit.length >= 9) {
+        ops.push(deleteFsDoc(COL_STUDENTS, `stu_${pkInit}`));
+        ops.push(deleteFsDoc(COL_APPROVALS, `appr_${pkInit}`));
       }
-    }
-    for (const p of payRes.docs) {
-      if (recordMatchesPhoneOrId(p, studentId, phoneNumber) && p.__fsDocId) {
-        ops.push(deleteFsDoc(COL_PAYMENTS, p.__fsDocId));
+      if (studentId) {
+        ops.push(deleteFsDoc(COL_STUDENTS, safeDocId(studentId, 'stu')));
+        ops.push(deleteFsDoc(COL_APPROVALS, safeDocId(studentId, 'appr')));
       }
-    }
-    for (const a of apprRes.docs) {
-      if (recordMatchesPhoneOrId(a, studentId, phoneNumber) && a.__fsDocId) {
-        ops.push(deleteFsDoc(COL_APPROVALS, a.__fsDocId));
+
+      const [stRes, payRes, apprRes] = await Promise.all([
+        listFsCollection(COL_STUDENTS),
+        listFsCollection(COL_PAYMENTS),
+        listFsCollection(COL_APPROVALS)
+      ]);
+
+      if (stRes.ok) {
+        for (const s of stRes.docs) {
+          if (recordMatchesPhoneOrId(s, studentId, phoneNumber) && s.__fsDocId) {
+            if (s.id) tokens.add(String(s.id).toLowerCase());
+            const pk = normalizePhoneKey(s.phone_number);
+            if (pk) tokens.add(pk);
+            ops.push(deleteFsDoc(COL_STUDENTS, s.__fsDocId));
+          }
+        }
       }
-    }
+      if (payRes.ok) {
+        for (const p of payRes.docs) {
+          if (recordMatchesPhoneOrId(p, studentId, phoneNumber) && p.__fsDocId) {
+            ops.push(deleteFsDoc(COL_PAYMENTS, p.__fsDocId));
+          }
+        }
+      }
+      if (apprRes.ok) {
+        for (const a of apprRes.docs) {
+          if (recordMatchesPhoneOrId(a, studentId, phoneNumber) && a.__fsDocId) {
+            ops.push(deleteFsDoc(COL_APPROVALS, a.__fsDocId));
+          }
+        }
+      }
 
-    for (const tok of tokens) {
-      ops.push(putFsDoc(COL_DELETED, safeDocId(tok, 'del'), { key: tok, deleted_at: new Date().toISOString() }));
-    }
+      for (const tok of tokens) {
+        ops.push(putFsDoc(COL_DELETED, safeDocId(tok, 'del'), { key: tok, deleted_at: nowIso }));
+      }
 
-    const res = await Promise.all(ops);
-    return res.every(Boolean);
+      const res = await Promise.all(ops);
+      return res.some(Boolean);
+    })();
+
+    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
+    return Boolean(ntfyOk || fsOk);
   });
 }
 
 /**
- * Broadcasts an approved device transfer from admin to Firestore.
+ * Broadcasts an approved device transfer from admin to both Firestore and ntfy.sh.
  */
 export async function broadcastDeviceApproval(phoneNumber: string, newDeviceId: string, transferId?: string): Promise<boolean> {
+  const nowIso = new Date().toISOString();
   postToRealtimeBus({
     event: 'device_approval',
     phone_number: phoneNumber,
     new_device_id: newDeviceId,
-    approved_at: new Date().toISOString()
+    approved_at: nowIso
   }).catch(() => {});
 
   return runWithRetry(async () => {
-    const [trRes, stRes] = await Promise.all([
-      listFsCollection(COL_TRANSFERS),
-      listFsCollection(COL_STUDENTS)
-    ]);
-    if (!trRes.ok || !stRes.ok) return false;
+    const ntfyPromise = appendNtfyStateOp({
+      op: 'device_approval',
+      phone_number: phoneNumber,
+      new_device_id: newDeviceId,
+      transfer_id: transferId,
+      ts: nowIso
+    });
 
-    const ops: Promise<boolean>[] = [];
-    for (const t of trRes.docs) {
-      if (((transferId && t.id === transferId) || phonesMatch(t.phone_number, phoneNumber)) && t.__fsDocId) {
-        ops.push(putFsDoc(COL_TRANSFERS, t.__fsDocId, { ...stripFsMeta(t), status: 'approved' }));
+    const fsPromise = (async (): Promise<boolean> => {
+      const [trRes, stRes] = await Promise.all([
+        listFsCollection(COL_TRANSFERS),
+        listFsCollection(COL_STUDENTS)
+      ]);
+      if (!trRes.ok && !stRes.ok) return false;
+
+      const ops: Promise<boolean>[] = [];
+      if (trRes.ok) {
+        for (const t of trRes.docs) {
+          if (((transferId && t.id === transferId) || phonesMatch(t.phone_number, phoneNumber)) && t.__fsDocId) {
+            ops.push(putFsDoc(COL_TRANSFERS, t.__fsDocId, { ...stripFsMeta(t), status: 'approved' }));
+          }
+        }
       }
-    }
-    for (const s of stRes.docs) {
-      if (phonesMatch(s.phone_number, phoneNumber) && s.__fsDocId) {
-        ops.push(putFsDoc(COL_STUDENTS, s.__fsDocId, {
-          ...stripFsMeta(s),
-          device_id: newDeviceId,
-          premium_device_id: newDeviceId,
-          updated_at: new Date().toISOString()
-        }));
+      if (stRes.ok) {
+        for (const s of stRes.docs) {
+          if (phonesMatch(s.phone_number, phoneNumber) && s.__fsDocId) {
+            ops.push(putFsDoc(COL_STUDENTS, s.__fsDocId, {
+              ...stripFsMeta(s),
+              device_id: newDeviceId,
+              premium_device_id: newDeviceId,
+              updated_at: nowIso
+            }));
+          }
+        }
       }
-    }
-    const res = await Promise.all(ops);
-    return res.every(Boolean);
+      if (ops.length === 0) return true;
+      const res = await Promise.all(ops);
+      return res.every(Boolean);
+    })();
+
+    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
+    return Boolean(ntfyOk || fsOk);
   });
 }
 
 /**
- * Broadcasts a rejected device transfer to Firestore.
+ * Broadcasts a rejected device transfer to both Firestore and ntfy.sh.
  */
 export async function broadcastDeviceTransferRejection(transferId: string): Promise<boolean> {
+  const nowIso = new Date().toISOString();
   return runWithRetry(async () => {
-    const trDocId = safeDocId(transferId, 'tr');
-    const docRes = await getFsDoc(COL_TRANSFERS, trDocId);
-    if (docRes.ok && docRes.data) {
-      return putFsDoc(COL_TRANSFERS, trDocId, { ...stripFsMeta(docRes.data), status: 'rejected' });
-    }
-    const listRes = await listFsCollection(COL_TRANSFERS);
-    if (!listRes.ok) return false;
-    const match = listRes.docs.find((t) => t.id === transferId);
-    if (!match || !match.__fsDocId) return true;
-    return putFsDoc(COL_TRANSFERS, match.__fsDocId, { ...stripFsMeta(match), status: 'rejected' });
+    const ntfyPromise = appendNtfyStateOp({
+      op: 'device_transfer_rejection',
+      transfer_id: transferId,
+      ts: nowIso
+    });
+
+    const fsPromise = (async (): Promise<boolean> => {
+      const trDocId = safeDocId(transferId, 'tr');
+      const docRes = await getFsDoc(COL_TRANSFERS, trDocId);
+      if (docRes.ok && docRes.data) {
+        return putFsDoc(COL_TRANSFERS, trDocId, { ...stripFsMeta(docRes.data), status: 'rejected' });
+      }
+      const listRes = await listFsCollection(COL_TRANSFERS);
+      if (!listRes.ok) return false;
+      const match = listRes.docs.find((t) => t.id === transferId);
+      if (!match || !match.__fsDocId) return true;
+      return putFsDoc(COL_TRANSFERS, match.__fsDocId, { ...stripFsMeta(match), status: 'rejected' });
+    })();
+
+    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
+    return Boolean(ntfyOk || fsOk);
   });
 }
 
 /**
  * Checks if current phone number or user ID has a remote approval/tier from the admin.
- * Uses direct document lookup first (~250ms, <1 KB) with collection scan fallback.
+ * Queries both Firestore and ntfy.sh so approvals unlock the student's phone immediately.
  */
 export async function fetchRemoteApprovalForPhone(phone: string, userId?: string): Promise<RemoteStudentApproval | null> {
   const cleanDigits = normalizePhoneKey(phone);
   if (cleanDigits.length < 9 && !userId) return null;
 
   try {
-    // Fast direct lookup path by canonical phone key
-    if (cleanDigits.length >= 9) {
-      const [apprDirect, stuDirect] = await Promise.all([
-        getFsDoc(COL_APPROVALS, `appr_${cleanDigits}`),
-        getFsDoc(COL_STUDENTS, `stu_${cleanDigits}`)
-      ]);
+    const res = await readCloudMasterStateStrict(true);
+    if (res.ok) {
+      const current = res.state;
 
-      if (apprDirect.ok && apprDirect.data) {
-        return stripFsMeta(apprDirect.data) as RemoteStudentApproval;
-      }
+      const found = current.approvals.find(a => recordMatchesPhoneOrId(a, userId, phone));
+      if (found) return found;
 
-      if (stuDirect.ok && stuDirect.data) {
-        const sFound = stripFsMeta(stuDirect.data);
+      const sFound = current.students.find(s => recordMatchesPhoneOrId(s, userId, phone));
+      if (sFound) {
         const isPaid = Boolean(sFound.is_premium && sFound.payment_tier !== 'free');
         const tier = (sFound.payment_tier || (isPaid ? 'single' : 'free')) as 'free' | 'single' | 'all';
         return {
-          phone_number: phone,
+          phone_number: phone || sFound.phone_number,
           user_id: userId || sFound.id,
           tier,
           unlocked_grades: sFound.unlocked_grades || (tier === 'all' ? ['all'] : (isPaid ? [sFound.grade_id || 'grade-12-natural'] : [])),
@@ -959,41 +1683,19 @@ export async function fetchRemoteApprovalForPhone(phone: string, userId?: string
           approved_at: sFound.updated_at || new Date().toISOString()
         };
       }
-    }
 
-    // Fallback scan for userId-keyed or legacy documents
-    const res = await readCloudMasterStateStrict(true);
-    if (!res.ok) return null;
-    const current = res.state;
-
-    const found = current.approvals.find(a => recordMatchesPhoneOrId(a, userId, phone));
-    if (found) return found;
-
-    const sFound = current.students.find(s => recordMatchesPhoneOrId(s, userId, phone));
-    if (sFound) {
-      const isPaid = Boolean(sFound.is_premium && sFound.payment_tier !== 'free');
-      const tier = (sFound.payment_tier || (isPaid ? 'single' : 'free')) as 'free' | 'single' | 'all';
-      return {
-        phone_number: phone,
-        user_id: userId || sFound.id,
-        tier,
-        unlocked_grades: sFound.unlocked_grades || (tier === 'all' ? ['all'] : (isPaid ? [sFound.grade_id || 'grade-12-natural'] : [])),
-        is_premium: isPaid,
-        approved_at: sFound.updated_at || new Date().toISOString()
-      };
-    }
-
-    const pFound = current.payments.find(p => recordMatchesPhoneOrId(p, userId, phone) && p.status === 'approved');
-    if (pFound) {
-      const isAll = Number(pFound.amount_birr) === 300 || Number(pFound.amount_birr) === 100 || Boolean(pFound.upgrade_all_grades);
-      return {
-        phone_number: phone,
-        user_id: userId || pFound.user_id,
-        tier: isAll ? 'all' : 'single',
-        unlocked_grades: isAll ? ['all'] : [pFound.target_grade_id || 'grade-12-natural'],
-        is_premium: true,
-        approved_at: pFound.reviewed_at || pFound.submitted_at || new Date().toISOString()
-      };
+      const pFound = current.payments.find(p => recordMatchesPhoneOrId(p, userId, phone) && p.status === 'approved');
+      if (pFound) {
+        const isAll = Number(pFound.amount_birr) === 300 || Number(pFound.amount_birr) === 100 || Boolean(pFound.upgrade_all_grades);
+        return {
+          phone_number: phone || pFound.student_phone,
+          user_id: userId || pFound.user_id,
+          tier: isAll ? 'all' : 'single',
+          unlocked_grades: isAll ? ['all'] : [pFound.target_grade_id || 'grade-12-natural'],
+          is_premium: true,
+          approved_at: pFound.reviewed_at || pFound.submitted_at || new Date().toISOString()
+        };
+      }
     }
 
     return null;
@@ -1003,99 +1705,127 @@ export async function fetchRemoteApprovalForPhone(phone: string, userId?: string
 }
 
 /**
- * Broadcasts an account device transfer request from student.
+ * Broadcasts an account device transfer request from student to both Firestore and ntfy.sh.
  */
 export async function broadcastDeviceTransfer(req: RemoteDeviceTransfer): Promise<boolean> {
+  const nowIso = req.requested_at || new Date().toISOString();
   postToRealtimeBus({
     event: 'device_transfer',
     ...req
   }).catch(() => {});
 
-  return runWithRetry(() => putFsDoc(COL_TRANSFERS, safeDocId(req.id, 'tr'), req));
+  return runWithRetry(async () => {
+    const [ntfyOk, fsOk] = await Promise.all([
+      appendNtfyStateOp({ op: 'device_transfer', transfer: req, ts: nowIso }),
+      putFsDoc(COL_TRANSFERS, safeDocId(req.id, 'tr'), req)
+    ]);
+    return Boolean(ntfyOk || fsOk);
+  });
 }
 
 /**
- * Polls remote device transfer requests.
+ * Polls remote device transfer requests from merged cloud state.
  */
 export async function fetchRemoteDeviceTransfers(): Promise<RemoteDeviceTransfer[]> {
   try {
-    const res = await listFsCollection(COL_TRANSFERS);
-    return res.ok ? sortNewestFirst(res.docs.map(stripFsMeta)) : [];
+    const res = await readCloudMasterStateStrict(true);
+    return res.ok ? sortNewestFirst(res.state.transfers) : [];
   } catch (_) {
     return [];
   }
 }
 
 /**
- * Broadcasts a student question error / correction appeal.
+ * Broadcasts a student question error / correction appeal to both Firestore and ntfy.sh.
  */
 export async function broadcastQuestionFeedback(fb: RemoteQuestionFeedback): Promise<boolean> {
+  const nowIso = fb.created_at || new Date().toISOString();
   postToRealtimeBus({
     event: 'question_feedback',
     ...fb
   }).catch(() => {});
 
-  return runWithRetry(() => putFsDoc(COL_FEEDBACKS, safeDocId(fb.id, 'fb'), fb));
-}
-
-/**
- * Broadcasts admin question feedback update/deletion.
- */
-export async function broadcastQuestionFeedbackUpdate(fbId: string, status?: string, remove = false): Promise<boolean> {
   return runWithRetry(async () => {
-    const docId = safeDocId(fbId, 'fb');
-    if (remove) {
-      const delOk = await deleteFsDoc(COL_FEEDBACKS, docId);
-      const listRes = await listFsCollection(COL_FEEDBACKS);
-      if (listRes.ok) {
-        const extra = listRes.docs.filter((f) => f.id === fbId && f.__fsDocId);
-        if (extra.length > 0) await Promise.all(extra.map((f) => deleteFsDoc(COL_FEEDBACKS, f.__fsDocId)));
-      }
-      return delOk;
-    }
-    const existing = await getFsDoc(COL_FEEDBACKS, docId);
-    if (existing.ok && existing.data) {
-      return putFsDoc(COL_FEEDBACKS, docId, { ...stripFsMeta(existing.data), ...(status ? { status } : {}) });
-    }
-    const listRes = await listFsCollection(COL_FEEDBACKS);
-    if (!listRes.ok) return false;
-    const match = listRes.docs.find((f) => f.id === fbId);
-    if (!match || !match.__fsDocId) return true;
-    return putFsDoc(COL_FEEDBACKS, match.__fsDocId, { ...stripFsMeta(match), ...(status ? { status } : {}) });
+    const [ntfyOk, fsOk] = await Promise.all([
+      appendNtfyStateOp({ op: 'question_feedback', feedback: fb, ts: nowIso }),
+      putFsDoc(COL_FEEDBACKS, safeDocId(fb.id, 'fb'), fb)
+    ]);
+    return Boolean(ntfyOk || fsOk);
   });
 }
 
 /**
- * Polls remote question feedback / appeals.
+ * Broadcasts admin question feedback update/deletion to both Firestore and ntfy.sh.
+ */
+export async function broadcastQuestionFeedbackUpdate(fbId: string, status?: string, remove = false): Promise<boolean> {
+  const nowIso = new Date().toISOString();
+  return runWithRetry(async () => {
+    const ntfyPromise = appendNtfyStateOp({
+      op: 'question_feedback_update',
+      id: fbId,
+      status,
+      remove,
+      ts: nowIso
+    });
+
+    const fsPromise = (async (): Promise<boolean> => {
+      const docId = safeDocId(fbId, 'fb');
+      if (remove) {
+        const delOk = await deleteFsDoc(COL_FEEDBACKS, docId);
+        const listRes = await listFsCollection(COL_FEEDBACKS);
+        if (listRes.ok) {
+          const extra = listRes.docs.filter((f) => f.id === fbId && f.__fsDocId);
+          if (extra.length > 0) await Promise.all(extra.map((f) => deleteFsDoc(COL_FEEDBACKS, f.__fsDocId)));
+        }
+        return delOk;
+      }
+      const existing = await getFsDoc(COL_FEEDBACKS, docId);
+      if (existing.ok && existing.data) {
+        return putFsDoc(COL_FEEDBACKS, docId, { ...stripFsMeta(existing.data), ...(status ? { status } : {}) });
+      }
+      const listRes = await listFsCollection(COL_FEEDBACKS);
+      if (!listRes.ok) return false;
+      const match = listRes.docs.find((f) => f.id === fbId);
+      if (!match || !match.__fsDocId) return true;
+      return putFsDoc(COL_FEEDBACKS, match.__fsDocId, { ...stripFsMeta(match), ...(status ? { status } : {}) });
+    })();
+
+    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
+    return Boolean(ntfyOk || fsOk);
+  });
+}
+
+/**
+ * Polls remote question feedback / appeals from merged cloud state.
  */
 export async function fetchRemoteQuestionFeedbacks(): Promise<RemoteQuestionFeedback[]> {
   try {
-    const res = await listFsCollection(COL_FEEDBACKS);
-    return res.ok ? sortNewestFirst(res.docs.map(stripFsMeta)) : [];
+    const res = await readCloudMasterStateStrict(true);
+    return res.ok ? sortNewestFirst(res.state.feedbacks) : [];
   } catch (_) {
     return [];
   }
 }
 
 /**
- * Polls cloud for all student registrations.
+ * Polls cloud for all student registrations from merged cloud state.
  */
 export async function fetchRemoteRegistrations(): Promise<RemoteStudentRegistration[]> {
   try {
-    const res = await listFsCollection(COL_STUDENTS);
-    return res.ok ? sortNewestFirst(res.docs.map(stripFsMeta)) : [];
+    const res = await readCloudMasterStateStrict(true);
+    return res.ok ? sortNewestFirst(res.state.students) : [];
   } catch (_) {
     return [];
   }
 }
 
 /**
- * Polls cloud for all payment submissions with screenshots.
+ * Polls cloud for all payment submissions with screenshots from merged cloud state.
  */
 export async function fetchRemotePayments(): Promise<RemotePaymentSubmission[]> {
   try {
-    const res = await listFsCollection(COL_PAYMENTS);
-    return res.ok ? sortNewestFirst(res.docs.map(stripFsMeta)) : [];
+    const res = await readCloudMasterStateStrict(true);
+    return res.ok ? sortNewestFirst(res.state.payments) : [];
   } catch (_) {
     return [];
   }
@@ -1154,6 +1884,7 @@ export function initRealtimeEventSource() {
         if (ntfyEventSource) {
           ntfyEventSource.close();
           ntfyEventSource = null;
+          setTimeout(initRealtimeEventSource, 6000);
         }
       };
     } catch (_) {}
