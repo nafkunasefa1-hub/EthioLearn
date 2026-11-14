@@ -160,13 +160,24 @@ function toBase64Utf8(str: string): string {
 export async function getCloudMasterState(): Promise<Record<string, any>> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 3500);
-    const res = await fetch(`${HF_RAW_SYNC_URL}?t=${Date.now()}`, {
+    const timeout = setTimeout(() => controller.abort(), 4000);
+    // 1. Primary: Static space CDN (CORS-enabled, instant)
+    let res = await fetch(`https://nafkunasefa1-ethiolearn-paypal.static.hf.space/sync_state.json?t=${Date.now()}`, {
       signal: controller.signal,
       headers: { 'Cache-Control': 'no-cache' }
-    });
+    }).catch(() => null);
+
+    // 2. Fallback: Direct repo raw endpoint with HF Bearer token
+    if (!res || !res.ok) {
+      res = await fetch(`${HF_RAW_SYNC_URL}?t=${Date.now()}`, {
+        headers: {
+          'Authorization': `Bearer ${HF_TOKEN}`,
+          'Cache-Control': 'no-cache'
+        }
+      }).catch(() => null);
+    }
     clearTimeout(timeout);
-    if (!res.ok) return {};
+    if (!res || !res.ok) return {};
     const json = await res.json();
     return json && typeof json === 'object' ? json : {};
   } catch (e) {
@@ -280,12 +291,10 @@ export async function broadcastPaymentReceipt(
     const pClean = cleanReceipt.student_phone.replace(/[^\d]/g, '');
     const exIdx = payments.findIndex(p => String(p.student_phone).replace(/[^\d]/g, '').slice(-9) === pClean.slice(-9));
     
-    // Store lightweight version in persistent cloud state to avoid size limits
+    // Preserve student's actual uploaded screenshot in persistent cloud state
     const persistentCopy = {
       ...cleanReceipt,
-      receipt_storage_path: screenshot.length > 5000 
-        ? generateAuthenticSlipSvg(cleanReceipt.student_phone, cleanReceipt.student_name, cleanReceipt.amount_birr, cleanReceipt.upgrade_all_grades)
-        : screenshot
+      receipt_storage_path: screenshot || generateAuthenticSlipSvg(cleanReceipt.student_phone, cleanReceipt.student_name, cleanReceipt.amount_birr, cleanReceipt.upgrade_all_grades)
     };
 
     if (exIdx >= 0) {
@@ -320,7 +329,9 @@ export async function broadcastStudentApproval(approval: RemoteStudentApproval):
     const aClean = approval.phone_number.replace(/[^\d]/g, '');
     const exIdx = approvals.findIndex(a => {
       const existingClean = String(a.phone_number || '').replace(/[^\d]/g, '');
-      return existingClean.length >= 9 && aClean.length >= 9 && existingClean.slice(-9) === aClean.slice(-9);
+      const phoneMatches = existingClean.length >= 9 && aClean.length >= 9 && existingClean.slice(-9) === aClean.slice(-9);
+      const userMatches = approval.user_id && a.user_id && approval.user_id === a.user_id;
+      return phoneMatches || userMatches;
     });
 
     if (exIdx >= 0) {
@@ -333,8 +344,12 @@ export async function broadcastStudentApproval(approval: RemoteStudentApproval):
     let payments: any[] = parseList(current.payments);
     payments.forEach(p => {
       const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
-      if (pClean.length >= 9 && aClean.length >= 9 && pClean.slice(-9) === aClean.slice(-9)) {
+      const phoneMatches = pClean.length >= 9 && aClean.length >= 9 && pClean.slice(-9) === aClean.slice(-9);
+      const userMatches = approval.user_id && p.user_id && approval.user_id === p.user_id;
+      if (phoneMatches || userMatches) {
         p.status = approval.is_premium ? 'approved' : 'pending';
+        p.reviewed_at = approval.approved_at || new Date().toISOString();
+        p.reviewed_by = 'admin@ethiolearn.edu.et';
       }
     });
 
@@ -342,11 +357,14 @@ export async function broadcastStudentApproval(approval: RemoteStudentApproval):
     let students: any[] = parseList(current.students);
     students.forEach(s => {
       const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
-      if (sClean.length >= 9 && aClean.length >= 9 && sClean.slice(-9) === aClean.slice(-9)) {
+      const phoneMatches = sClean.length >= 9 && aClean.length >= 9 && sClean.slice(-9) === aClean.slice(-9);
+      const userMatches = approval.user_id && s.id && approval.user_id === s.id;
+      if (phoneMatches || userMatches) {
         s.is_premium = approval.is_premium;
         s.payment_tier = approval.tier;
         s.unlocked_grades = approval.unlocked_grades;
         s.paid_amount = approval.tier === 'all' ? 300 : (approval.tier === 'single' ? 200 : 0);
+        s.updated_at = approval.approved_at || new Date().toISOString();
       }
     });
 
@@ -374,11 +392,11 @@ export async function broadcastDeviceApproval(phoneNumber: string, newDeviceId: 
 }
 
 /**
- * Checks if current phone number has a remote approval from the admin
+ * Checks if current phone number or user ID has a remote approval from the admin
  */
-export async function fetchRemoteApprovalForPhone(phone: string): Promise<RemoteStudentApproval | null> {
+export async function fetchRemoteApprovalForPhone(phone: string, userId?: string): Promise<RemoteStudentApproval | null> {
   const cleanDigits = phone.replace(/[^\d]/g, '');
-  if (cleanDigits.length < 9) return null;
+  if (cleanDigits.length < 9 && !userId) return null;
 
   try {
     const current = await getCloudMasterState();
@@ -387,7 +405,9 @@ export async function fetchRemoteApprovalForPhone(phone: string): Promise<Remote
     // 1. Direct approval record
     const found = approvals.find(a => {
       const aClean = String(a.phone_number || '').replace(/[^\d]/g, '');
-      return aClean.length >= 9 && cleanDigits.length >= 9 && aClean.slice(-9) === cleanDigits.slice(-9);
+      const phoneMatches = aClean.length >= 9 && cleanDigits.length >= 9 && aClean.slice(-9) === cleanDigits.slice(-9);
+      const userMatches = userId && a.user_id && userId === a.user_id;
+      return phoneMatches || userMatches;
     });
     if (found) return found;
 
@@ -395,12 +415,15 @@ export async function fetchRemoteApprovalForPhone(phone: string): Promise<Remote
     const payments: any[] = parseList(current.payments);
     const pFound = payments.find(p => {
       const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
-      return pClean.length >= 9 && cleanDigits.length >= 9 && pClean.slice(-9) === cleanDigits.slice(-9);
+      const phoneMatches = pClean.length >= 9 && cleanDigits.length >= 9 && pClean.slice(-9) === cleanDigits.slice(-9);
+      const userMatches = userId && p.user_id && userId === p.user_id;
+      return (phoneMatches || userMatches) && p.status === 'approved';
     });
     if (pFound && pFound.status === 'approved') {
       const isAll = pFound.amount_birr === 300 || pFound.upgrade_all_grades;
       return {
         phone_number: phone,
+        user_id: userId,
         tier: isAll ? 'all' : 'single',
         unlocked_grades: isAll ? ['all'] : [pFound.target_grade_id || 'grade-12-natural'],
         is_premium: true,
@@ -412,13 +435,16 @@ export async function fetchRemoteApprovalForPhone(phone: string): Promise<Remote
     const students: any[] = parseList(current.students);
     const sFound = students.find(s => {
       const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
-      return sClean.length >= 9 && cleanDigits.length >= 9 && sClean.slice(-9) === cleanDigits.slice(-9);
+      const phoneMatches = sClean.length >= 9 && cleanDigits.length >= 9 && sClean.slice(-9) === cleanDigits.slice(-9);
+      const userMatches = userId && s.id && userId === s.id;
+      return phoneMatches || userMatches;
     });
     if (sFound) {
       if (sFound.is_premium || (sFound.payment_tier && sFound.payment_tier !== 'free')) {
         const isAll = sFound.payment_tier === 'all';
         return {
           phone_number: phone,
+          user_id: userId,
           tier: sFound.payment_tier || (isAll ? 'all' : 'single'),
           unlocked_grades: sFound.unlocked_grades || (isAll ? ['all'] : [sFound.grade_id || 'grade-12-natural']),
           is_premium: true,
@@ -427,6 +453,7 @@ export async function fetchRemoteApprovalForPhone(phone: string): Promise<Remote
       } else if (sFound.payment_tier === 'free') {
         return {
           phone_number: phone,
+          user_id: userId,
           tier: 'free',
           unlocked_grades: [],
           is_premium: false,

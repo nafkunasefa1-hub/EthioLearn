@@ -82,26 +82,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               return pDigits.length >= 9 && sDigits.includes(pDigits.slice(-9));
             });
             if (rec && resolvedProfile.role !== 'admin') {
-              // If student is already approved/premium locally, KEEP premium and sync rec -> NEVER DOWNGRADE
-              if (resolvedProfile.is_premium || isApprovedLocally) {
+              // Authoritative sync: student strictly follows admin's designated tier
+              if (rec.payment_tier === 'all') {
                 resolvedProfile.is_premium = true;
-                if (!resolvedProfile.payment_tier || resolvedProfile.payment_tier === 'free') {
-                  resolvedProfile.payment_tier = rec.payment_tier && rec.payment_tier !== 'free' ? rec.payment_tier : 'single';
-                }
-                if (!resolvedProfile.unlocked_grades || resolvedProfile.unlocked_grades.length === 0) {
-                  resolvedProfile.unlocked_grades = resolvedProfile.payment_tier === 'all' ? ['all'] : [resolvedProfile.grade_id || 'grade-12-natural'];
-                }
-                rec.is_premium = true;
-                rec.payment_tier = resolvedProfile.payment_tier;
-                rec.unlocked_grades = resolvedProfile.unlocked_grades;
-                localStorage.setItem('ethiolearn_admin_students', JSON.stringify(adminList));
-              } else if (rec.is_premium) {
-                // If admin record explicitly upgraded student to premium
-                resolvedProfile.is_premium = true;
-                resolvedProfile.payment_tier = rec.payment_tier || 'single';
-                resolvedProfile.unlocked_grades = rec.unlocked_grades || (resolvedProfile.payment_tier === 'all' ? ['all'] : [resolvedProfile.grade_id || 'grade-12-natural']);
-                resolvedProfile.paid_amount = rec.paid_amount || (resolvedProfile.payment_tier === 'all' ? 300 : 200);
+                resolvedProfile.payment_tier = 'all';
+                resolvedProfile.unlocked_grades = ['all'];
+                resolvedProfile.paid_amount = 300;
+                resolvedProfile.subscription_type = 'all_grades';
                 localStorage.setItem('ethiolearn_payment_approved', 'true');
+                localStorage.setItem('ethiolearn_payment_tier', 'all');
+              } else if (rec.payment_tier === 'single' || (rec.is_premium && rec.payment_tier !== 'free')) {
+                resolvedProfile.is_premium = true;
+                resolvedProfile.payment_tier = 'single';
+                resolvedProfile.unlocked_grades = rec.unlocked_grades && rec.unlocked_grades.length > 0 ? rec.unlocked_grades : [resolvedProfile.grade_id || 'grade-12-natural'];
+                resolvedProfile.paid_amount = 200;
+                resolvedProfile.subscription_type = 'grade_only';
+                localStorage.setItem('ethiolearn_payment_approved', 'true');
+                localStorage.setItem('ethiolearn_payment_tier', 'single');
+              } else if (rec.payment_tier === 'free' || rec.is_premium === false) {
+                resolvedProfile.is_premium = false;
+                resolvedProfile.payment_tier = 'free';
+                resolvedProfile.unlocked_grades = [];
+                resolvedProfile.paid_amount = 0;
+                resolvedProfile.subscription_type = 'free';
+                localStorage.removeItem('ethiolearn_payment_approved');
+                localStorage.removeItem('ethiolearn_payment_tier');
               }
               localStorage.setItem('ethiolearn_user_profile', JSON.stringify(resolvedProfile));
             }
@@ -181,7 +186,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const curPhone = localStorage.getItem('ethiolearn_phone') || user?.phone_number;
       if (curPhone) {
         try {
-          const appr = await fetchRemoteApprovalForPhone(curPhone);
+          const appr = await fetchRemoteApprovalForPhone(curPhone, user?.id);
           if (appr) {
             const cached = localStorage.getItem('ethiolearn_user_profile');
             let needsUpdate = false;

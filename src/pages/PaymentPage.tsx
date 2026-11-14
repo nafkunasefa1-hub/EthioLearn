@@ -111,7 +111,7 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
       let remoteAppr = null;
       if (phone) {
         try {
-          remoteAppr = await fetchRemoteApprovalForPhone(phone);
+          remoteAppr = await fetchRemoteApprovalForPhone(phone, user?.id);
         } catch (_) {}
       }
 
@@ -222,7 +222,7 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
         const phone = user?.phone_number || (user as any)?.phone || localStorage.getItem('ethiolearn_phone');
         if (phone) {
           try {
-            const appr = await fetchRemoteApprovalForPhone(phone);
+            const appr = await fetchRemoteApprovalForPhone(phone, user?.id);
             if (appr && appr.is_premium) {
               setExistingReceipt(prev => prev ? ({ ...prev, status: 'approved' }) : null);
               await refreshProfile();

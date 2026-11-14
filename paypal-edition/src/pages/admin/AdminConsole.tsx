@@ -1320,11 +1320,11 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
 
           <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 p-3 rounded-2xl">
             <div className="text-center px-3 border-r border-slate-800">
-              <div className="text-base font-bold text-white">{metrics?.total_students ?? 142}</div>
+              <div className="text-base font-bold text-white">{students.length}</div>
               <div className="text-[10px] text-slate-400 uppercase">Students</div>
             </div>
             <div className="text-center px-3 border-r border-slate-800">
-              <div className="text-base font-bold text-emerald-400">{metrics?.premium_students ?? 98}</div>
+              <div className="text-base font-bold text-emerald-400">{students.filter(s => s.is_premium && s.payment_tier !== 'free').length}</div>
               <div className="text-[10px] text-slate-400 uppercase">Premium</div>
             </div>
             <div className="text-center px-3">
@@ -1494,15 +1494,24 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                         {rcpt.status === 'pending' ? (
                           <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-2">
                             {rcpt.amount_birr === 300 ? (
-                              <button
-                                onClick={() => handleApproveTier(rcpt.id, 'all')}
-                                className="px-3 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
-                                title="Approve 300 Birr All Grades Access"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Approve 300 Birr (All Grades)</span>
-                              </button>
-                            ) : rcpt.amount_birr === 100 || (rcpt.upgrade_all_grades && rcpt.amount_birr !== 200) ? (
+                              <>
+                                <button
+                                  onClick={() => handleApproveTier(rcpt.id, 'all')}
+                                  className="px-3 py-1.5 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+                                  title="Approve 300 Birr All Grades Access"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Approve 300 Birr</span>
+                                </button>
+                                <button
+                                  onClick={() => handleApproveTier(rcpt.id, 'single')}
+                                  className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-semibold transition"
+                                  title="Override to 200 Birr Single Grade Access"
+                                >
+                                  200 Birr
+                                </button>
+                              </>
+                            ) : rcpt.amount_birr === 100 ? (
                               <button
                                 onClick={() => handleApproveTier(rcpt.id, 'upgrade')}
                                 className="px-3 py-1.5 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
@@ -1512,14 +1521,23 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                                 <span>Approve 100 Birr (Upgrade)</span>
                               </button>
                             ) : (
-                              <button
-                                onClick={() => handleApproveTier(rcpt.id, 'single')}
-                                className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
-                                title="Approve 200 Birr Single Grade Access"
-                              >
-                                <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>Approve 200 Birr (Single Grade)</span>
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleApproveTier(rcpt.id, 'single')}
+                                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
+                                  title="Approve 200 Birr Single Grade Access"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Approve 200 Birr</span>
+                                </button>
+                                <button
+                                  onClick={() => handleApproveTier(rcpt.id, 'all')}
+                                  className="px-2 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[11px] font-semibold transition"
+                                  title="Upgrade to 300 Birr All Grades Access"
+                                >
+                                  300 Birr
+                                </button>
+                              </>
                             )}
                             <button
                               onClick={() => setRejectModalReceipt(rcpt)}
@@ -3323,38 +3341,44 @@ If Δ < 0: no real roots.`}
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
               {viewingReceipt.status === 'pending' && (
                 <>
                   <button
                     onClick={() => setRejectModalReceipt(viewingReceipt)}
-                    className="px-4 py-2 bg-red-950 hover:bg-red-900 text-red-300 rounded-xl text-xs font-semibold"
+                    className="px-4 py-2 bg-red-950 hover:bg-red-900 text-red-300 rounded-xl text-xs font-semibold mr-auto"
                   >
                     Reject
                   </button>
-                  {viewingReceipt.amount_birr === 300 ? (
-                    <button
-                      onClick={() => handleApproveTier(viewingReceipt.id, 'all')}
-                      className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Approve 300 Birr (All Grades)</span>
-                    </button>
-                  ) : viewingReceipt.amount_birr === 100 || (viewingReceipt.upgrade_all_grades && viewingReceipt.amount_birr !== 200) ? (
+                  <button
+                    onClick={() => handleApproveTier(viewingReceipt.id, 'single')}
+                    className={`px-4 py-2 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition ${
+                      viewingReceipt.amount_birr === 200 || (!viewingReceipt.upgrade_all_grades && viewingReceipt.amount_birr !== 300)
+                        ? 'bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 ring-2 ring-emerald-400/50'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Approve 200 Birr (Single Grade)</span>
+                  </button>
+                  <button
+                    onClick={() => handleApproveTier(viewingReceipt.id, 'all')}
+                    className={`px-4 py-2 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition ${
+                      viewingReceipt.amount_birr === 300 || viewingReceipt.upgrade_all_grades
+                        ? 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 ring-2 ring-teal-400/50'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Approve 300 Birr (All Grades)</span>
+                  </button>
+                  {viewingReceipt.amount_birr === 100 && (
                     <button
                       onClick={() => handleApproveTier(viewingReceipt.id, 'upgrade')}
                       className="px-4 py-2 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Approve 100 Birr (Upgrade)</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleApproveTier(viewingReceipt.id, 'single')}
-                      className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Approve 200 Birr (Single Grade)</span>
                     </button>
                   )}
                 </>

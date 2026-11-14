@@ -1231,7 +1231,9 @@ async function handleOfflineApiRequest(
       cleanPhone === '0994847287' ||
       cleanPhone === '251994847287' ||
       cleanPhone === '994847287' ||
-      cleanPhone.includes('994847287');
+      cleanPhone.includes('994847287') ||
+      rawPhone.toLowerCase().includes('nafkunasefa28') ||
+      rawPhone.toLowerCase().includes('admin@ethiolearn');
 
     const isAiAdminPhone =
       cleanPhone === '+251900000000' ||
@@ -1304,24 +1306,7 @@ async function handleOfflineApiRequest(
       if (stored) registeredStudents = JSON.parse(stored);
     } catch (_) {}
 
-    const SEED_STUDENTS = [
-      {
-        phone: '+251975949200',
-        cleanPhone: '251975949200',
-        name: 'Nafkun Asefa',
-        password: 'Chulo',
-        role: 'student',
-        grade_id: 'grade-12-natural'
-      },
-      {
-        phone: '+251911002026',
-        cleanPhone: '251911002026',
-        name: 'Devpost Judge',
-        password: 'Judge@2026',
-        role: 'student',
-        grade_id: 'grade-12-natural'
-      }
-    ];
+    const SEED_STUDENTS: any[] = [];
 
     const normTarget = cleanPhone.replace(/^\+/, '').replace(/^0/, '251');
 
@@ -1611,25 +1596,31 @@ async function handleOfflineApiRequest(
           return pPhone.length >= 9 && sDigits.includes(pPhone.slice(-9));
         });
         if (adminRec && profile.role !== 'admin') {
-          // If already premium or locally approved, KEEP premium and sync adminRec -> NEVER DOWNGRADE
-          if (profile.is_premium || isApprovedLocally) {
+          // Authoritative sync: student strictly follows admin's designated tier
+          if (adminRec.payment_tier === 'all') {
             profile.is_premium = true;
-            if (!profile.payment_tier || profile.payment_tier === 'free') {
-              profile.payment_tier = adminRec.payment_tier && adminRec.payment_tier !== 'free' ? adminRec.payment_tier : 'single';
-            }
-            if (!profile.unlocked_grades || profile.unlocked_grades.length === 0) {
-              profile.unlocked_grades = profile.payment_tier === 'all' ? ['all'] : [profile.grade_id || 'grade-12-natural'];
-            }
-            adminRec.is_premium = true;
-            adminRec.payment_tier = profile.payment_tier;
-            adminRec.unlocked_grades = profile.unlocked_grades;
-            localStorage.setItem('ethiolearn_admin_students', JSON.stringify(adminStudents));
-          } else if (adminRec.is_premium) {
-            profile.is_premium = true;
-            profile.payment_tier = adminRec.payment_tier || 'single';
-            profile.unlocked_grades = adminRec.unlocked_grades || (profile.payment_tier === 'all' ? ['all'] : [profile.grade_id || 'grade-12-natural']);
-            profile.paid_amount = adminRec.paid_amount || (profile.payment_tier === 'all' ? 300 : 200);
+            profile.payment_tier = 'all';
+            profile.unlocked_grades = ['all'];
+            profile.paid_amount = 300;
+            profile.subscription_type = 'all_grades';
             localStorage.setItem('ethiolearn_payment_approved', 'true');
+            localStorage.setItem('ethiolearn_payment_tier', 'all');
+          } else if (adminRec.payment_tier === 'single' || (adminRec.is_premium && adminRec.payment_tier !== 'free')) {
+            profile.is_premium = true;
+            profile.payment_tier = 'single';
+            profile.unlocked_grades = adminRec.unlocked_grades && adminRec.unlocked_grades.length > 0 ? adminRec.unlocked_grades : [profile.grade_id || 'grade-12-natural'];
+            profile.paid_amount = 200;
+            profile.subscription_type = 'grade_only';
+            localStorage.setItem('ethiolearn_payment_approved', 'true');
+            localStorage.setItem('ethiolearn_payment_tier', 'single');
+          } else if (adminRec.payment_tier === 'free' || adminRec.is_premium === false) {
+            profile.is_premium = false;
+            profile.payment_tier = 'free';
+            profile.unlocked_grades = [];
+            profile.paid_amount = 0;
+            profile.subscription_type = 'free';
+            localStorage.removeItem('ethiolearn_payment_approved');
+            localStorage.removeItem('ethiolearn_payment_tier');
           }
           localStorage.setItem('ethiolearn_user_profile', JSON.stringify(profile));
         } else if (isApprovedLocally && profile.role !== 'admin') {
@@ -3410,15 +3401,19 @@ How can I help you excel today? You can ask me any question or explore these cor
   if (path === '/api/dashboard/admin') {
     const books = meta?.books || STATIC_BOOKS_CATALOG;
     const exams = meta?.exams || STATIC_EXAMS_CATALOG;
+    const students = getAdminStudentsList();
+    const payments = getAdminPaymentsList();
+    const premiumCount = students.filter((s: any) => s.is_premium && s.payment_tier !== 'free').length;
+    const pendingCount = payments.filter((p: any) => p.status === 'pending').length;
     return jsonResponse({
       totalBooks: books.length,
       totalExams: exams.length,
       totalQuestions: 11002,
-      activeStudents: 1420,
-      total_students: 1420,
-      premium_students: 1102,
-      pending_verifications: 0,
-      revenueTotal: '1,102,000 ETB',
+      activeStudents: students.length,
+      total_students: students.length,
+      premium_students: premiumCount,
+      pending_verifications: pendingCount,
+      revenueTotal: `${premiumCount * 250} ETB`,
       offlineEngineStatus: 'OPTIMAL',
       version: '2026.11.09'
     });
@@ -3435,89 +3430,19 @@ How can I help you excel today? You can ask me any question or explore these cor
     } catch (_) {}
     const deletedSet = new Set(deletedList.map(s => String(s).toLowerCase().trim()));
 
-    // 5 Authoritative Master Students seeded so both Chrome and Edge start with the exact same synchronized list!
-    const DEFAULT_STUDENTS = [
-      {
-        id: 'student-251911111111',
-        phone_number: '+251911111111',
-        email: 'student1111@ethiolearn.edu.et',
-        full_name: 'Student 1111',
-        grade: 'Grade 10',
-        grade_id: 'grade-10',
-        role: 'student',
-        is_premium: false,
-        payment_tier: 'free',
-        unlocked_grades: [],
-        paid_amount: 0,
-        device_id: 'dev-ufdwupi7-m',
-        created_at: '2026-11-14T00:00:00.000Z',
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: 'student-251964297591',
-        phone_number: '+251964297591',
-        email: 'moibon@ethiolearn.edu.et',
-        full_name: 'Moibon',
-        grade: 'Grade 12 - Natural Science',
-        grade_id: 'grade-12-natural',
-        role: 'student',
-        is_premium: true,
-        payment_tier: 'all',
-        unlocked_grades: ['all'],
-        paid_amount: 300,
-        device_id: 'dev-md8wr7pn-m',
-        created_at: '2026-11-13T10:00:00.000Z',
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: 'student-251938935404',
-        phone_number: '+251938935404',
-        email: 'student5404@ethiolearn.edu.et',
-        full_name: 'Student 5404',
-        grade: 'Grade 11 - Natural Science',
-        grade_id: 'grade-11-natural',
-        role: 'student',
-        is_premium: true,
-        payment_tier: 'single',
-        unlocked_grades: ['grade-11-natural'],
-        paid_amount: 200,
-        device_id: 'dev-i7ig64p8-m',
-        created_at: '2026-11-13T11:00:00.000Z',
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: 'usr-nafkun-student',
-        phone_number: '+251975949200',
-        email: 'nafkun@ethiolearn.edu.et',
-        full_name: 'Nafkun Asefa (+251975949200)',
-        grade: 'Grade 12 - Natural Science',
-        grade_id: 'grade-12-natural',
-        role: 'student',
-        is_premium: true,
-        unlocked_grades: ['grade-12-natural'],
-        payment_tier: 'single',
-        paid_amount: 200,
-        device_id: 'dev-ethio-nafkun-primary-2026',
-        created_at: '2026-09-01T10:00:00Z',
-        updated_at: new Date().toISOString()
-      },
-      {
-        id: 'usr-devpost-judge',
-        phone_number: '+251911002026',
-        email: 'judge@paypal-devpost.ethiolearn.edu.et',
-        full_name: 'Devpost Judge',
-        grade: 'Grade 12 - Natural Science',
-        grade_id: 'grade-12-natural',
-        role: 'student',
-        is_premium: true,
-        unlocked_grades: ['grade-12-natural'],
-        payment_tier: 'single',
-        paid_amount: 200,
-        device_id: 'dev-judge-chrome-desktop',
-        created_at: '2026-11-01T09:00:00Z',
-        updated_at: new Date().toISOString()
-      }
-    ];
+    if (typeof localStorage !== 'undefined' && localStorage.getItem('ethiolearn_clean_reset_v4') !== 'true') {
+      try {
+        localStorage.removeItem('ethiolearn_admin_students');
+        localStorage.removeItem('ethiolearn_admin_payments');
+        localStorage.removeItem('ethiolearn_registered_students');
+        localStorage.removeItem('ethiolearn_my_receipt');
+        localStorage.removeItem('ethiolearn_last_uploaded_receipt_image');
+        localStorage.setItem('ethiolearn_clean_reset_v4', 'true');
+      } catch (_) {}
+    }
+
+    // Clean Slate: start completely empty. Real students will register via app/web!
+    const DEFAULT_STUDENTS: any[] = [];
 
     let currentList: any[] = [];
     try {
@@ -3525,8 +3450,8 @@ How can I help you excel today? You can ask me any question or explore these cor
       if (stored) currentList = JSON.parse(stored);
     } catch (_) {}
 
-    // Auto-purge any stale sample numbers previously saved in localStorage (+251911223344, +251922334455)
-    const STALE_SAMPLE_PHONES = new Set(['+251911223344', '+251922334455', '0911223344', '0922334455', 'usr-student-premium', 'usr-student-free']);
+    // Auto-purge any stale sample numbers previously saved in localStorage
+    const STALE_SAMPLE_PHONES = new Set(['+251911223344', '+251922334455', '0911223344', '0922334455', 'usr-student-premium', 'usr-student-free', '+251911111111', '+251964297591', '+251938935404', 'student-251911111111', 'student-251964297591', 'student-251938935404', 'usr-devpost-judge']);
     if (Array.isArray(currentList)) {
       currentList = currentList.filter(s => {
         const p = String(s.phone_number || '').trim();
@@ -3535,41 +3460,13 @@ How can I help you excel today? You can ask me any question or explore these cor
       });
     }
 
-    if (!Array.isArray(currentList) || currentList.length === 0) {
-      currentList = DEFAULT_STUDENTS.filter(ds => 
-        !deletedSet.has(ds.id.toLowerCase()) && 
-        !deletedSet.has(ds.phone_number.toLowerCase())
-      );
+    if (!Array.isArray(currentList)) {
+      currentList = [];
     } else {
       currentList = currentList.filter(s => 
         !deletedSet.has(String(s.id).toLowerCase()) && 
         !deletedSet.has(String(s.phone_number).toLowerCase())
       );
-      for (const ds of DEFAULT_STUDENTS) {
-        if (deletedSet.has(ds.id.toLowerCase()) || deletedSet.has(ds.phone_number.toLowerCase())) {
-          continue;
-        }
-        const found = currentList.find(s => s.phone_number === ds.phone_number || s.id === ds.id);
-        if (!found) currentList.unshift(ds);
-      }
-    }
-
-    // 1. Always ensure DEFAULT_STUDENTS (including +251975949200 Nafkun Asefa & Devpost Judge) are in the list!
-    for (const ds of DEFAULT_STUDENTS) {
-      const pClean = ds.phone_number.replace(/[^\d]/g, '');
-      const found = currentList.find(s => {
-        if (s.id === ds.id || s.phone_number === ds.phone_number) return true;
-        const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
-        return pClean.length >= 9 && sClean.includes(pClean.slice(-9));
-      });
-      if (!found) {
-        currentList.unshift(ds);
-      } else {
-        // Keep name and phone clear
-        found.phone_number = ds.phone_number;
-        found.full_name = ds.full_name;
-        found.role = 'student';
-      }
     }
 
     // 2. Merge all registered students from ethiolearn_registered_students
@@ -4217,94 +4114,7 @@ How can I help you excel today? You can ask me any question or explore these cor
   }
 
   const getAdminPaymentsList = (): any[] => {
-    const DEFAULT_PAYMENTS = [
-      {
-        id: 'rcpt-pending-1111',
-        user_id: 'student-251911111111',
-        student_phone: '+251911111111',
-        student_name: 'Student 1111',
-        payment_method: 'cbe',
-        amount_birr: 200,
-        amount: 200,
-        tier: 'single',
-        target_grade_id: 'grade-10',
-        upgrade_all_grades: false,
-        receipt_storage_path: generateAuthenticReceiptSvg('+251911111111', 'Student 1111', 200, false),
-        receipt_filename: 'cbe_slip_1111.png',
-        status: 'pending',
-        submitted_at: '2026-11-14T00:05:00.000Z'
-      },
-      {
-        id: 'rcpt-pending-devpost',
-        user_id: 'usr-devpost-judge',
-        student_phone: '+251911002026',
-        student_name: 'Devpost Judge',
-        payment_method: 'telebirr',
-        amount_birr: 300,
-        amount: 300,
-        tier: 'all',
-        target_grade_id: 'grade-12-natural',
-        upgrade_all_grades: true,
-        receipt_storage_path: generateAuthenticReceiptSvg('+251911002026', 'Devpost Judge', 300, true),
-        receipt_filename: 'telebirr_judge.png',
-        status: 'pending',
-        submitted_at: '2026-11-14T00:10:00.000Z'
-      },
-      {
-        id: 'rcpt-moibon-300',
-        user_id: 'student-251964297591',
-        student_phone: '+251964297591',
-        student_name: 'Moibon',
-        payment_method: 'telebirr',
-        amount_birr: 300,
-        amount: 300,
-        tier: 'all',
-        target_grade_id: 'all',
-        upgrade_all_grades: true,
-        receipt_storage_path: generateAuthenticReceiptSvg('+251964297591', 'Moibon', 300, true),
-        receipt_filename: 'cbe_slip_moibon.png',
-        status: 'approved',
-        submitted_at: '2026-11-13T10:15:00.000Z',
-        reviewed_at: '2026-11-13T10:20:00.000Z',
-        reviewed_by: 'admin@ethiolearn.edu.et'
-      },
-      {
-        id: 'rcpt-student5404-200',
-        user_id: 'student-251938935404',
-        student_phone: '+251938935404',
-        student_name: 'Student 5404',
-        payment_method: 'telebirr',
-        amount_birr: 200,
-        amount: 200,
-        tier: 'single',
-        target_grade_id: 'grade-11-natural',
-        upgrade_all_grades: false,
-        receipt_storage_path: generateAuthenticReceiptSvg('+251938935404', 'Student 5404', 200, false),
-        receipt_filename: 'cbe_slip_5404.png',
-        status: 'approved',
-        submitted_at: '2026-11-13T11:15:00.000Z',
-        reviewed_at: '2026-11-13T11:25:00.000Z',
-        reviewed_by: 'admin@ethiolearn.edu.et'
-      },
-      {
-        id: 'rcpt-nafkun-200',
-        user_id: 'usr-nafkun-student',
-        student_phone: '+251975949200',
-        student_name: 'Nafkun Asefa (+251975949200)',
-        payment_method: 'cbe',
-        amount_birr: 200,
-        amount: 200,
-        tier: 'single',
-        target_grade_id: 'grade-12-natural',
-        upgrade_all_grades: false,
-        receipt_storage_path: generateAuthenticReceiptSvg('+251975949200', 'Nafkun Asefa', 200, false),
-        receipt_filename: 'telebirr_slip.jpg',
-        status: 'approved',
-        submitted_at: '2026-09-01T10:00:00.000Z',
-        reviewed_at: '2026-09-01T10:05:00.000Z',
-        reviewed_by: 'admin@ethiolearn.edu.et'
-      }
-    ];
+    const DEFAULT_PAYMENTS: any[] = [];
 
     let payments: any[] = [];
     try {
@@ -4312,30 +4122,14 @@ How can I help you excel today? You can ask me any question or explore these cor
       if (stored) payments = JSON.parse(stored);
     } catch (_) {}
 
-    // Auto-purge any stale sample payments (+251911223344, Abebe Kebede)
-    const STALE_PAY_PHONES = new Set(['+251911223344', '+251922334455', 'usr-student-premium', 'usr-student-free']);
+    // Auto-purge any stale sample payments
+    const STALE_PAY_PHONES = new Set(['+251911223344', '+251922334455', 'usr-student-premium', 'usr-student-free', '+251911111111', '+251964297591', '+251938935404', 'rcpt-pending-1111', 'rcpt-pending-devpost', 'rcpt-moibon-300', 'rcpt-student5404-200', 'rcpt-nafkun-200']);
     if (Array.isArray(payments)) {
-      payments = payments.filter(p => !STALE_PAY_PHONES.has(p.student_phone) && !STALE_PAY_PHONES.has(p.user_id));
+      payments = payments.filter(p => !STALE_PAY_PHONES.has(p.student_phone) && !STALE_PAY_PHONES.has(p.user_id) && !STALE_PAY_PHONES.has(p.id));
     }
 
-    if (!Array.isArray(payments) || payments.length === 0) {
-      payments = DEFAULT_PAYMENTS;
-      try {
-        localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(payments));
-      } catch (_) {}
-    } else {
-      // Ensure all DEFAULT_PAYMENTS exist in payments
-      for (const dp of DEFAULT_PAYMENTS) {
-        const dpClean = dp.student_phone.replace(/[^\d]/g, '');
-        const found = payments.find((p: any) => {
-          if (p.id === dp.id) return true;
-          const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
-          return dpClean.length >= 9 && pClean.slice(-9) === dpClean.slice(-9);
-        });
-        if (!found) {
-          payments.push(dp);
-        }
-      }
+    if (!Array.isArray(payments)) {
+      payments = [];
     }
     return payments;
   };
