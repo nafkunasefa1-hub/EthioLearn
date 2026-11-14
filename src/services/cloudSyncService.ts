@@ -1,31 +1,46 @@
 /**
  * EthioLearn Cloud Synchronization Service
- * 
- * Provides bulletproof, two-way, real-time synchronization between students on mobile/web 
- * and the administrator on https://nafkunasefa1-ethiolearn-paypal.static.hf.space.
- * 
- * Features:
- * 1. Real-time Sub-second SSE Push via GitHub-backed channel (smee.io).
- * 2. Persistent Cross-Device Cloud State (api.restful-api.dev master object).
- * 3. Compact slip generation & Base64 preview without external image hosting failures.
- * 4. Instant Premium Unlocking: live approval events unlock student phones in real time.
+ *
+ * Provides reliable, mutex-serialized, two-way synchronization between students
+ * on Android APK / mobile / web and administrators across all browsers
+ * (Chrome, Edge, Safari) on https://nafkunasefa1-ethiolearn-paypal.static.hf.space.
  */
 
 const SMEE_SYNC_URL = 'https://smee.io/ethiolearn_sync_prod_2026';
-const HF_TOKEN = typeof atob !== 'undefined'
-  ? atob('aGZfV3pVbXNaelFXaEZtbmNBTWNXbVRyWkRBbmRWc1R4QWl5')
-  : (typeof Buffer !== 'undefined' ? Buffer.from('aGZfV3pVbXNaelFXaEZtbmNBTWNXbVRyWkRBbmRWc1R4QWl5', 'base64').toString('ascii') : ['hf', 'WzUmsZzQWhFmncAMcWmTrzLDAndVsTxAiy'].join('_'));
+const NTFY_EVENTS_URL = 'https://ntfy.sh/ethiolearn_events_v3_prod';
+
+// Build-time Hugging Face write/read token injected via Vite env (.env.local)
+let _viteHfToken = '';
+try {
+  // @ts-ignore - Vite / esbuild statically replaces import.meta.env.VITE_HF_TOKEN from .env.local
+  _viteHfToken = import.meta.env.VITE_HF_TOKEN || '';
+} catch {}
+const HF_TOKEN = String(
+  _viteHfToken ||
+  (typeof process !== 'undefined' && process.env && process.env.VITE_HF_TOKEN) ||
+  (typeof globalThis !== 'undefined' && (globalThis as any).__ETHIOLEARN_HF_TOKEN__) ||
+  ''
+).trim();
+
 const HF_COMMIT_URL = 'https://huggingface.co/api/spaces/nafkunasefa1/ethiolearn-paypal/commit/main';
 const HF_RAW_SYNC_URL = 'https://huggingface.co/spaces/nafkunasefa1/ethiolearn-paypal/raw/main/sync_state.json';
+const HF_STATIC_SYNC_URL = 'https://nafkunasefa1-ethiolearn-paypal.static.hf.space/sync_state.json';
 
 export interface RemoteStudentRegistration {
   id: string;
   phone_number: string;
   full_name: string;
+  password?: string;
   grade?: string;
   grade_id?: string;
+  stream?: string;
   device_id?: string;
+  is_premium?: boolean;
+  payment_tier?: 'free' | 'single' | 'all';
+  unlocked_grades?: string[];
+  paid_amount?: number;
   created_at: string;
+  updated_at?: string;
 }
 
 export interface RemotePaymentSubmission {
@@ -40,12 +55,18 @@ export interface RemotePaymentSubmission {
   receipt_storage_path?: string;
   receipt_filename?: string;
   status: 'pending' | 'approved' | 'rejected';
+  rejection_reason?: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
   submitted_at: string;
+  created_at?: string;
 }
 
 export interface RemoteStudentApproval {
   phone_number: string;
   user_id?: string;
+  receipt_id?: string;
+  grade_id?: string;
   tier: 'single' | 'all' | 'free';
   unlocked_grades: string[];
   is_premium: boolean;
@@ -80,6 +101,36 @@ export interface RemoteQuestionFeedback {
   comment: string;
   status: 'pending' | 'reviewed' | 'corrected' | 'dismissed';
   created_at: string;
+}
+
+export interface CloudMasterState {
+  students: any[];
+  payments: any[];
+  approvals: any[];
+  transfers: any[];
+  feedbacks: any[];
+  deleted_students?: string[];
+  updated_at?: string;
+  [key: string]: any;
+}
+
+export function normalizePhoneKey(phone?: string): string {
+  return String(phone || '').replace(/[^\d]/g, '').slice(-9);
+}
+
+export function phonesMatch(p1?: string, p2?: string): boolean {
+  const k1 = normalizePhoneKey(p1);
+  const k2 = normalizePhoneKey(p2);
+  return k1.length >= 9 && k2.length >= 9 && k1 === k2;
+}
+
+function recordMatchesPhoneOrId(rec: any, targetId?: string, phone?: string): boolean {
+  if (!rec) return false;
+  if (targetId && (rec.id === targetId || rec.user_id === targetId)) return true;
+  if (phone && (phonesMatch(rec.phone_number, phone) || phonesMatch(rec.student_phone, phone) || phonesMatch(rec.phone, phone))) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -122,19 +173,39 @@ export function generateAuthenticSlipSvg(phone: string, name: string, amount: nu
 }
 
 /**
- * Low-level dispatch to real-time smee.io event bus
+ * Low-level dispatch to real-time notification buses (smee.io + ntfy.sh)
+ * Strips heavy image payloads when pushing to SSE notification buses.
  */
 async function postToRealtimeBus(eventPayload: Record<string, any>): Promise<boolean> {
-  try {
-    const res = await fetch(SMEE_SYNC_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(eventPayload)
-    });
-    return res.ok;
-  } catch (e) {
-    return false;
+  const lightPayload: Record<string, any> = { ...eventPayload };
+  if (typeof lightPayload.receipt_storage_path === 'string' && lightPayload.receipt_storage_path.length > 48000) {
+    lightPayload.receipt_storage_path = '';
+    lightPayload.has_cloud_image = true;
   }
+
+  const bodyStr = JSON.stringify(lightPayload);
+  const p1 = fetch(SMEE_SYNC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: bodyStr
+  }).then(r => r.ok).catch(() => false);
+
+  const ntfyBrief = JSON.stringify({
+    event: lightPayload.event,
+    phone_number: lightPayload.phone_number || lightPayload.student_phone,
+    user_id: lightPayload.user_id || lightPayload.id,
+    tier: lightPayload.tier,
+    status: lightPayload.status,
+    ts: Date.now()
+  });
+  const p2 = fetch(NTFY_EVENTS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: ntfyBrief
+  }).then(r => r.ok).catch(() => false);
+
+  const [r1, r2] = await Promise.all([p1, p2]);
+  return Boolean(r1 || r2);
 }
 
 function toBase64Utf8(str: string): string {
@@ -154,66 +225,6 @@ function toBase64Utf8(str: string): string {
   }
 }
 
-/**
- * Fetches the master state object from cloud storage (hosted on Hugging Face CDN)
- */
-export async function getCloudMasterState(): Promise<Record<string, any>> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 4000);
-    // 1. Primary: Static space CDN (CORS-enabled, instant)
-    let res = await fetch(`https://nafkunasefa1-ethiolearn-paypal.static.hf.space/sync_state.json?t=${Date.now()}`, {
-      signal: controller.signal,
-      headers: { 'Cache-Control': 'no-cache' }
-    }).catch(() => null);
-
-    // 2. Fallback: Direct repo raw endpoint with HF Bearer token
-    if (!res || !res.ok) {
-      res = await fetch(`${HF_RAW_SYNC_URL}?t=${Date.now()}`, {
-        headers: {
-          'Authorization': `Bearer ${HF_TOKEN}`,
-          'Cache-Control': 'no-cache'
-        }
-      }).catch(() => null);
-    }
-    clearTimeout(timeout);
-    if (!res || !res.ok) return {};
-    const json = await res.json();
-    return json && typeof json === 'object' ? json : {};
-  } catch (e) {
-    return {};
-  }
-}
-
-/**
- * Updates the master state object in cloud storage via Hugging Face Hub commit API
- */
-export async function updateCloudMasterState(dataUpdate: Record<string, any>): Promise<boolean> {
-  try {
-    const jsonStr = JSON.stringify(dataUpdate);
-    const b64 = toBase64Utf8(jsonStr);
-
-    const ndjson = JSON.stringify({ key: 'header', value: { summary: 'Sync update ' + Date.now() } }) + '\n' +
-                   JSON.stringify({ key: 'file', value: { path: 'sync_state.json', content: b64, encoding: 'base64' } });
-
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 6000);
-    const res = await fetch(HF_COMMIT_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${HF_TOKEN}`,
-        'Content-Type': 'application/x-ndjson'
-      },
-      signal: controller.signal,
-      body: ndjson
-    });
-    clearTimeout(timeout);
-    return res.ok;
-  } catch (e) {
-    return false;
-  }
-}
-
 function parseList(val: any): any[] {
   if (Array.isArray(val)) return val;
   if (typeof val === 'string') {
@@ -225,6 +236,222 @@ function parseList(val: any): any[] {
   return [];
 }
 
+function normalizeCloudState(raw: any): CloudMasterState {
+  const obj = raw && typeof raw === 'object' ? raw : {};
+  return {
+    ...obj,
+    students: parseList(obj.students),
+    payments: parseList(obj.payments),
+    approvals: parseList(obj.approvals),
+    transfers: parseList(obj.transfers),
+    feedbacks: parseList(obj.feedbacks),
+    deleted_students: parseList(obj.deleted_students)
+  };
+}
+
+/**
+ * Balances storage size so sync_state.json stays fast and compact across mobile devices
+ * while always preserving student registrations and active/pending payment screenshots.
+ */
+function balanceCloudState(state: CloudMasterState): CloudMasterState {
+  const next: CloudMasterState = {
+    students: parseList(state.students).slice(0, 200),
+    payments: parseList(state.payments).slice(0, 60),
+    approvals: parseList(state.approvals).slice(0, 200),
+    transfers: parseList(state.transfers).slice(0, 50),
+    feedbacks: parseList(state.feedbacks).slice(0, 80),
+    deleted_students: parseList(state.deleted_students).slice(0, 200),
+    updated_at: new Date().toISOString()
+  };
+
+  // Keep payload comfortably under ~1.4MB by trimming oldest *already-reviewed* receipt blobs if needed
+  let serialized = JSON.stringify(next);
+  if (serialized.length > 1400000 && next.payments.length > 10) {
+    for (let i = next.payments.length - 1; i >= 10 && serialized.length > 1400000; i--) {
+      if (next.payments[i].status !== 'pending' && next.payments[i].receipt_storage_path) {
+        next.payments[i] = { ...next.payments[i], receipt_storage_path: '' };
+        serialized = JSON.stringify(next);
+      }
+    }
+  }
+  return next;
+}
+
+// Short read coalescing cache (1.2s) + strict sequential mutation mutex queue
+let inFlightReadPromise: Promise<{ ok: boolean; notFound?: boolean; state: CloudMasterState }> | null = null;
+let lastReadCache: { ts: number; result: { ok: boolean; notFound?: boolean; state: CloudMasterState } } | null = null;
+let mutationQueue: Promise<any> = Promise.resolve();
+
+function invalidateReadCache() {
+  lastReadCache = null;
+}
+
+async function fetchJsonWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response | null> {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller ? controller.signal : undefined
+    });
+    return res;
+  } catch (_) {
+    return null;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+export async function readCloudMasterStateStrict(bypassCache = false): Promise<{ ok: boolean; notFound?: boolean; state: CloudMasterState }> {
+  const now = Date.now();
+  if (!bypassCache && lastReadCache && now - lastReadCache.ts < 250) {
+    return lastReadCache.result;
+  }
+  if (!bypassCache && inFlightReadPromise) {
+    return inFlightReadPromise;
+  }
+
+  const exec = (async (): Promise<{ ok: boolean; notFound?: boolean; state: CloudMasterState }> => {
+    const bust = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    // 1. Authoritative Raw HF endpoint (authenticated, zero CDN cache lag)
+    const rawRes = await fetchJsonWithTimeout(
+      `${HF_RAW_SYNC_URL}?t=${bust}`,
+      {
+        cache: 'no-store',
+        headers: {
+          'Authorization': `Bearer ${HF_TOKEN}`,
+          'Cache-Control': 'no-cache'
+        }
+      },
+      12000
+    );
+
+    if (rawRes) {
+      if (rawRes.ok) {
+        try {
+          const json = await rawRes.json();
+          const result = { ok: true, state: normalizeCloudState(json) };
+          lastReadCache = { ts: Date.now(), result };
+          return result;
+        } catch (_) {}
+      } else if (rawRes.status === 404) {
+        return { ok: false, notFound: true, state: normalizeCloudState({}) };
+      }
+    }
+
+    // 2. Static Space CDN fallback (if raw HF temporarily unreachable)
+    const cdnRes = await fetchJsonWithTimeout(
+      `${HF_STATIC_SYNC_URL}?t=${bust}`,
+      {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' }
+      },
+      9000
+    );
+
+    if (cdnRes && cdnRes.ok) {
+      try {
+        const json = await cdnRes.json();
+        const result = { ok: true, state: normalizeCloudState(json) };
+        lastReadCache = { ts: Date.now(), result };
+        return result;
+      } catch (_) {}
+    }
+
+    return { ok: false, state: normalizeCloudState({}) };
+  })();
+
+  if (!bypassCache) {
+    inFlightReadPromise = exec.finally(() => {
+      inFlightReadPromise = null;
+    });
+    return inFlightReadPromise;
+  }
+
+  return exec;
+}
+
+/**
+ * Fetches the authoritative master state object from Hugging Face cloud storage.
+ */
+export async function getCloudMasterState(forceFresh = false): Promise<CloudMasterState & { __synced?: boolean }> {
+  const res = await readCloudMasterStateStrict(forceFresh);
+  return {
+    ...res.state,
+    __synced: res.ok
+  };
+}
+
+/**
+ * Writes the master state object directly to Hugging Face repository via Commit API.
+ */
+export async function updateCloudMasterState(dataUpdate: Record<string, any>, summary = 'Sync update'): Promise<boolean> {
+  const balanced = balanceCloudState(normalizeCloudState(dataUpdate));
+  const jsonStr = JSON.stringify(balanced);
+  const b64 = toBase64Utf8(jsonStr);
+
+  const ndjson =
+    JSON.stringify({ key: 'header', value: { summary: `${summary} ${Date.now()}` } }) +
+    '\n' +
+    JSON.stringify({ key: 'file', value: { path: 'sync_state.json', content: b64, encoding: 'base64' } });
+
+  const res = await fetchJsonWithTimeout(
+    HF_COMMIT_URL,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${HF_TOKEN}`,
+        'Content-Type': 'application/x-ndjson'
+      },
+      body: ndjson
+    },
+    22000
+  );
+
+  if (res && res.ok) {
+    lastReadCache = {
+      ts: Date.now(),
+      result: { ok: true, state: balanced }
+    };
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Serializes all read-modify-write mutations through a queue + retries
+ * so concurrent writes across multiple actions never clobber each other or overwrite with empty state.
+ */
+function enqueueCloudMutation(
+  mutator: (current: CloudMasterState) => CloudMasterState,
+  summary: string
+): Promise<boolean> {
+  const task = async (): Promise<boolean> => {
+    const delays = [0, 450, 1100];
+    for (let attempt = 0; attempt < delays.length; attempt++) {
+      if (delays[attempt] > 0) {
+        await new Promise(r => setTimeout(r, delays[attempt]));
+      }
+      invalidateReadCache();
+      const readRes = await readCloudMasterStateStrict(true);
+      if (!readRes.ok && !readRes.notFound) {
+        continue;
+      }
+      const nextState = mutator(readRes.state);
+      const ok = await updateCloudMasterState(nextState, summary);
+      if (ok) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const run = mutationQueue.then(task, task);
+  mutationQueue = run.catch(() => false);
+  return run;
+}
+
 /**
  * Broadcasts a new student registration to cloud
  */
@@ -234,23 +461,46 @@ export async function broadcastStudentRegistration(student: RemoteStudentRegistr
     ...student
   }).catch(() => {});
 
-  try {
-    const current = await getCloudMasterState();
-    let list: RemoteStudentRegistration[] = parseList(current.students);
-    const sClean = student.phone_number.replace(/[^\d]/g, '');
-    const exIdx = list.findIndex(s => String(s.phone_number).replace(/[^\d]/g, '').slice(-9) === sClean.slice(-9));
+  return enqueueCloudMutation((current) => {
+    const list: RemoteStudentRegistration[] = [...current.students];
+    const exIdx = list.findIndex(s => recordMatchesPhoneOrId(s, student.id, student.phone_number));
     if (exIdx >= 0) {
-      list[exIdx] = { ...list[exIdx], ...student };
+      // Preserve existing paid tier if re-registering/updating profile unless explicitly paid
+      const existing = list[exIdx];
+      list[exIdx] = {
+        ...existing,
+        ...student,
+        is_premium: existing.is_premium || student.is_premium || false,
+        payment_tier: (existing.payment_tier && existing.payment_tier !== 'free') ? existing.payment_tier : (student.payment_tier || 'free'),
+        unlocked_grades: (existing.unlocked_grades && existing.unlocked_grades.length > 0) ? existing.unlocked_grades : (student.unlocked_grades || []),
+        paid_amount: existing.paid_amount || student.paid_amount || 0,
+        updated_at: new Date().toISOString()
+      };
     } else {
-      list.unshift(student);
+      list.unshift({
+        ...student,
+        is_premium: student.is_premium || false,
+        payment_tier: student.payment_tier || 'free',
+        unlocked_grades: student.unlocked_grades || [],
+        paid_amount: student.paid_amount || 0,
+        updated_at: new Date().toISOString()
+      });
     }
-    await updateCloudMasterState({
-      ...current,
-      students: list.slice(0, 50)
-    });
-  } catch (_) {}
 
-  return true;
+    // Clear any deleted tombstone for this phone/id so newly registered account isn't hidden
+    const phoneKey = normalizePhoneKey(student.phone_number);
+    const idKey = String(student.id || '').toLowerCase();
+    const filteredDeleted = (current.deleted_students || []).filter((d: string) => {
+      const dl = String(d || '').toLowerCase();
+      return dl !== idKey && (!phoneKey || !dl.includes(phoneKey));
+    });
+
+    return {
+      ...current,
+      students: list,
+      deleted_students: filteredDeleted
+    };
+  }, 'Register student');
 }
 
 /**
@@ -258,7 +508,7 @@ export async function broadcastStudentRegistration(student: RemoteStudentRegistr
  */
 export async function broadcastPaymentReceipt(
   receipt: RemotePaymentSubmission,
-  fileBlob?: Blob | File | null
+  _fileBlob?: Blob | File | null
 ): Promise<string | null> {
   let screenshot = receipt.receipt_storage_path || '';
   if (!screenshot) {
@@ -273,66 +523,50 @@ export async function broadcastPaymentReceipt(
   const cleanReceipt: RemotePaymentSubmission = {
     ...receipt,
     receipt_storage_path: screenshot,
-    receipt_filename: receipt.receipt_filename || 'cbe_slip.png',
+    receipt_filename: receipt.receipt_filename || 'payment_screenshot.jpg',
     status: receipt.status || 'pending',
     submitted_at: receipt.submitted_at || new Date().toISOString()
   };
 
-  // 1. Instant real-time dispatch
   postToRealtimeBus({
     event: 'payment_submission',
     ...cleanReceipt
   }).catch(() => {});
 
-  // 2. Persistent update
-  try {
-    const current = await getCloudMasterState();
-    let payments: any[] = parseList(current.payments);
-    const pClean = cleanReceipt.student_phone.replace(/[^\d]/g, '');
-    const exIdx = payments.findIndex(p => String(p.student_phone).replace(/[^\d]/g, '').slice(-9) === pClean.slice(-9));
-    
-    // Preserve student's actual uploaded screenshot in persistent cloud state
-    const persistentCopy = {
-      ...cleanReceipt,
-      receipt_storage_path: screenshot || generateAuthenticSlipSvg(cleanReceipt.student_phone, cleanReceipt.student_name, cleanReceipt.amount_birr, cleanReceipt.upgrade_all_grades)
-    };
+  const ok = await enqueueCloudMutation((current) => {
+    const payments: any[] = [...current.payments];
+    // Match exact receipt ID or replace any older *pending* submission from the same student phone
+    const exIdx = payments.findIndex(p =>
+      p.id === cleanReceipt.id ||
+      (p.status === 'pending' && recordMatchesPhoneOrId(p, cleanReceipt.user_id, cleanReceipt.student_phone))
+    );
 
     if (exIdx >= 0) {
-      payments[exIdx] = { ...payments[exIdx], ...persistentCopy };
-    } else {
-      payments.unshift(persistentCopy);
+      payments.splice(exIdx, 1);
     }
+    payments.unshift(cleanReceipt);
 
-    await updateCloudMasterState({
+    return {
       ...current,
-      payments: payments.slice(0, 40)
-    });
-  } catch (_) {}
+      payments
+    };
+  }, 'Submit payment receipt');
 
-  return cleanReceipt.receipt_storage_path || null;
+  return ok ? cleanReceipt.receipt_storage_path || 'synced' : null;
 }
 
 /**
- * Broadcasts an approval when admin activates or modifies student tier
+ * Broadcasts an approval when admin activates, approves receipt, or modifies student tier
  */
 export async function broadcastStudentApproval(approval: RemoteStudentApproval): Promise<boolean> {
-  // 1. Sub-second push broadcast to student's phone
   postToRealtimeBus({
     event: 'student_approval',
     ...approval
   }).catch(() => {});
 
-  // 2. Persistent cloud approval record on Hugging Face
-  try {
-    const current = await getCloudMasterState();
-    let approvals: RemoteStudentApproval[] = parseList(current.approvals);
-    const aClean = approval.phone_number.replace(/[^\d]/g, '');
-    const exIdx = approvals.findIndex(a => {
-      const existingClean = String(a.phone_number || '').replace(/[^\d]/g, '');
-      const phoneMatches = existingClean.length >= 9 && aClean.length >= 9 && existingClean.slice(-9) === aClean.slice(-9);
-      const userMatches = approval.user_id && a.user_id && approval.user_id === a.user_id;
-      return phoneMatches || userMatches;
-    });
+  return enqueueCloudMutation((current) => {
+    const approvals: RemoteStudentApproval[] = [...current.approvals];
+    const exIdx = approvals.findIndex(a => recordMatchesPhoneOrId(a, approval.user_id, approval.phone_number));
 
     if (exIdx >= 0) {
       approvals[exIdx] = { ...approvals[exIdx], ...approval };
@@ -340,130 +574,219 @@ export async function broadcastStudentApproval(approval: RemoteStudentApproval):
       approvals.unshift(approval);
     }
 
-    // Also mark payment as approved in persistent list
-    let payments: any[] = parseList(current.payments);
-    payments.forEach(p => {
-      const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
-      const phoneMatches = pClean.length >= 9 && aClean.length >= 9 && pClean.slice(-9) === aClean.slice(-9);
-      const userMatches = approval.user_id && p.user_id && approval.user_id === p.user_id;
-      if (phoneMatches || userMatches) {
-        p.status = approval.is_premium ? 'approved' : 'pending';
-        p.reviewed_at = approval.approved_at || new Date().toISOString();
-        p.reviewed_by = 'admin@ethiolearn.edu.et';
+    const isAll = approval.tier === 'all';
+    const isPaid = Boolean(approval.is_premium && approval.tier !== 'free');
+    const resolvedGrades = isAll
+      ? ['all']
+      : (isPaid ? (approval.unlocked_grades?.length ? approval.unlocked_grades : ['grade-12-natural']) : []);
+
+    // Update payment status in cloud ONLY when explicitly approving/activating (or targeted receipt_id)
+    const payments: any[] = current.payments.map(p => {
+      const targetMatch = approval.receipt_id
+        ? p.id === approval.receipt_id
+        : (recordMatchesPhoneOrId(p, approval.user_id, approval.phone_number) && p.status === 'pending');
+
+      if (!targetMatch) return p;
+
+      if (isPaid) {
+        return {
+          ...p,
+          status: 'approved',
+          amount_birr: isAll ? (p.amount_birr === 100 ? 100 : 300) : 200,
+          upgrade_all_grades: isAll,
+          reviewed_at: approval.approved_at || new Date().toISOString(),
+          reviewed_by: 'admin@ethiolearn.edu.et'
+        };
       }
+      return p;
     });
 
-    // Also update student tier in persistent students list
-    let students: any[] = parseList(current.students);
-    students.forEach(s => {
-      const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
-      const phoneMatches = sClean.length >= 9 && aClean.length >= 9 && sClean.slice(-9) === aClean.slice(-9);
-      const userMatches = approval.user_id && s.id && approval.user_id === s.id;
-      if (phoneMatches || userMatches) {
-        s.is_premium = approval.is_premium;
-        s.payment_tier = approval.tier;
-        s.unlocked_grades = approval.unlocked_grades;
-        s.paid_amount = approval.tier === 'all' ? 300 : (approval.tier === 'single' ? 200 : 0);
-        s.updated_at = approval.approved_at || new Date().toISOString();
+    // Update student record in cloud (upsert if missing from students list so all admin views reflect tier)
+    const students: any[] = [...current.students];
+    let updatedStudent = false;
+    for (let i = 0; i < students.length; i++) {
+      if (recordMatchesPhoneOrId(students[i], approval.user_id, approval.phone_number)) {
+        students[i] = {
+          ...students[i],
+          is_premium: isPaid,
+          payment_tier: isPaid ? approval.tier : 'free',
+          unlocked_grades: resolvedGrades,
+          paid_amount: approval.tier === 'all' ? 300 : (approval.tier === 'single' ? 200 : 0),
+          updated_at: approval.approved_at || new Date().toISOString()
+        };
+        updatedStudent = true;
       }
-    });
+    }
 
-    await updateCloudMasterState({
+    if (!updatedStudent && approval.phone_number) {
+      const pRef = payments.find(p => recordMatchesPhoneOrId(p, approval.user_id, approval.phone_number));
+      const cleanDigits = normalizePhoneKey(approval.phone_number);
+      students.unshift({
+        id: approval.user_id || `student-251${cleanDigits}`,
+        phone_number: approval.phone_number,
+        full_name: pRef?.student_name || `Student ${cleanDigits.slice(-4)}`,
+        grade_id: pRef?.target_grade_id && pRef.target_grade_id !== 'all' ? pRef.target_grade_id : 'grade-12-natural',
+        role: 'student',
+        is_premium: isPaid,
+        payment_tier: isPaid ? approval.tier : 'free',
+        unlocked_grades: resolvedGrades,
+        paid_amount: approval.tier === 'all' ? 300 : (approval.tier === 'single' ? 200 : 0),
+        created_at: approval.approved_at || new Date().toISOString(),
+        updated_at: approval.approved_at || new Date().toISOString()
+      });
+    }
+
+    return {
       ...current,
-      approvals: approvals.slice(0, 100),
-      payments: payments.slice(0, 40),
-      students: students.slice(0, 100)
-    });
-  } catch (_) {}
+      approvals,
+      payments,
+      students
+    };
+  }, 'Update student approval');
+}
 
-  return true;
+/**
+ * Broadcasts payment rejection to cloud so student and all admin browsers see the rejection
+ */
+export async function broadcastPaymentRejection(receiptId: string, studentPhone: string, reason: string): Promise<boolean> {
+  postToRealtimeBus({
+    event: 'payment_rejection',
+    receipt_id: receiptId,
+    phone_number: studentPhone,
+    rejection_reason: reason,
+    reviewed_at: new Date().toISOString()
+  }).catch(() => {});
+
+  return enqueueCloudMutation((current) => {
+    const payments = current.payments.map(p => {
+      if (p.id === receiptId || (studentPhone && phonesMatch(p.student_phone, studentPhone) && p.status === 'pending')) {
+        return {
+          ...p,
+          status: 'rejected',
+          rejection_reason: reason,
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: 'admin@ethiolearn.edu.et'
+        };
+      }
+      return p;
+    });
+    return { ...current, payments };
+  }, 'Reject payment receipt');
+}
+
+/**
+ * Broadcasts student removal to cloud so all admin browsers stay synchronized
+ */
+export async function broadcastStudentDeletion(studentId: string, phoneNumber?: string): Promise<boolean> {
+  postToRealtimeBus({
+    event: 'student_deleted',
+    id: studentId,
+    phone_number: phoneNumber
+  }).catch(() => {});
+
+  return enqueueCloudMutation((current) => {
+    const deleted = new Set<string>(current.deleted_students || []);
+    if (studentId) deleted.add(String(studentId).toLowerCase());
+    if (phoneNumber) {
+      const k = normalizePhoneKey(phoneNumber);
+      if (k) deleted.add(k);
+    }
+
+    return {
+      ...current,
+      students: current.students.filter(s => !recordMatchesPhoneOrId(s, studentId, phoneNumber)),
+      payments: current.payments.filter(p => !recordMatchesPhoneOrId(p, studentId, phoneNumber)),
+      approvals: current.approvals.filter(a => !recordMatchesPhoneOrId(a, studentId, phoneNumber)),
+      deleted_students: Array.from(deleted)
+    };
+  }, 'Delete student');
 }
 
 /**
  * Broadcasts an approved device transfer from admin to cloud
  */
-export async function broadcastDeviceApproval(phoneNumber: string, newDeviceId: string): Promise<boolean> {
-  return postToRealtimeBus({
+export async function broadcastDeviceApproval(phoneNumber: string, newDeviceId: string, transferId?: string): Promise<boolean> {
+  postToRealtimeBus({
     event: 'device_approval',
     phone_number: phoneNumber,
     new_device_id: newDeviceId,
     approved_at: new Date().toISOString()
-  });
+  }).catch(() => {});
+
+  return enqueueCloudMutation((current) => {
+    const transfers = current.transfers.map(t => {
+      if ((transferId && t.id === transferId) || phonesMatch(t.phone_number, phoneNumber)) {
+        return { ...t, status: 'approved' };
+      }
+      return t;
+    });
+    const students = current.students.map(s => {
+      if (phonesMatch(s.phone_number, phoneNumber)) {
+        return { ...s, device_id: newDeviceId, premium_device_id: newDeviceId, updated_at: new Date().toISOString() };
+      }
+      return s;
+    });
+    return { ...current, transfers, students };
+  }, 'Approve device transfer');
 }
 
 /**
- * Checks if current phone number or user ID has a remote approval from the admin
+ * Broadcasts a rejected device transfer to cloud
+ */
+export async function broadcastDeviceTransferRejection(transferId: string): Promise<boolean> {
+  return enqueueCloudMutation((current) => ({
+    ...current,
+    transfers: current.transfers.map(t => t.id === transferId ? { ...t, status: 'rejected' } : t)
+  }), 'Reject device transfer');
+}
+
+/**
+ * Checks if current phone number or user ID has a remote approval/tier from the admin
  */
 export async function fetchRemoteApprovalForPhone(phone: string, userId?: string): Promise<RemoteStudentApproval | null> {
-  const cleanDigits = phone.replace(/[^\d]/g, '');
+  const cleanDigits = normalizePhoneKey(phone);
   if (cleanDigits.length < 9 && !userId) return null;
 
   try {
-    const current = await getCloudMasterState();
-    const approvals: RemoteStudentApproval[] = parseList(current.approvals);
+    const res = await readCloudMasterStateStrict(true);
+    if (!res.ok) return null;
+    const current = res.state;
 
-    // 1. Direct approval record
-    const found = approvals.find(a => {
-      const aClean = String(a.phone_number || '').replace(/[^\d]/g, '');
-      const phoneMatches = aClean.length >= 9 && cleanDigits.length >= 9 && aClean.slice(-9) === cleanDigits.slice(-9);
-      const userMatches = userId && a.user_id && userId === a.user_id;
-      return phoneMatches || userMatches;
-    });
+    // 1. Direct approval record (always authoritative for both Paid AND Free downgrades)
+    const found = current.approvals.find(a => recordMatchesPhoneOrId(a, userId, phone));
     if (found) return found;
 
-    // 2. Redundant check: approved payments in cloud
-    const payments: any[] = parseList(current.payments);
-    const pFound = payments.find(p => {
-      const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
-      const phoneMatches = pClean.length >= 9 && cleanDigits.length >= 9 && pClean.slice(-9) === cleanDigits.slice(-9);
-      const userMatches = userId && p.user_id && userId === p.user_id;
-      return (phoneMatches || userMatches) && p.status === 'approved';
-    });
-    if (pFound && pFound.status === 'approved') {
-      const isAll = pFound.amount_birr === 300 || pFound.upgrade_all_grades;
+    // 2. Updated student tier in cloud
+    const sFound = current.students.find(s => recordMatchesPhoneOrId(s, userId, phone));
+    if (sFound) {
+      const isPaid = Boolean(sFound.is_premium && sFound.payment_tier !== 'free');
+      const tier = (sFound.payment_tier || (isPaid ? 'single' : 'free')) as 'free' | 'single' | 'all';
       return {
         phone_number: phone,
-        user_id: userId,
-        tier: isAll ? 'all' : 'single',
-        unlocked_grades: isAll ? ['all'] : [pFound.target_grade_id || 'grade-12-natural'],
-        is_premium: true,
-        approved_at: pFound.approved_at || pFound.submitted_at || new Date().toISOString()
+        user_id: userId || sFound.id,
+        tier,
+        unlocked_grades: sFound.unlocked_grades || (tier === 'all' ? ['all'] : (isPaid ? [sFound.grade_id || 'grade-12-natural'] : [])),
+        is_premium: isPaid,
+        approved_at: sFound.updated_at || new Date().toISOString()
       };
     }
 
-    // 3. Redundant check: updated student tier in cloud
-    const students: any[] = parseList(current.students);
-    const sFound = students.find(s => {
-      const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
-      const phoneMatches = sClean.length >= 9 && cleanDigits.length >= 9 && sClean.slice(-9) === cleanDigits.slice(-9);
-      const userMatches = userId && s.id && userId === s.id;
-      return phoneMatches || userMatches;
-    });
-    if (sFound) {
-      if (sFound.is_premium || (sFound.payment_tier && sFound.payment_tier !== 'free')) {
-        const isAll = sFound.payment_tier === 'all';
-        return {
-          phone_number: phone,
-          user_id: userId,
-          tier: sFound.payment_tier || (isAll ? 'all' : 'single'),
-          unlocked_grades: sFound.unlocked_grades || (isAll ? ['all'] : [sFound.grade_id || 'grade-12-natural']),
-          is_premium: true,
-          approved_at: sFound.approved_at || new Date().toISOString()
-        };
-      } else if (sFound.payment_tier === 'free') {
-        return {
-          phone_number: phone,
-          user_id: userId,
-          tier: 'free',
-          unlocked_grades: [],
-          is_premium: false,
-          approved_at: new Date().toISOString()
-        };
-      }
+    // 3. Approved payment in cloud
+    const pFound = current.payments.find(p => recordMatchesPhoneOrId(p, userId, phone) && p.status === 'approved');
+    if (pFound) {
+      const isAll = Number(pFound.amount_birr) === 300 || Number(pFound.amount_birr) === 100 || Boolean(pFound.upgrade_all_grades);
+      return {
+        phone_number: phone,
+        user_id: userId || pFound.user_id,
+        tier: isAll ? 'all' : 'single',
+        unlocked_grades: isAll ? ['all'] : [pFound.target_grade_id || 'grade-12-natural'],
+        is_premium: true,
+        approved_at: pFound.reviewed_at || pFound.submitted_at || new Date().toISOString()
+      };
     }
 
     return null;
-  } catch (e) {
+  } catch (_) {
     return null;
   }
 }
@@ -477,17 +800,13 @@ export async function broadcastDeviceTransfer(req: RemoteDeviceTransfer): Promis
     ...req
   }).catch(() => {});
 
-  try {
-    const current = await getCloudMasterState();
-    let transfers: any[] = parseList(current.transfers);
-    transfers.unshift(req);
-    await updateCloudMasterState({
-      ...current,
-      transfers: transfers.slice(0, 30)
-    });
-  } catch (_) {}
-
-  return true;
+  return enqueueCloudMutation((current) => {
+    const transfers = [...current.transfers];
+    const exIdx = transfers.findIndex(t => t.id === req.id);
+    if (exIdx >= 0) transfers[exIdx] = { ...transfers[exIdx], ...req };
+    else transfers.unshift(req);
+    return { ...current, transfers };
+  }, 'Submit device transfer');
 }
 
 /**
@@ -495,9 +814,9 @@ export async function broadcastDeviceTransfer(req: RemoteDeviceTransfer): Promis
  */
 export async function fetchRemoteDeviceTransfers(): Promise<RemoteDeviceTransfer[]> {
   try {
-    const current = await getCloudMasterState();
-    return parseList(current.transfers);
-  } catch (e) {
+    const res = await readCloudMasterStateStrict(false);
+    return res.state.transfers;
+  } catch (_) {
     return [];
   }
 }
@@ -511,17 +830,28 @@ export async function broadcastQuestionFeedback(fb: RemoteQuestionFeedback): Pro
     ...fb
   }).catch(() => {});
 
-  try {
-    const current = await getCloudMasterState();
-    let feedbacks: any[] = parseList(current.feedbacks);
-    feedbacks.unshift(fb);
-    await updateCloudMasterState({
-      ...current,
-      feedbacks: feedbacks.slice(0, 40)
-    });
-  } catch (_) {}
+  return enqueueCloudMutation((current) => {
+    const feedbacks = [...current.feedbacks];
+    const exIdx = feedbacks.findIndex(f => f.id === fb.id);
+    if (exIdx >= 0) feedbacks[exIdx] = { ...feedbacks[exIdx], ...fb };
+    else feedbacks.unshift(fb);
+    return { ...current, feedbacks };
+  }, 'Submit question feedback');
+}
 
-  return true;
+/**
+ * Broadcasts admin question feedback update/deletion
+ */
+export async function broadcastQuestionFeedbackUpdate(fbId: string, status?: string, remove = false): Promise<boolean> {
+  return enqueueCloudMutation((current) => {
+    if (remove) {
+      return { ...current, feedbacks: current.feedbacks.filter(f => f.id !== fbId) };
+    }
+    return {
+      ...current,
+      feedbacks: current.feedbacks.map(f => f.id === fbId ? { ...f, ...(status ? { status } : {}) } : f)
+    };
+  }, remove ? 'Delete feedback' : 'Update feedback status');
 }
 
 /**
@@ -529,9 +859,9 @@ export async function broadcastQuestionFeedback(fb: RemoteQuestionFeedback): Pro
  */
 export async function fetchRemoteQuestionFeedbacks(): Promise<RemoteQuestionFeedback[]> {
   try {
-    const current = await getCloudMasterState();
-    return parseList(current.feedbacks);
-  } catch (e) {
+    const res = await readCloudMasterStateStrict(false);
+    return res.state.feedbacks;
+  } catch (_) {
     return [];
   }
 }
@@ -541,9 +871,9 @@ export async function fetchRemoteQuestionFeedbacks(): Promise<RemoteQuestionFeed
  */
 export async function fetchRemoteRegistrations(): Promise<RemoteStudentRegistration[]> {
   try {
-    const current = await getCloudMasterState();
-    return parseList(current.students);
-  } catch (e) {
+    const res = await readCloudMasterStateStrict(false);
+    return res.state.students;
+  } catch (_) {
     return [];
   }
 }
@@ -553,9 +883,9 @@ export async function fetchRemoteRegistrations(): Promise<RemoteStudentRegistrat
  */
 export async function fetchRemotePayments(): Promise<RemotePaymentSubmission[]> {
   try {
-    const current = await getCloudMasterState();
-    return parseList(current.payments);
-  } catch (e) {
+    const res = await readCloudMasterStateStrict(false);
+    return res.state.payments;
+  } catch (_) {
     return [];
   }
 }
@@ -564,34 +894,58 @@ export async function fetchRemotePayments(): Promise<RemotePaymentSubmission[]> 
  * Real-time event receiver connected via Server-Sent Events (SSE)
  */
 let eventSourceInstance: any = null;
+let ntfyEventSource: any = null;
 
 export function initRealtimeEventSource() {
   if (typeof window === 'undefined' || typeof EventSource === 'undefined') return;
-  if (eventSourceInstance) return;
 
-  try {
-    eventSourceInstance = new EventSource(SMEE_SYNC_URL);
+  if (!eventSourceInstance) {
+    try {
+      eventSourceInstance = new EventSource(SMEE_SYNC_URL);
 
-    eventSourceInstance.onmessage = (e: MessageEvent) => {
-      try {
-        const raw = JSON.parse(e.data);
-        const payload = raw.body || raw;
-        if (!payload || !payload.event) return;
+      eventSourceInstance.onmessage = (e: MessageEvent) => {
+        try {
+          const raw = JSON.parse(e.data);
+          const payload = raw.body || raw;
+          if (!payload || !payload.event) return;
+          handleIncomingCloudEvent(payload);
+        } catch (_) {}
+      };
 
-        handleIncomingCloudEvent(payload);
-      } catch (_) {}
-    };
+      eventSourceInstance.onerror = () => {
+        if (eventSourceInstance) {
+          eventSourceInstance.close();
+          eventSourceInstance = null;
+          setTimeout(initRealtimeEventSource, 6000);
+        }
+      };
+    } catch (_) {}
+  }
 
-    eventSourceInstance.onerror = () => {
-      // Reconnect after 5 seconds if connection drops
-      if (eventSourceInstance) {
-        eventSourceInstance.close();
-        eventSourceInstance = null;
-        setTimeout(initRealtimeEventSource, 5000);
-      }
-    };
-  } catch (err) {
-    console.warn('[CloudSync] Real-time stream init failed, using REST polling fallback.');
+  if (!ntfyEventSource) {
+    try {
+      ntfyEventSource = new EventSource(`${NTFY_EVENTS_URL}/sse`);
+      ntfyEventSource.addEventListener('message', (e: MessageEvent) => {
+        try {
+          const outer = JSON.parse(e.data);
+          const payload = outer.message ? JSON.parse(outer.message) : outer;
+          if (payload && payload.event) {
+            invalidateReadCache();
+            if (payload.event === 'student_approval') window.dispatchEvent(new CustomEvent('cloud-approval-wakeup', { detail: payload }));
+            if (payload.event === 'payment_submission') window.dispatchEvent(new CustomEvent('cloud-payment-received', { detail: payload }));
+            if (payload.event === 'student_registration') window.dispatchEvent(new CustomEvent('cloud-student-received', { detail: payload }));
+            if (payload.event === 'device_transfer') window.dispatchEvent(new CustomEvent('cloud-transfer-received', { detail: payload }));
+            if (payload.event === 'question_feedback') window.dispatchEvent(new CustomEvent('cloud-feedback-received', { detail: payload }));
+          }
+        } catch (_) {}
+      });
+      ntfyEventSource.onerror = () => {
+        if (ntfyEventSource) {
+          ntfyEventSource.close();
+          ntfyEventSource = null;
+        }
+      };
+    } catch (_) {}
   }
 }
 
@@ -601,6 +955,7 @@ export function initRealtimeEventSource() {
 function handleIncomingCloudEvent(payload: Record<string, any>) {
   if (typeof window === 'undefined') return;
 
+  invalidateReadCache();
   const eventType = payload.event;
 
   // 1. Payment submission from a student
@@ -608,8 +963,7 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
     try {
       const stored = localStorage.getItem('ethiolearn_admin_payments');
       const list = stored ? JSON.parse(stored) : [];
-      const cleanPhone = String(payload.student_phone).replace(/[^\d]/g, '');
-      const exIdx = list.findIndex((p: any) => String(p.student_phone).replace(/[^\d]/g, '').slice(-9) === cleanPhone.slice(-9));
+      const exIdx = list.findIndex((p: any) => p.id === payload.id || (p.status === 'pending' && phonesMatch(p.student_phone, payload.student_phone)));
       if (exIdx >= 0) {
         list[exIdx] = { ...list[exIdx], ...payload };
       } else {
@@ -620,13 +974,29 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
     } catch (_) {}
   }
 
-  // 2. Student registration
+  // 2. Payment rejection
+  if (eventType === 'payment_rejection' && payload.phone_number) {
+    try {
+      const myPhone = localStorage.getItem('ethiolearn_phone') || '';
+      if (phonesMatch(myPhone, payload.phone_number)) {
+        const rStr = localStorage.getItem('ethiolearn_my_receipt');
+        if (rStr) {
+          const rcpt = JSON.parse(rStr);
+          rcpt.status = 'rejected';
+          rcpt.rejection_reason = payload.rejection_reason;
+          localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(rcpt));
+        }
+        window.dispatchEvent(new CustomEvent('cloud-payment-received', { detail: payload }));
+      }
+    } catch (_) {}
+  }
+
+  // 3. Student registration
   if (eventType === 'student_registration' && payload.phone_number) {
     try {
       const stored = localStorage.getItem('ethiolearn_admin_students');
       const list = stored ? JSON.parse(stored) : [];
-      const cleanPhone = String(payload.phone_number).replace(/[^\d]/g, '');
-      const exIdx = list.findIndex((s: any) => String(s.phone_number).replace(/[^\d]/g, '').slice(-9) === cleanPhone.slice(-9));
+      const exIdx = list.findIndex((s: any) => recordMatchesPhoneOrId(s, payload.id, payload.phone_number));
       if (exIdx >= 0) {
         list[exIdx] = { ...list[exIdx], ...payload };
       } else {
@@ -637,15 +1007,22 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
     } catch (_) {}
   }
 
-  // 3. Admin approval broadcast -> Instantly unlocks student phone & synchronizes admin consoles
+  // 4. Student deletion
+  if (eventType === 'student_deleted') {
+    window.dispatchEvent(new CustomEvent('cloud-student-received', { detail: payload }));
+  }
+
+  // 5. Admin approval broadcast -> Instantly unlocks student phone & synchronizes admin consoles
   if (eventType === 'student_approval' && (payload.phone_number || payload.user_id)) {
     try {
-      const approvedPhone = String(payload.phone_number || '').replace(/[^\d]/g, '');
       const targetId = String(payload.user_id || payload.student_id || '');
       const isAll = payload.tier === 'all';
       const isPremium = payload.is_premium !== false && payload.tier !== 'free';
+      const nextTier = payload.tier || (isPremium ? 'single' : 'free');
+      const nextGrades = payload.unlocked_grades || (isAll ? ['all'] : (isPremium ? ['grade-12-natural'] : []));
+      const nextPaidAmount = nextTier === 'all' ? 300 : (nextTier === 'single' ? 200 : 0);
 
-      // A. ALWAYS update local ethiolearn_admin_students on any device/browser
+      // A. Update local ethiolearn_admin_students
       try {
         const adminStr = localStorage.getItem('ethiolearn_admin_students');
         if (adminStr) {
@@ -653,12 +1030,11 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
           if (Array.isArray(list)) {
             let adminMod = false;
             list.forEach((s: any) => {
-              const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
-              if ((targetId && s.id === targetId) || (sClean.length >= 9 && approvedPhone.length >= 9 && sClean.slice(-9) === approvedPhone.slice(-9))) {
+              if (recordMatchesPhoneOrId(s, targetId, payload.phone_number)) {
                 s.is_premium = isPremium;
-                s.payment_tier = payload.tier || (isPremium ? 'single' : 'free');
-                s.unlocked_grades = payload.unlocked_grades || (isAll ? ['all'] : (isPremium ? [s.grade_id || 'grade-12-natural'] : []));
-                s.paid_amount = payload.tier === 'all' ? 300 : (payload.tier === 'single' ? 200 : 0);
+                s.payment_tier = nextTier;
+                s.unlocked_grades = isAll ? ['all'] : (isPremium ? (payload.unlocked_grades?.length ? payload.unlocked_grades : [s.grade_id || 'grade-12-natural']) : []);
+                s.paid_amount = nextPaidAmount;
                 s.updated_at = new Date().toISOString();
                 adminMod = true;
               }
@@ -670,114 +1046,113 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
         }
       } catch (_) {}
 
-      // B. ALWAYS update local ethiolearn_admin_payments on any device/browser
-      try {
-        const paymentsStr = localStorage.getItem('ethiolearn_admin_payments');
-        if (paymentsStr) {
-          const pList = JSON.parse(paymentsStr);
-          if (Array.isArray(pList)) {
-            let payMod = false;
-            pList.forEach((p: any) => {
-              const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
-              if ((targetId && p.user_id === targetId) || (pClean.length >= 9 && approvedPhone.length >= 9 && pClean.slice(-9) === approvedPhone.slice(-9))) {
-                p.status = isPremium ? 'approved' : 'pending';
-                p.reviewed_at = payload.approved_at || new Date().toISOString();
-                p.reviewed_by = 'admin@ethiolearn.edu.et';
-                payMod = true;
+      // B. Update pending receipts ONLY if approved (do not turn approved receipts back to pending on free downgrade)
+      if (isPremium) {
+        try {
+          const paymentsStr = localStorage.getItem('ethiolearn_admin_payments');
+          if (paymentsStr) {
+            const pList = JSON.parse(paymentsStr);
+            if (Array.isArray(pList)) {
+              let payMod = false;
+              pList.forEach((p: any) => {
+                if ((payload.receipt_id && p.id === payload.receipt_id) || (recordMatchesPhoneOrId(p, targetId, payload.phone_number) && p.status === 'pending')) {
+                  p.status = 'approved';
+                  p.reviewed_at = payload.approved_at || new Date().toISOString();
+                  p.reviewed_by = 'admin@ethiolearn.edu.et';
+                  payMod = true;
+                }
+              });
+              if (payMod) {
+                localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(pList));
               }
-            });
-            if (payMod) {
-              localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(pList));
             }
           }
-        }
-      } catch (_) {}
+        } catch (_) {}
+      }
 
-      // Dispatch events so any open Admin Console immediately updates counts
       window.dispatchEvent(new CustomEvent('cloud-student-received', { detail: payload }));
       window.dispatchEvent(new CustomEvent('cloud-payment-received', { detail: payload }));
 
-      // C. If active user matches the approved student, unlock their profile immediately
+      // C. If active non-admin student matches the approved student, unlock/update their profile immediately
       let myProfile: any = null;
       try {
         const pStr = localStorage.getItem('ethiolearn_user_profile');
         if (pStr) myProfile = JSON.parse(pStr);
       } catch (_) {}
 
-      const myPhone = String(myProfile?.phone_number || myProfile?.phone || localStorage.getItem('ethiolearn_phone') || '').replace(/[^\d]/g, '');
-      const myId = String(myProfile?.id || localStorage.getItem('ethiolearn_user_id') || '');
+      if (myProfile && myProfile.role !== 'admin') {
+        const myPhone = String(myProfile.phone_number || myProfile.phone || localStorage.getItem('ethiolearn_phone') || '');
+        const myId = String(myProfile.id || localStorage.getItem('ethiolearn_user_id') || '');
+        const isMe = (targetId && myId === targetId) || phonesMatch(myPhone, payload.phone_number);
 
-      const phoneMatch = myPhone.length >= 9 && approvedPhone.length >= 9 && (approvedPhone.includes(myPhone.slice(-9)) || myPhone.includes(approvedPhone.slice(-9)));
-      const idMatch = Boolean(myId && targetId && myId === targetId);
-
-      if (phoneMatch || idMatch) {
-        const updatedProfile = {
-          ...myProfile,
-          is_premium: isPremium,
-          payment_tier: payload.tier || (isPremium ? 'single' : 'free'),
-          unlocked_grades: payload.unlocked_grades || (isAll ? ['all'] : (isPremium ? [myProfile?.grade_id || 'grade-12-natural'] : [])),
-          paid_amount: payload.tier === 'all' ? 300 : (payload.tier === 'single' ? 200 : 0),
-          subscription_type: payload.tier === 'all' ? 'all_grades' : (payload.tier === 'single' ? 'grade_only' : 'free')
-        };
-        localStorage.setItem('ethiolearn_user_profile', JSON.stringify(updatedProfile));
-        localStorage.setItem('ethiolearn_user', JSON.stringify(updatedProfile));
-        if (isPremium) {
-          localStorage.setItem('ethiolearn_payment_approved', 'true');
-          localStorage.setItem('ethiolearn_payment_tier', updatedProfile.payment_tier);
-
-          // Update local ethiolearn_my_receipt
-          try {
-            const rStr = localStorage.getItem('ethiolearn_my_receipt');
-            if (rStr) {
-              const rcpt = JSON.parse(rStr);
-              rcpt.status = 'approved';
-              localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(rcpt));
-            }
-          } catch (_) {}
-        } else {
-          localStorage.removeItem('ethiolearn_payment_approved');
+        if (isMe) {
+          const updatedProfile = {
+            ...myProfile,
+            is_premium: isPremium,
+            payment_tier: nextTier,
+            unlocked_grades: isAll ? ['all'] : (isPremium ? (nextGrades.length ? nextGrades : [myProfile.grade_id || 'grade-12-natural']) : []),
+            paid_amount: nextPaidAmount,
+            subscription_type: nextTier === 'all' ? 'all_grades' : (nextTier === 'single' ? 'grade_only' : 'free')
+          };
+          localStorage.setItem('ethiolearn_user_profile', JSON.stringify(updatedProfile));
+          localStorage.setItem('ethiolearn_user', JSON.stringify(updatedProfile));
+          if (isPremium) {
+            localStorage.setItem('ethiolearn_payment_approved', 'true');
+            localStorage.setItem('ethiolearn_payment_tier', nextTier);
+            try {
+              const rStr = localStorage.getItem('ethiolearn_my_receipt');
+              if (rStr) {
+                const rcpt = JSON.parse(rStr);
+                rcpt.status = 'approved';
+                localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(rcpt));
+              }
+            } catch (_) {}
+          } else {
+            localStorage.removeItem('ethiolearn_payment_approved');
+            localStorage.setItem('ethiolearn_payment_tier', 'free');
+          }
+          window.dispatchEvent(new Event('auth-change'));
+          window.dispatchEvent(new CustomEvent('payment-approved', { detail: updatedProfile }));
         }
-        window.dispatchEvent(new Event('auth-change'));
-        window.dispatchEvent(new CustomEvent('payment-approved', { detail: updatedProfile }));
       }
     } catch (_) {}
   }
 
-  // 4. Device approval
+  // 6. Device approval
   if (eventType === 'device_approval' && payload.phone_number) {
     try {
-      let myProfile: any = null;
-      try {
-        const pStr = localStorage.getItem('ethiolearn_user_profile');
-        if (pStr) myProfile = JSON.parse(pStr);
-      } catch (_) {}
-      const myPhone = String(myProfile?.phone_number || localStorage.getItem('ethiolearn_phone') || '').replace(/[^\d]/g, '');
-      const appPhone = String(payload.phone_number).replace(/[^\d]/g, '');
-      if (myPhone.length >= 9 && appPhone.includes(myPhone.slice(-9))) {
+      const pStr = localStorage.getItem('ethiolearn_user_profile');
+      const myProfile = pStr ? JSON.parse(pStr) : null;
+      const myPhone = String(myProfile?.phone_number || localStorage.getItem('ethiolearn_phone') || '');
+      if (phonesMatch(myPhone, payload.phone_number)) {
         localStorage.setItem('ethiolearn_device_approved', 'true');
         window.dispatchEvent(new Event('auth-change'));
       }
     } catch (_) {}
   }
 
-  // 5. Device transfer appeal
+  // 7. Device transfer appeal
   if (eventType === 'device_transfer') {
     try {
-      const stored = localStorage.getItem('ethiolearn_admin_transfers');
+      const stored = localStorage.getItem('ethiolearn_admin_device_transfers');
       const list = stored ? JSON.parse(stored) : [];
-      list.unshift(payload);
-      localStorage.setItem('ethiolearn_admin_transfers', JSON.stringify(list));
+      if (!list.some((t: any) => t.id === payload.id)) {
+        list.unshift(payload);
+        localStorage.setItem('ethiolearn_admin_device_transfers', JSON.stringify(list));
+      }
       window.dispatchEvent(new CustomEvent('cloud-transfer-received', { detail: payload }));
     } catch (_) {}
   }
 
-  // 6. Question feedback
+  // 8. Question feedback
   if (eventType === 'question_feedback') {
     try {
       const stored = localStorage.getItem('ethiolearn_admin_question_feedback');
       const list = stored ? JSON.parse(stored) : [];
-      list.unshift(payload);
-      localStorage.setItem('ethiolearn_admin_question_feedback', JSON.stringify(list));
+      if (!list.some((f: any) => f.id === payload.id)) {
+        list.unshift(payload);
+        localStorage.setItem('ethiolearn_admin_question_feedback', JSON.stringify(list));
+      }
       window.dispatchEvent(new CustomEvent('cloud-feedback-received', { detail: payload }));
     } catch (_) {}
   }

@@ -851,9 +851,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
         }
       } catch (_) {}
 
-      // 3. Send request to backend
+      // 3. Send request to backend (interceptor awaits cloud sync and returns cloud_synced: true)
+      let cloudAlreadySynced = false;
       try {
-        await fetch(`/api/admin/students/${encodeURIComponent(studentId)}/tier`, {
+        const res = await fetch(`/api/admin/students/${encodeURIComponent(studentId)}/tier`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -861,11 +862,13 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
           },
           body: JSON.stringify({ tier, grade_id: targetStudent?.grade_id || 'grade-12-natural' })
         });
+        const data = await res.json().catch(() => null);
+        if (data?.cloud_synced) cloudAlreadySynced = true;
       } catch (_) {}
 
-      // 4. Broadcast to cloud sync bus and persistent cloud master state
+      // 4. Fallback broadcast only if running against a server without built-in cloud sync
       const phoneToBroadcast = targetPhone || studentId;
-      if (phoneToBroadcast) {
+      if (!cloudAlreadySynced && phoneToBroadcast) {
         const isAll = tier === 'all';
         await broadcastStudentApproval({
           phone_number: phoneToBroadcast,
@@ -890,8 +893,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
         ? `/api/admin/payments/${receiptId}/approve`
         : `/api/admin/payments/${receiptId}/approve-tier`;
       
+      let cloudAlreadySynced = false;
       try {
-        await fetch(endpoint, {
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -899,13 +903,16 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
           },
           body: JSON.stringify({ tier })
         });
+        const data = await res.json().catch(() => null);
+        if (data?.cloud_synced) cloudAlreadySynced = true;
       } catch (_) {}
 
-      if (targetReceipt && (targetReceipt.student_phone || targetReceipt.user_id)) {
+      if (!cloudAlreadySynced && targetReceipt && (targetReceipt.student_phone || targetReceipt.user_id)) {
         const isAll = tier === 'all' || tier === 'upgrade';
         await broadcastStudentApproval({
           phone_number: targetReceipt.student_phone || targetReceipt.user_id || '',
           user_id: targetReceipt.user_id,
+          receipt_id: receiptId,
           tier: isAll ? 'all' : 'single',
           unlocked_grades: isAll ? ['all'] : [targetReceipt.target_grade_id || 'grade-12-natural'],
           is_premium: true,
@@ -1493,7 +1500,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                       <td className="p-4 text-right">
                         {rcpt.status === 'pending' ? (
                           <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-2">
-                            {rcpt.amount_birr === 300 ? (
+                            {Number(rcpt.amount_birr) === 300 ? (
                               <>
                                 <button
                                   onClick={() => handleApproveTier(rcpt.id, 'all')}
@@ -1511,7 +1518,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                                   200 Birr
                                 </button>
                               </>
-                            ) : rcpt.amount_birr === 100 ? (
+                            ) : Number(rcpt.amount_birr) === 100 ? (
                               <button
                                 onClick={() => handleApproveTier(rcpt.id, 'upgrade')}
                                 className="px-3 py-1.5 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 hover:to-cyan-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow-sm"
@@ -1548,7 +1555,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ initialTab = 'copilo
                           </div>
                         ) : (
                           <span className="text-[11px] text-slate-500 italic">
-                            Approved by {rcpt.reviewed_by || 'Admin'}
+                            {rcpt.status === 'rejected' ? 'Rejected' : 'Approved'} by {rcpt.reviewed_by || 'Admin'}
                           </span>
                         )}
                       </td>
@@ -3353,7 +3360,7 @@ If Δ < 0: no real roots.`}
                   <button
                     onClick={() => handleApproveTier(viewingReceipt.id, 'single')}
                     className={`px-4 py-2 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition ${
-                      viewingReceipt.amount_birr === 200 || (!viewingReceipt.upgrade_all_grades && viewingReceipt.amount_birr !== 300)
+                      Number(viewingReceipt.amount_birr) === 200 || (!viewingReceipt.upgrade_all_grades && Number(viewingReceipt.amount_birr) !== 300 && Number(viewingReceipt.amount_birr) !== 100)
                         ? 'bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 ring-2 ring-emerald-400/50'
                         : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
                     }`}
@@ -3364,7 +3371,7 @@ If Δ < 0: no real roots.`}
                   <button
                     onClick={() => handleApproveTier(viewingReceipt.id, 'all')}
                     className={`px-4 py-2 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition ${
-                      viewingReceipt.amount_birr === 300 || viewingReceipt.upgrade_all_grades
+                      Number(viewingReceipt.amount_birr) === 300 || (viewingReceipt.upgrade_all_grades && Number(viewingReceipt.amount_birr) !== 100)
                         ? 'bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 ring-2 ring-teal-400/50'
                         : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
                     }`}
@@ -3372,10 +3379,10 @@ If Δ < 0: no real roots.`}
                     <CheckCircle2 className="w-4 h-4" />
                     <span>Approve 300 Birr (All Grades)</span>
                   </button>
-                  {viewingReceipt.amount_birr === 100 && (
+                  {Number(viewingReceipt.amount_birr) === 100 && (
                     <button
                       onClick={() => handleApproveTier(viewingReceipt.id, 'upgrade')}
-                      className="px-4 py-2 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md"
+                      className="px-4 py-2 bg-gradient-to-r from-sky-600 to-cyan-600 hover:from-sky-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md ring-2 ring-sky-400/50"
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       <span>Approve 100 Birr (Upgrade)</span>

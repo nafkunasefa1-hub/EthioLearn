@@ -68,16 +68,18 @@ export const DeviceAppealModal: React.FC<DeviceAppealModalProps> = ({
       }
 
       setSubmitted(true);
-      // Synchronize device transfer request to cloud channel so Web Admin sees it instantly
-      broadcastDeviceTransfer({
-        id: `dt-${Date.now()}`,
-        phone_number: fullPhone,
-        student_name: 'Student',
-        new_device_id: currentDeviceId,
-        reason: finalReason,
-        status: 'pending',
-        requested_at: new Date().toISOString()
-      }).catch(() => {});
+      if (!data?.cloud_synced) {
+        // Fallback sync when talking to a backend without built-in cloud sync
+        await broadcastDeviceTransfer({
+          id: `dt-${Date.now()}`,
+          phone_number: fullPhone,
+          student_name: 'Student',
+          new_device_id: currentDeviceId,
+          reason: finalReason,
+          status: 'pending',
+          requested_at: new Date().toISOString()
+        }).catch(() => {});
+      }
     } catch (err: any) {
       setErrorMsg(err.message || 'Error submitting appeal. Please try again.');
     } finally {

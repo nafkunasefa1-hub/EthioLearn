@@ -21,8 +21,37 @@ import {
 import { PaymentSettings, ReceiptVerification } from '../types';
 import { broadcastPaymentReceipt, fetchRemoteApprovalForPhone } from '../services/cloudSyncService';
 
-// Fast client-side image compressor: downsizes heavy mobile camera photos (4MB-8MB) into ultra-compact JPEGs (~28KB)
+// Fast client-side image compressor: downsizes heavy mobile camera photos (4MB-8MB) into compact readable JPEGs (~18-32KB)
 const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: string }> => {
+  const renderScaled = (img: HTMLImageElement, maxDim: number, quality: number): Promise<{ blob: Blob; dataUrl: string }> => {
+    return new Promise((res) => {
+      let width = img.width;
+      let height = img.height;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        canvas.toBlob((blob) => {
+          res({ blob: blob || file, dataUrl });
+        }, 'image/jpeg', quality);
+      } else {
+        res({ blob: file, dataUrl: '' });
+      }
+    });
+  };
+
   return new Promise((resolve) => {
     if (!file.type || !file.type.startsWith('image/')) {
       const reader = new FileReader();
@@ -34,32 +63,12 @@ const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: 
     const reader = new FileReader();
     reader.onload = (e) => {
       const img = new Image();
-      img.onload = () => {
-        let width = img.width;
-        let height = img.height;
-        const maxDim = 720;
-        if (width > maxDim || height > maxDim) {
-          if (width > height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
+      img.onload = async () => {
+        let out = await renderScaled(img, 600, 0.52);
+        if (out.dataUrl.length > 44000) {
+          out = await renderScaled(img, 460, 0.42);
         }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.58);
-          canvas.toBlob((blob) => {
-            resolve({ blob: blob || file, dataUrl });
-          }, 'image/jpeg', 0.58);
-        } else {
-          resolve({ blob: file, dataUrl: String(e.target?.result || '') });
-        }
+        resolve(out.dataUrl ? out : { blob: file, dataUrl: String(e.target?.result || '') });
       };
       img.onerror = () => resolve({ blob: file, dataUrl: String(e.target?.result || '') });
       img.src = String(e.target?.result || '');
@@ -97,7 +106,14 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
         })
       ]);
       if (setRes.ok) setSettings(await setRes.json());
-      if (rcptRes.ok) setExistingReceipt(await rcptRes.json());
+      if (rcptRes.ok) {
+        const rcptJson = await rcptRes.json().catch(() => null);
+        if (rcptJson && rcptJson.id) {
+          setExistingReceipt(rcptJson);
+        } else {
+          setExistingReceipt(null);
+        }
+      }
     } catch (err) {
       console.error(err);
     }
@@ -108,97 +124,149 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
     setApprovalFeedback(null);
     try {
       const phone = user?.phone_number || (user as any)?.phone || localStorage.getItem('ethiolearn_phone') || '';
+      const curUserId = user?.id || localStorage.getItem('ethiolearn_user_id') || undefined;
       let remoteAppr = null;
-      if (phone) {
+      if (phone || curUserId) {
         try {
-          remoteAppr = await fetchRemoteApprovalForPhone(phone, user?.id);
+          remoteAppr = await fetchRemoteApprovalForPhone(phone, curUserId);
         } catch (_) {}
       }
 
-      if (remoteAppr && (remoteAppr.is_premium || remoteAppr.tier !== 'free')) {
+      if (remoteAppr && remoteAppr.is_premium && remoteAppr.tier !== 'free') {
+        const resolvedTier = remoteAppr.tier;
+        const resolvedGrades = resolvedTier === 'all'
+          ? ['all']
+          : (remoteAppr.unlocked_grades && remoteAppr.unlocked_grades.length > 0
+              ? remoteAppr.unlocked_grades
+              : [user?.grade_id || 'grade-12-natural']);
+
         const cached = localStorage.getItem('ethiolearn_user_profile');
         if (cached) {
           try {
             const u = JSON.parse(cached);
             u.is_premium = true;
-            u.payment_tier = remoteAppr.tier;
-            u.unlocked_grades = remoteAppr.unlocked_grades || (remoteAppr.tier === 'all' ? ['all'] : [u.grade_id || 'grade-12-natural']);
-            u.paid_amount = remoteAppr.tier === 'all' ? 300 : (remoteAppr.tier === 'single' ? 200 : 0);
-            u.subscription_type = remoteAppr.tier === 'all' ? 'all_grades' : 'grade_only';
+            u.payment_tier = resolvedTier;
+            u.unlocked_grades = resolvedGrades;
+            u.paid_amount = resolvedTier === 'all' ? 300 : 200;
+            u.subscription_type = resolvedTier === 'all' ? 'all_grades' : 'grade_only';
             localStorage.setItem('ethiolearn_user_profile', JSON.stringify(u));
             localStorage.setItem('ethiolearn_user', JSON.stringify(u));
           } catch (_) {}
         }
         localStorage.setItem('ethiolearn_payment_approved', 'true');
-        localStorage.setItem('ethiolearn_payment_tier', remoteAppr.tier);
+        localStorage.setItem('ethiolearn_payment_tier', resolvedTier);
+
+        try {
+          const rStr = localStorage.getItem('ethiolearn_my_receipt');
+          if (rStr) {
+            const parsed = JSON.parse(rStr);
+            parsed.status = 'approved';
+            localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(parsed));
+          }
+        } catch (_) {}
+
         setExistingReceipt(prev => prev ? { ...prev, status: 'approved' } : null);
+        setSubmitSuccess(false);
+        await refreshProfile();
         window.dispatchEvent(new Event('auth-change'));
 
-        const planName = remoteAppr.tier === 'all' ? 'All Grades (300 ETB)' : 'Single Grade (200 ETB)';
+        const planName = resolvedTier === 'all' ? 'All Grades (300 ETB)' : 'Single Grade (200 ETB)';
         setApprovalFeedback({
           type: 'success',
-          message: `🎉 Access Approved! Your account is unlocked for ${planName}. Redirecting to your dashboard...`
+          message: `🎉 Access Approved! Your account is unlocked for ${planName}. Opening your unlocked materials...`
         });
         setTimeout(() => {
           onNavigate('dashboard');
-        }, 1500);
+        }, 1200);
         return;
       }
 
       await fetchPaymentData();
       await refreshProfile();
 
-      const isApprovedLocally = localStorage.getItem('ethiolearn_payment_approved') === 'true';
+      let latestReceipt: ReceiptVerification | null = null;
+      try {
+        const myRes = await fetch('/api/payments/my-receipt', {
+          headers: { 'x-user-id': curUserId || '' }
+        });
+        if (myRes.ok) {
+          const rJson = await myRes.json().catch(() => null);
+          if (rJson && rJson.id) {
+            latestReceipt = rJson;
+            setExistingReceipt(rJson);
+          }
+        }
+      } catch (_) {}
+
       const currentCached = localStorage.getItem('ethiolearn_user_profile');
       let currentIsPremium = false;
+      let currentTier = 'free';
       if (currentCached) {
         try {
           const u = JSON.parse(currentCached);
-          if (u.is_premium && u.payment_tier !== 'free') currentIsPremium = true;
+          if (u.is_premium && u.payment_tier !== 'free') {
+            currentIsPremium = true;
+            currentTier = u.payment_tier || 'single';
+          }
         } catch (_) {}
       }
 
-      if (existingReceipt?.status === 'approved' || currentIsPremium || isApprovedLocally) {
+      if (latestReceipt?.status === 'rejected') {
+        setSubmitSuccess(false);
+        setApprovalFeedback({
+          type: 'error',
+          message: `❌ Receipt rejected: ${latestReceipt.rejection_reason || 'Please submit a clearer screenshot.'}`
+        });
+      } else if (latestReceipt?.status === 'approved' || currentIsPremium) {
+        setSubmitSuccess(false);
+        const planLabel = currentTier === 'all' ? 'All Grades (300 ETB)' : 'Single Grade (200 ETB)';
         setApprovalFeedback({
           type: 'success',
-          message: '🎉 Access Approved! Your premium account is active. Redirecting to your dashboard...'
+          message: `🎉 Access Approved! Your ${planLabel} access is active.`
         });
         setTimeout(() => {
           onNavigate('dashboard');
-        }, 1500);
+        }, 1200);
       } else {
         setApprovalFeedback({
           type: 'pending',
-          message: '⏳ It is not yet approved. The administrator is verifying your payment slip. Please allow a few minutes or click Speed up on Telegram.'
+          message: '⏳ Not yet approved. Your screenshot was sent and is waiting for Administrator verification.'
         });
       }
     } catch (err) {
       setApprovalFeedback({
         type: 'pending',
-        message: '⏳ Verification still in progress. The administrator has not approved your payment slip yet.'
+        message: '⏳ Not yet approved. The administrator is still verifying your payment screenshot.'
       });
     } finally {
       setCheckingApproval(false);
     }
   };
 
+  const isExplicitFreeTier = Boolean(
+    user && user.role !== 'admin' && ((user as any).payment_tier === 'free' || user.is_premium === false)
+  );
+
   const hasAllAccess = Boolean(
     user?.role === 'admin' ||
-    user?.unlocked_grades?.includes('all') ||
-    user?.subscription_type === 'all_grades' ||
-    user?.subscription_type === 'all' ||
-    (user as any)?.payment_tier === 'all_access' ||
-    (user as any)?.payment_tier === 'all'
+    (!isExplicitFreeTier && (
+      user?.unlocked_grades?.includes('all') ||
+      user?.subscription_type === 'all_grades' ||
+      user?.subscription_type === 'all' ||
+      (user as any)?.payment_tier === 'all_access' ||
+      (user as any)?.payment_tier === 'all'
+    ))
   );
 
   const hasApproved200Receipt = Boolean(
+    !isExplicitFreeTier &&
     existingReceipt?.status === 'approved' &&
-    (existingReceipt.amount_birr === 200 || !existingReceipt.upgrade_all_grades)
+    (Number(existingReceipt.amount_birr) === 200 || !existingReceipt.upgrade_all_grades)
   );
 
-  // A student has legitimately paid 200 ETB for a single grade ONLY IF verified:
-  // Free tier students who haven't paid anything must NEVER be treated as upgrading!
+  // A student has legitimately paid 200 ETB for a single grade ONLY IF verified and not currently Free Tier
   const isPaidSingleGrade = Boolean(
+    !isExplicitFreeTier &&
     !hasAllAccess &&
     (
       (user as any)?.payment_tier === 'single' ||
@@ -213,18 +281,20 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
 
   useEffect(() => {
     fetchPaymentData();
-  }, [user]);
+  }, [user?.id, (user as any)?.payment_tier, user?.is_premium]);
 
   // When payment is pending, poll cloud approval every 3.5 seconds for instantaneous unlocking
   useEffect(() => {
-    if (existingReceipt?.status === 'pending') {
+    if (existingReceipt?.status === 'pending' || submitSuccess) {
       const interval = setInterval(async () => {
         const phone = user?.phone_number || (user as any)?.phone || localStorage.getItem('ethiolearn_phone');
-        if (phone) {
+        const curUserId = user?.id || localStorage.getItem('ethiolearn_user_id') || undefined;
+        if (phone || curUserId) {
           try {
-            const appr = await fetchRemoteApprovalForPhone(phone, user?.id);
-            if (appr && appr.is_premium) {
+            const appr = await fetchRemoteApprovalForPhone(phone || '', curUserId);
+            if (appr && appr.is_premium && appr.tier !== 'free') {
               setExistingReceipt(prev => prev ? ({ ...prev, status: 'approved' }) : null);
+              setSubmitSuccess(false);
               await refreshProfile();
               window.dispatchEvent(new Event('auth-change'));
               return;
@@ -236,7 +306,7 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
       }, 3500);
       return () => clearInterval(interval);
     }
-  }, [existingReceipt?.status, user]);
+  }, [existingReceipt?.status, submitSuccess, user?.id, user?.phone_number]);
 
   useEffect(() => {
     // If student already has Single Grade access, they are exclusively eligible to UPGRADE for 100 Birr!
@@ -358,24 +428,28 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
         setSubmitSuccess(true);
         setApprovalFeedback({
           type: 'pending',
-          message: '⏳ Screenshot sent successfully! Waiting for Admin verification and approval.'
+          message: '✅ Screenshot sent! Your payment proof is waiting for Admin verification and approval.'
         });
 
-        // Explicitly broadcast to cloud channel so Admin on Web receives screenshot immediately
-        broadcastPaymentReceipt(submittedReceipt, uploadBlob).then(cloudUrl => {
-          if (cloudUrl) {
-            try {
-              const myRcpt = localStorage.getItem('ethiolearn_my_receipt');
-              if (myRcpt) {
-                const parsed = JSON.parse(myRcpt);
-                parsed.receipt_storage_path = cloudUrl;
-                localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(parsed));
-              }
-            } catch (_) {}
-          }
-        }).catch(() => {});
+        // Fallback broadcast only if the backend response did not already synchronize to cloud
+        if (!resData?.cloud_synced) {
+          await broadcastPaymentReceipt(
+            { ...submittedReceipt, student_phone: submittedReceipt.student_phone || studentPhone },
+            uploadBlob
+          ).then(cloudUrl => {
+            if (cloudUrl) {
+              try {
+                const myRcpt = localStorage.getItem('ethiolearn_my_receipt');
+                if (myRcpt) {
+                  const parsed = JSON.parse(myRcpt);
+                  parsed.receipt_storage_path = cloudUrl;
+                  localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(parsed));
+                }
+              } catch (_) {}
+            }
+          }).catch(() => {});
+        }
 
-        await fetchPaymentData();
         await refreshProfile();
       } else {
         const data = await res.json();
@@ -503,12 +577,12 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 max-w-md mx-auto text-xs text-slate-300 space-y-2 text-left">
             <div className="flex justify-between">
               <span className="text-slate-400">Phone Number:</span>
-              <strong className="text-white">{user?.phone_number || existingReceipt.student_phone}</strong>
+              <strong className="text-white">{user?.phone_number || existingReceipt?.student_phone || ''}</strong>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Target Grade:</span>
               <strong className="text-amber-400">
-                {existingReceipt.amount_birr === 100 || existingReceipt.upgrade_all_grades || isUpgrading || isPaidSingleGrade
+                {Number(existingReceipt?.amount_birr) === 100 || existingReceipt?.upgrade_all_grades || isUpgrading || isPaidSingleGrade
                   ? 'All Grades (9, 10, 11, 12) - Complete Access Upgrade'
                   : (user?.grade || 'Selected Grade Access')}
               </strong>
@@ -516,18 +590,18 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
             <div className="flex justify-between">
               <span className="text-slate-400">Amount:</span>
               <strong className="text-emerald-400">
-                {existingReceipt.amount_birr === 100 || ((isUpgrading || isPaidSingleGrade) && existingReceipt.upgrade_all_grades)
+                {Number(existingReceipt?.amount_birr) === 100 || ((isUpgrading || isPaidSingleGrade) && existingReceipt?.upgrade_all_grades)
                   ? '100 ETB'
-                  : existingReceipt.amount_birr === 300
+                  : Number(existingReceipt?.amount_birr) === 300
                   ? '300 ETB'
-                  : existingReceipt.amount_birr === 200 && !isPaidSingleGrade
+                  : Number(existingReceipt?.amount_birr) === 200 && !isPaidSingleGrade
                   ? '200 ETB'
-                  : (isUpgrading || isPaidSingleGrade ? '100 ETB' : `${existingReceipt.amount_birr || 200} ETB`)}
+                  : (isUpgrading || isPaidSingleGrade ? '100 ETB' : `${existingReceipt?.amount_birr || (selectedPlan === 'all' ? 300 : 200)} ETB`)}
               </strong>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-400">Submitted At:</span>
-              <span>{new Date(existingReceipt.submitted_at).toLocaleString()}</span>
+              <span>{existingReceipt?.submitted_at ? new Date(existingReceipt.submitted_at).toLocaleString() : 'Just now'}</span>
             </div>
           </div>
           <p className="text-slate-300 text-xs max-w-md mx-auto leading-relaxed">
@@ -575,6 +649,15 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
       ) : (
         /* Payment Instructions & Submission Form */
         <div className="space-y-6">
+          {existingReceipt?.status === 'rejected' && (
+            <div className="bg-red-950/50 border border-red-500/60 rounded-2xl p-4 flex items-start gap-3 text-xs text-red-200">
+              <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold text-red-300">Previous Payment Screenshot Was Rejected</p>
+                <p>{existingReceipt.rejection_reason || 'Screenshot was unclear or could not be verified. Please upload a clear payment receipt below.'}</p>
+              </div>
+            </div>
+          )}
           {/* Free Tier Guidance on which plan to choose */}
           {!isUpgrading && (
             <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 space-y-2 shadow-sm">

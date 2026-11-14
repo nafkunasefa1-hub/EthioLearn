@@ -1,7 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { UserProfile } from '../types';
 import { apiFetchJson } from '../utils/api';
-import { fetchRemoteApprovalForPhone } from '../services/cloudSyncService';
+import {
+  fetchRemoteApprovalForPhone,
+  fetchRemoteRegistrations,
+  broadcastStudentRegistration,
+  phonesMatch
+} from '../services/cloudSyncService';
 
 export const getDeviceId = (): string => {
   let devId = localStorage.getItem('ethiolearn_device_id');
@@ -183,73 +188,87 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Periodic cloud poll so student's app instantly unlocks when Admin modifies tier or approves payment
     const interval = setInterval(async () => {
-      const curPhone = localStorage.getItem('ethiolearn_phone') || user?.phone_number;
-      if (curPhone) {
-        try {
-          const appr = await fetchRemoteApprovalForPhone(curPhone, user?.id);
-          if (appr) {
-            const cached = localStorage.getItem('ethiolearn_user_profile');
-            let needsUpdate = false;
-            if (cached) {
-              const u = JSON.parse(cached);
-              const targetIsPremium = Boolean(appr.is_premium && appr.tier !== 'free');
-              const targetTier = appr.tier || (targetIsPremium ? 'single' : 'free');
-              
-              if (u.is_premium !== targetIsPremium || u.payment_tier !== targetTier) {
-                u.is_premium = targetIsPremium;
-                u.payment_tier = targetTier;
-                u.unlocked_grades = appr.unlocked_grades || (appr.tier === 'all' ? ['all'] : (targetIsPremium ? [u.grade_id || 'grade-12-natural'] : []));
-                u.paid_amount = appr.tier === 'all' ? 300 : (appr.tier === 'single' ? 200 : 0);
-                u.subscription_type = appr.tier === 'all' ? 'all_grades' : (appr.tier === 'single' ? 'grade_only' : 'free');
-                localStorage.setItem('ethiolearn_user_profile', JSON.stringify(u));
-                localStorage.setItem('ethiolearn_user', JSON.stringify(u));
-                if (targetIsPremium) {
-                  localStorage.setItem('ethiolearn_payment_approved', 'true');
-                  localStorage.setItem('ethiolearn_payment_tier', targetTier);
+      const curPhone = localStorage.getItem('ethiolearn_phone');
+      const curUserId = localStorage.getItem('ethiolearn_user_id') || undefined;
+      const cached = localStorage.getItem('ethiolearn_user_profile');
+      if (!curPhone || !cached) return;
 
-                  // Keep local admin students list in sync on phone
-                  try {
-                    const aStr = localStorage.getItem('ethiolearn_admin_students');
-                    if (aStr) {
-                      const aList = JSON.parse(aStr);
-                      if (Array.isArray(aList)) {
-                        const curDigits = curPhone.replace(/[^\d]/g, '');
-                        aList.forEach((st: any) => {
-                          const sDigits = String(st.phone_number || '').replace(/[^\d]/g, '');
-                          if (curDigits.length >= 9 && sDigits.includes(curDigits.slice(-9))) {
-                            st.is_premium = true;
-                            st.payment_tier = targetTier;
-                            st.unlocked_grades = u.unlocked_grades;
-                            st.paid_amount = u.paid_amount;
-                          }
-                        });
-                        localStorage.setItem('ethiolearn_admin_students', JSON.stringify(aList));
-                      }
-                    }
-                  } catch (_) {}
+      let u: any = null;
+      try {
+        u = JSON.parse(cached);
+      } catch (_) {
+        return;
+      }
+      if (!u || u.role === 'admin') return;
 
-                  // Keep local receipt in sync
-                  try {
-                    const rStr = localStorage.getItem('ethiolearn_my_receipt');
-                    if (rStr) {
-                      const rcpt = JSON.parse(rStr);
-                      rcpt.status = 'approved';
-                      localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(rcpt));
-                    }
-                  } catch (_) {}
-                } else {
-                  localStorage.removeItem('ethiolearn_payment_approved');
-                }
-                setUser({ ...u });
-                needsUpdate = true;
+      try {
+        const appr = await fetchRemoteApprovalForPhone(curPhone, curUserId);
+        if (!appr) return;
+
+        const targetIsPremium = Boolean(appr.is_premium && appr.tier !== 'free');
+        const targetTier = targetIsPremium ? (appr.tier || 'single') : 'free';
+        const targetGrades = targetIsPremium
+          ? (appr.unlocked_grades && appr.unlocked_grades.length > 0
+              ? appr.unlocked_grades
+              : (targetTier === 'all' ? ['all'] : [u.grade_id || 'grade-12-natural']))
+          : [];
+        const currentGradesStr = JSON.stringify(u.unlocked_grades || []);
+        const targetGradesStr = JSON.stringify(targetGrades);
+
+        if (u.is_premium !== targetIsPremium || u.payment_tier !== targetTier || currentGradesStr !== targetGradesStr) {
+          u.is_premium = targetIsPremium;
+          u.payment_tier = targetTier;
+          u.unlocked_grades = targetGrades;
+          u.paid_amount = targetTier === 'all' ? 300 : (targetTier === 'single' ? 200 : 0);
+          u.subscription_type = targetTier === 'all' ? 'all_grades' : (targetTier === 'single' ? 'grade_only' : 'free');
+          localStorage.setItem('ethiolearn_user_profile', JSON.stringify(u));
+          localStorage.setItem('ethiolearn_user', JSON.stringify(u));
+
+          if (targetIsPremium) {
+            localStorage.setItem('ethiolearn_payment_approved', 'true');
+            localStorage.setItem('ethiolearn_payment_tier', targetTier);
+          } else {
+            localStorage.removeItem('ethiolearn_payment_approved');
+            localStorage.setItem('ethiolearn_payment_tier', 'free');
+          }
+
+          // Keep local admin students cache aligned on both upgrades and free downgrades
+          try {
+            const aStr = localStorage.getItem('ethiolearn_admin_students');
+            if (aStr) {
+              const aList = JSON.parse(aStr);
+              if (Array.isArray(aList)) {
+                const curDigits = curPhone.replace(/[^\d]/g, '').slice(-9);
+                aList.forEach((st: any) => {
+                  const sDigits = String(st.phone_number || '').replace(/[^\d]/g, '').slice(-9);
+                  if ((curUserId && st.id === curUserId) || (curDigits.length >= 9 && sDigits === curDigits)) {
+                    st.is_premium = targetIsPremium;
+                    st.payment_tier = targetTier;
+                    st.unlocked_grades = targetGrades;
+                    st.paid_amount = u.paid_amount;
+                  }
+                });
+                localStorage.setItem('ethiolearn_admin_students', JSON.stringify(aList));
               }
             }
-            if (needsUpdate) {
-              window.dispatchEvent(new Event('auth-change'));
+          } catch (_) {}
+
+          // Keep local receipt status aligned
+          try {
+            const rStr = localStorage.getItem('ethiolearn_my_receipt');
+            if (rStr) {
+              const rcpt = JSON.parse(rStr);
+              if (targetIsPremium) {
+                rcpt.status = 'approved';
+                localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(rcpt));
+              }
             }
-          }
-        } catch (_) {}
-      }
+          } catch (_) {}
+
+          setUser({ ...u });
+          window.dispatchEvent(new Event('auth-change'));
+        }
+      } catch (_) {}
     }, 3500);
 
     return () => {
@@ -349,38 +368,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: true, isAdmin: true };
     }
 
-    // Registered Student Verification
+    // Registered Student Verification (local + cloud cross-device fallback)
     let registeredStudents: any[] = [];
     try {
       const stored = localStorage.getItem('ethiolearn_registered_students');
       if (stored) registeredStudents = JSON.parse(stored);
     } catch (_) {}
 
-    const SEED_STUDENTS = [
-      {
-        phone: '+251975949200',
-        name: 'Nafkun Asefa',
-        password: 'Chulo',
-        grade_id: 'grade-12-natural'
-      },
-      {
-        phone: '+251911002026',
-        name: 'Devpost Judge',
-        password: 'Judge@2026',
-        grade_id: 'grade-12-natural'
-      }
-    ];
+    let foundStudent = registeredStudents.find((s: any) =>
+      phonesMatch(s.phone || s.phone_number, normPhone)
+    );
 
-    const cleanNorm = normPhone.replace(/[\s\-\(\)\+]/g, '');
-    const foundStudent =
-      registeredStudents.find((s: any) => {
-        const sClean = String(s.phone || '').replace(/[\s\-\(\)\+]/g, '');
-        return sClean === cleanNorm || (cleanNorm.length >= 9 && sClean.endsWith(cleanNorm.slice(-9)));
-      }) ||
-      SEED_STUDENTS.find(s => {
-        const sClean = s.phone.replace(/[\s\-\(\)\+]/g, '');
-        return sClean === cleanNorm || (cleanNorm.length >= 9 && sClean.endsWith(cleanNorm.slice(-9)));
-      });
+    if (!foundStudent && navigator.onLine !== false) {
+      try {
+        const remoteList = await fetchRemoteRegistrations();
+        const remoteMatch = remoteList.find((rs: any) => phonesMatch(rs.phone_number, normPhone));
+        if (remoteMatch) {
+          foundStudent = {
+            id: remoteMatch.id,
+            phone: remoteMatch.phone_number,
+            name: remoteMatch.full_name,
+            password: remoteMatch.password || 'Student@123',
+            grade_id: remoteMatch.grade_id || 'grade-12-natural',
+            grade: remoteMatch.grade
+          };
+          registeredStudents.push(foundStudent);
+          localStorage.setItem('ethiolearn_registered_students', JSON.stringify(registeredStudents));
+        }
+      } catch (_) {}
+    }
 
     if (!foundStudent) {
       return {
@@ -401,7 +417,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
 
-    // Look up tier in authoritative admin students list
+    // Look up tier in authoritative admin students list & cloud
     let isStudentPaid = false;
     let paymentTier: 'free' | 'single' | 'all' = 'free';
     let unlockedGrades: string[] = [];
@@ -412,20 +428,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (adminStudentsStr) {
         const adminList = JSON.parse(adminStudentsStr);
         if (Array.isArray(adminList)) {
-          const rec = adminList.find((s: any) => {
-            if (s.id === foundStudent.id || s.phone_number === normPhone) return true;
-            const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
-            return cleanNorm.length >= 9 && sDigits.includes(cleanNorm.slice(-9));
-          });
+          const rec = adminList.find((s: any) =>
+            s.id === foundStudent.id || phonesMatch(s.phone_number, normPhone)
+          );
           if (rec) {
-            isStudentPaid = Boolean(rec.is_premium);
-            paymentTier = rec.payment_tier || (isStudentPaid ? 'all' : 'free');
-            unlockedGrades = rec.unlocked_grades || (isStudentPaid ? ['all'] : []);
+            isStudentPaid = Boolean(rec.is_premium && rec.payment_tier !== 'free');
+            paymentTier = isStudentPaid ? (rec.payment_tier || 'single') : 'free';
+            unlockedGrades = isStudentPaid ? (rec.unlocked_grades || ['all']) : [];
             paidAmount = rec.paid_amount || (paymentTier === 'all' ? 300 : (paymentTier === 'single' ? 200 : 0));
           }
         }
       }
     } catch (_) {}
+
+    if (navigator.onLine !== false) {
+      try {
+        const remoteAppr = await fetchRemoteApprovalForPhone(normPhone, foundStudent.id);
+        if (remoteAppr) {
+          isStudentPaid = Boolean(remoteAppr.is_premium && remoteAppr.tier !== 'free');
+          paymentTier = isStudentPaid ? remoteAppr.tier : 'free';
+          unlockedGrades = isStudentPaid ? (remoteAppr.unlocked_grades || (paymentTier === 'all' ? ['all'] : [foundStudent.grade_id || 'grade-12-natural'])) : [];
+          paidAmount = paymentTier === 'all' ? 300 : (paymentTier === 'single' ? 200 : 0);
+        }
+      } catch (_) {}
+    }
 
     const studentProfile: UserProfile = {
       id: foundStudent.id || `usr-student-${normPhone.replace('+', '')}`,
@@ -433,7 +459,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: `${normPhone.replace('+', '')}@student.ethiolearn.edu.et`,
       full_name: foundStudent.name || fullName?.trim() || 'Ethiopian Student',
       role: 'student',
-      grade: 'Grade 12 - Natural Science',
+      grade: foundStudent.grade || 'Grade 12 - Natural Science',
       grade_id: foundStudent.grade_id || gradeId || 'grade-12-natural',
       is_premium: isStudentPaid,
       payment_tier: paymentTier,
@@ -501,6 +527,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (data.profile.phone_number) {
             localStorage.setItem('ethiolearn_phone', data.profile.phone_number);
           }
+          if (!data.cloud_synced) {
+            await broadcastStudentRegistration({
+              id: data.profile.id,
+              phone_number: data.profile.phone_number || phoneNumber,
+              full_name: data.profile.full_name || fullName || 'Student',
+              password: password?.trim() || 'Student@123',
+              grade: data.profile.grade,
+              grade_id: data.profile.grade_id || gradeId || 'grade-12-natural',
+              device_id: deviceId,
+              created_at: data.profile.created_at || new Date().toISOString()
+            }).catch(() => {});
+          }
           return { success: true, isAdmin: data.is_admin || data.profile.role === 'admin' };
         }
       } else if (!res.ok && contentType.includes('application/json')) {
@@ -527,6 +565,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const studentName = fullName?.trim() || `Student ${normPhone.slice(-4)}`;
     const studentPwd = password?.trim() || 'Student@123';
     const targetGrade = gradeId || 'grade-12-natural';
+    const GRADE_NAMES: Record<string, string> = {
+      'grade-9': 'Grade 9',
+      'grade-10': 'Grade 10',
+      'grade-11-natural': 'Grade 11 - Natural Science',
+      'grade-11-social': 'Grade 11 - Social Science',
+      'grade-12-natural': 'Grade 12 - Natural Science',
+      'grade-12-social': 'Grade 12 - Social Science'
+    };
+    const gradeLabel = GRADE_NAMES[targetGrade] || 'Grade 12 - Natural Science';
 
     const newStudentProfile: UserProfile = {
       id: newStudentId,
@@ -534,7 +581,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: `${cleanNorm}@student.ethiolearn.edu.et`,
       full_name: studentName,
       role: 'student',
-      grade: 'Grade 12 - Natural Science',
+      grade: gradeLabel,
       grade_id: targetGrade,
       is_premium: false,
       payment_tier: 'free',
@@ -548,14 +595,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const regStr = localStorage.getItem('ethiolearn_registered_students');
       let regList = regStr ? JSON.parse(regStr) : [];
       if (!Array.isArray(regList)) regList = [];
-      const exReg = regList.findIndex((s: any) => s.id === newStudentId || (s.phone && s.phone === normPhone));
+      const exReg = regList.findIndex((s: any) => s.id === newStudentId || phonesMatch(s.phone || s.phone_number, normPhone));
       const regEntry = {
         id: newStudentId,
         phone: normPhone,
         name: studentName,
         password: studentPwd,
         role: 'student',
-        grade_id: targetGrade
+        grade_id: targetGrade,
+        grade: gradeLabel
       };
       if (exReg >= 0) regList[exReg] = { ...regList[exReg], ...regEntry };
       else regList.push(regEntry);
@@ -564,13 +612,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const adminStr = localStorage.getItem('ethiolearn_admin_students');
       let adminList = adminStr ? JSON.parse(adminStr) : [];
       if (!Array.isArray(adminList)) adminList = [];
-      const exAdm = adminList.findIndex((s: any) => s.id === newStudentId || s.phone_number === normPhone);
+      const exAdm = adminList.findIndex((s: any) => s.id === newStudentId || phonesMatch(s.phone_number, normPhone));
       const adminEntry = {
         id: newStudentId,
         phone_number: normPhone,
         email: newStudentProfile.email,
         full_name: studentName,
-        grade: newStudentProfile.grade,
+        grade: gradeLabel,
         grade_id: targetGrade,
         role: 'student',
         is_premium: false,
@@ -585,11 +633,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       else adminList.push(adminEntry);
       localStorage.setItem('ethiolearn_admin_students', JSON.stringify(adminList));
 
+      localStorage.removeItem('ethiolearn_my_receipt');
+      localStorage.removeItem('ethiolearn_payment_approved');
+      localStorage.removeItem('ethiolearn_payment_tier');
+
       setUser(newStudentProfile);
       localStorage.setItem('ethiolearn_user_id', newStudentProfile.id);
       localStorage.setItem('ethiolearn_phone_session', 'verified');
       localStorage.setItem('ethiolearn_user_profile', JSON.stringify(newStudentProfile));
       localStorage.setItem('ethiolearn_phone', newStudentProfile.phone_number);
+
+      await broadcastStudentRegistration({
+        id: newStudentId,
+        phone_number: normPhone,
+        full_name: studentName,
+        password: studentPwd,
+        grade: gradeLabel,
+        grade_id: targetGrade,
+        device_id: deviceId,
+        created_at: newStudentProfile.created_at || new Date().toISOString()
+      }).catch(() => {});
     } catch (_) {}
 
     return { success: true, isAdmin: false };

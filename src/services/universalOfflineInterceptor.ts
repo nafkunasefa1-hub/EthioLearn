@@ -94,18 +94,77 @@ import {
   fetchRemoteRegistrations,
   fetchRemotePayments,
   broadcastStudentApproval,
+  broadcastPaymentRejection,
+  broadcastStudentDeletion,
   broadcastDeviceApproval,
+  broadcastDeviceTransferRejection,
   fetchRemoteApprovalForPhone,
   broadcastDeviceTransfer,
   fetchRemoteDeviceTransfers,
   broadcastQuestionFeedback,
+  broadcastQuestionFeedbackUpdate,
   fetchRemoteQuestionFeedbacks,
   getCloudMasterState,
-  updateCloudMasterState
+  updateCloudMasterState,
+  phonesMatch
 } from './cloudSyncService';
 
 // Store reference to native browser fetch
 const nativeFetch = window.fetch.bind(window);
+
+function safeSetLocalStorage(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch (_) {
+    // QuotaExceededError guard: trim oldest non-pending payment screenshots to keep storage balanced
+    try {
+      const pStr = localStorage.getItem('ethiolearn_admin_payments');
+      if (pStr) {
+        const list = JSON.parse(pStr);
+        if (Array.isArray(list)) {
+          const trimmed = list.slice(0, 35).map((p: any, idx: number) =>
+            idx > 8 && p.status !== 'pending' ? { ...p, receipt_storage_path: '' } : p
+          );
+          localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(trimmed));
+        }
+      }
+      localStorage.setItem(key, value);
+    } catch (_) {}
+  }
+}
+
+let didCleanResetV5 = false;
+function ensureCleanResetV5(): void {
+  if (didCleanResetV5 || typeof localStorage === 'undefined') return;
+  didCleanResetV5 = true;
+  if (localStorage.getItem('ethiolearn_clean_reset_v5') === 'true') return;
+  try {
+    localStorage.removeItem('ethiolearn_admin_students');
+    localStorage.removeItem('ethiolearn_admin_payments');
+    localStorage.removeItem('ethiolearn_registered_students');
+    localStorage.removeItem('ethiolearn_admin_device_transfers');
+    localStorage.removeItem('ethiolearn_admin_question_feedback');
+    localStorage.removeItem('ethiolearn_deleted_students');
+    localStorage.removeItem('ethiolearn_my_receipt');
+    localStorage.removeItem('ethiolearn_last_uploaded_receipt_image');
+    localStorage.removeItem('ethiolearn_payment_approved');
+    localStorage.removeItem('ethiolearn_payment_tier');
+
+    const profStr = localStorage.getItem('ethiolearn_user_profile');
+    if (profStr) {
+      const prof = JSON.parse(profStr);
+      if (prof && prof.role !== 'admin') {
+        localStorage.removeItem('ethiolearn_user_profile');
+        localStorage.removeItem('ethiolearn_user');
+        localStorage.removeItem('ethiolearn_user_id');
+        localStorage.removeItem('ethiolearn_phone');
+        localStorage.removeItem('ethiolearn_phone_session');
+        localStorage.removeItem('ethiolearn_token');
+      }
+    }
+    localStorage.setItem('ethiolearn_clean_reset_v5', 'true');
+  } catch (_) {}
+}
 
 // In-memory caches for fast, zero-latency retrieval
 let cachedMetadata: {
@@ -1122,7 +1181,18 @@ export function installUniversalOfflineInterceptor(): void {
     }
 
     try {
-      return await handleOfflineApiRequest(pathname, method, parsedUrl.searchParams, reqBody, reqFormData);
+      ensureCleanResetV5();
+      const reqHeaders: Record<string, string> = {};
+      if (init?.headers) {
+        if (typeof Headers !== 'undefined' && init.headers instanceof Headers) {
+          init.headers.forEach((v, k) => { reqHeaders[k.toLowerCase()] = v; });
+        } else if (Array.isArray(init.headers)) {
+          for (const [k, v] of init.headers) { reqHeaders[String(k).toLowerCase()] = String(v); }
+        } else if (typeof init.headers === 'object') {
+          for (const [k, v] of Object.entries(init.headers)) { reqHeaders[k.toLowerCase()] = String(v); }
+        }
+      }
+      return await handleOfflineApiRequest(pathname, method, parsedUrl.searchParams, reqBody, reqFormData, reqHeaders);
     } catch (err: any) {
       console.error(`[EthioLearn Interceptor] Error processing ${pathname}:`, err);
       return jsonResponse({
@@ -1142,9 +1212,303 @@ async function handleOfflineApiRequest(
   method: string,
   params: URLSearchParams,
   rawBody: string,
-  reqFormData?: FormData | null
+  reqFormData?: FormData | null,
+  reqHeaders: Record<string, string> = {}
 ): Promise<Response> {
+  const headers = reqHeaders;
+  ensureCleanResetV5();
   const meta = await ensureMetadata();
+
+  const STALE_SAMPLE_PHONES = new Set([
+    '+251911223344', '+251922334455', '0911223344', '0922334455',
+    'usr-student-premium', 'usr-student-free', '+251911111111',
+    '+251964297591', '+251938935404', 'student-251911111111',
+    'student-251964297591', 'student-251938935404', 'usr-devpost-judge'
+  ]);
+
+  const STALE_PAY_PHONES = new Set([
+    '+251911223344', '+251922334455', 'usr-student-premium', 'usr-student-free',
+    '+251911111111', '+251964297591', '+251938935404', 'rcpt-pending-1111',
+    'rcpt-pending-devpost', 'rcpt-moibon-300', 'rcpt-student5404-200', 'rcpt-nafkun-200'
+  ]);
+
+  const isDeletedIdentifier = (deletedTokens: string[], id?: string, phone?: string): boolean => {
+    const idLower = String(id || '').toLowerCase().trim();
+    const phoneLower = String(phone || '').toLowerCase().trim();
+    return deletedTokens.some(tok => {
+      const t = String(tok || '').toLowerCase().trim();
+      if (!t) return false;
+      if (idLower && t === idLower) return true;
+      if (phoneLower && (t === phoneLower || phonesMatch(t, phoneLower))) return true;
+      return false;
+    });
+  };
+
+  const getAdminStudentsList = (): any[] => {
+    let deletedList: string[] = [];
+    try {
+      const delStr = localStorage.getItem('ethiolearn_deleted_students');
+      if (delStr) deletedList = JSON.parse(delStr);
+    } catch (_) {}
+    if (!Array.isArray(deletedList)) deletedList = [];
+
+    let currentList: any[] = [];
+    try {
+      const stored = localStorage.getItem('ethiolearn_admin_students');
+      if (stored) currentList = JSON.parse(stored);
+    } catch (_) {}
+
+    if (!Array.isArray(currentList)) {
+      currentList = [];
+    } else {
+      currentList = currentList.filter(s => {
+        const p = String(s.phone_number || '').trim();
+        const id = String(s.id || '').trim();
+        return !STALE_SAMPLE_PHONES.has(p) && !STALE_SAMPLE_PHONES.has(id) && !isDeletedIdentifier(deletedList, id, p);
+      });
+    }
+
+    // Merge offline-registered students created on this device
+    try {
+      const regStr = localStorage.getItem('ethiolearn_registered_students');
+      if (regStr) {
+        const regList = JSON.parse(regStr);
+        if (Array.isArray(regList)) {
+          for (const rs of regList) {
+            const rawPhone = String(rs.phone || rs.phone_number || '').trim();
+            const cleanDigits = rawPhone.replace(/[^\d]/g, '');
+            if (!cleanDigits || cleanDigits.length < 9) continue;
+            if (
+              STALE_SAMPLE_PHONES.has(rawPhone) ||
+              STALE_SAMPLE_PHONES.has('0' + cleanDigits.slice(-9)) ||
+              isDeletedIdentifier(deletedList, rs.id, rawPhone)
+            ) {
+              continue;
+            }
+            const existing = currentList.find(s => s.id === rs.id || phonesMatch(s.phone_number, rawPhone));
+            if (!existing) {
+              const formatted = rawPhone.startsWith('+') ? rawPhone : ('+251' + cleanDigits.slice(-9));
+              currentList.push({
+                id: rs.id || `usr-student-${cleanDigits.slice(-9)}`,
+                phone_number: formatted,
+                full_name: rs.name || rs.full_name || 'Registered Student',
+                grade: rs.grade || (rs.grade_id && String(rs.grade_id).includes('12') ? 'Grade 12 - Natural Science' : 'Grade 10'),
+                grade_id: rs.grade_id || 'grade-12-natural',
+                role: 'student',
+                is_premium: Boolean(rs.is_premium),
+                payment_tier: rs.payment_tier || (rs.is_premium ? 'all' : 'free'),
+                unlocked_grades: rs.unlocked_grades || (rs.is_premium ? ['all'] : []),
+                paid_amount: rs.paid_amount ?? (rs.payment_tier === 'all' ? 300 : (rs.payment_tier === 'single' ? 200 : 0)),
+                device_id: rs.device_id || 'dev-phone-' + cleanDigits.slice(-6),
+                created_at: rs.created_at || new Date().toISOString(),
+                updated_at: rs.updated_at || new Date().toISOString(),
+                pending_cloud_sync: rs.pending_cloud_sync === true
+              });
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    // Merge active student profile on this device if not yet listed
+    try {
+      const userProfileStr = localStorage.getItem('ethiolearn_user_profile');
+      if (userProfileStr) {
+        const up = JSON.parse(userProfileStr);
+        if (up && (up.phone_number || up.phone) && up.role !== 'admin') {
+          const rawPhone = String(up.phone_number || up.phone).trim();
+          const cleanDigits = rawPhone.replace(/[^\d]/g, '');
+          if (cleanDigits.length >= 9 && !isDeletedIdentifier(deletedList, up.id, rawPhone)) {
+            const existing = currentList.find(s => s.id === up.id || phonesMatch(s.phone_number, rawPhone));
+            if (!existing) {
+              currentList.push({
+                id: up.id || `usr-student-${cleanDigits.slice(-9)}`,
+                phone_number: rawPhone.startsWith('+') ? rawPhone : ('+251' + cleanDigits.slice(-9)),
+                full_name: up.full_name || 'Registered Student',
+                grade: up.grade || 'Grade 12 - Natural Science',
+                grade_id: up.grade_id || 'grade-12-natural',
+                role: 'student',
+                is_premium: Boolean(up.is_premium),
+                payment_tier: up.payment_tier || (up.is_premium ? 'all' : 'free'),
+                unlocked_grades: up.unlocked_grades || (up.is_premium ? ['all'] : []),
+                paid_amount: up.paid_amount ?? (up.payment_tier === 'all' ? 300 : (up.payment_tier === 'single' ? 200 : 0)),
+                device_id: up.device_id || 'dev-phone-' + cleanDigits.slice(-6),
+                created_at: up.created_at || new Date().toISOString(),
+                updated_at: up.updated_at || new Date().toISOString()
+              });
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(currentList));
+    return currentList;
+  };
+
+  const buildAuthoritativeAdminStudents = async (cloudStateInput?: any): Promise<any[]> => {
+    const cloudState = cloudStateInput || await getCloudMasterState();
+    const localList = getAdminStudentsList();
+
+    if (!cloudState?.__synced) {
+      return localList;
+    }
+
+    const deletedTokens: string[] = Array.isArray(cloudState.deleted_students) ? cloudState.deleted_students : [];
+    safeSetLocalStorage('ethiolearn_deleted_students', JSON.stringify(deletedTokens));
+
+    const approvals: any[] = Array.isArray(cloudState.approvals) ? cloudState.approvals : [];
+    const cloudStudentsRaw: any[] = Array.isArray(cloudState.students) ? cloudState.students : [];
+    const merged: any[] = [];
+
+    for (const rs of cloudStudentsRaw) {
+      const rsClean = String(rs.phone_number || '').replace(/[^\d]/g, '');
+      if (rsClean.length < 9) continue;
+      if (STALE_SAMPLE_PHONES.has(rs.phone_number) || STALE_SAMPLE_PHONES.has(rs.id)) continue;
+      if (isDeletedIdentifier(deletedTokens, rs.id, rs.phone_number)) continue;
+
+      let paymentTier = rs.payment_tier || (rs.is_premium ? 'all' : 'free');
+      let isPremium = paymentTier !== 'free' && Boolean(rs.is_premium !== false);
+      let unlockedGrades = Array.isArray(rs.unlocked_grades)
+        ? rs.unlocked_grades
+        : (paymentTier === 'all' ? ['all'] : (paymentTier === 'single' ? [rs.grade_id || 'grade-12-natural'] : []));
+      let paidAmount = rs.paid_amount ?? (paymentTier === 'all' ? 300 : (paymentTier === 'single' ? 200 : 0));
+      let updatedAt = rs.updated_at || rs.created_at || new Date().toISOString();
+
+      const appMatch = approvals.find((a: any) =>
+        (rs.id && a.user_id && a.user_id === rs.id) || phonesMatch(rs.phone_number, a.phone_number)
+      );
+      if (appMatch && (!rs.updated_at || (appMatch.approved_at && appMatch.approved_at >= rs.updated_at))) {
+        paymentTier = appMatch.tier;
+        isPremium = appMatch.tier !== 'free' && Boolean(appMatch.is_premium);
+        unlockedGrades = Array.isArray(appMatch.unlocked_grades)
+          ? appMatch.unlocked_grades
+          : (paymentTier === 'all' ? ['all'] : (paymentTier === 'single' ? [rs.grade_id || 'grade-12-natural'] : []));
+        paidAmount = paymentTier === 'all' ? 300 : (paymentTier === 'single' ? 200 : 0);
+        updatedAt = appMatch.approved_at || updatedAt;
+      }
+
+      if (merged.some(m => (rs.id && m.id === rs.id) || phonesMatch(m.phone_number, rs.phone_number))) {
+        continue;
+      }
+
+      merged.push({
+        id: rs.id || `usr-student-${rsClean.slice(-9)}`,
+        phone_number: rs.phone_number,
+        full_name: rs.full_name || 'Student',
+        grade: rs.grade || 'Grade 12 - Natural Science',
+        grade_id: rs.grade_id || 'grade-12-natural',
+        role: 'student',
+        is_premium: isPremium,
+        payment_tier: paymentTier,
+        unlocked_grades: unlockedGrades,
+        paid_amount: paidAmount,
+        device_id: rs.device_id || 'dev-phone-' + rsClean.slice(-6),
+        created_at: rs.created_at || new Date().toISOString(),
+        updated_at: updatedAt
+      });
+    }
+
+    for (const ls of localList) {
+      if (ls.pending_cloud_sync !== true) continue;
+      if (isDeletedIdentifier(deletedTokens, ls.id, ls.phone_number)) continue;
+      if (!merged.some(m => m.id === ls.id || phonesMatch(m.phone_number, ls.phone_number))) {
+        merged.push(ls);
+        broadcastStudentRegistration({
+          id: ls.id,
+          phone_number: ls.phone_number,
+          full_name: ls.full_name,
+          grade: ls.grade,
+          grade_id: ls.grade_id,
+          is_premium: Boolean(ls.is_premium),
+          payment_tier: ls.payment_tier || 'free',
+          unlocked_grades: ls.unlocked_grades || [],
+          paid_amount: ls.paid_amount || 0,
+          device_id: ls.device_id,
+          created_at: ls.created_at,
+          updated_at: ls.updated_at
+        }).then(ok => {
+          if (ok) {
+            try {
+              const cur = JSON.parse(localStorage.getItem('ethiolearn_admin_students') || '[]');
+              const updated = cur.map((x: any) => phonesMatch(x.phone_number, ls.phone_number) ? { ...x, pending_cloud_sync: false } : x);
+              safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(updated));
+            } catch (_) {}
+          }
+        }).catch(() => {});
+      }
+    }
+
+    safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(merged));
+    return merged;
+  };
+
+  const getAdminPaymentsList = (): any[] => {
+    let deletedList: string[] = [];
+    try {
+      const delStr = localStorage.getItem('ethiolearn_deleted_students');
+      if (delStr) deletedList = JSON.parse(delStr);
+    } catch (_) {}
+    if (!Array.isArray(deletedList)) deletedList = [];
+
+    let payments: any[] = [];
+    try {
+      const stored = localStorage.getItem('ethiolearn_admin_payments');
+      if (stored) payments = JSON.parse(stored);
+    } catch (_) {}
+
+    if (!Array.isArray(payments)) {
+      payments = [];
+    } else {
+      payments = payments.filter(p =>
+        !STALE_PAY_PHONES.has(p.student_phone) &&
+        !STALE_PAY_PHONES.has(p.user_id) &&
+        !STALE_PAY_PHONES.has(p.id) &&
+        !isDeletedIdentifier(deletedList, p.user_id, p.student_phone)
+      );
+    }
+    return payments;
+  };
+
+  const buildAuthoritativeAdminPayments = async (cloudStateInput?: any): Promise<any[]> => {
+    const cloudState = cloudStateInput || await getCloudMasterState();
+    const localPayments = getAdminPaymentsList();
+
+    if (!cloudState?.__synced) {
+      return localPayments;
+    }
+
+    const deletedTokens: string[] = Array.isArray(cloudState.deleted_students) ? cloudState.deleted_students : [];
+    const merged: any[] = [];
+
+    for (const rp of (Array.isArray(cloudState.payments) ? cloudState.payments : [])) {
+      if (STALE_PAY_PHONES.has(rp.student_phone) || STALE_PAY_PHONES.has(rp.user_id) || STALE_PAY_PHONES.has(rp.id)) continue;
+      if (isDeletedIdentifier(deletedTokens, rp.user_id, rp.student_phone)) continue;
+      if (!merged.some(m => m.id === rp.id)) {
+        merged.push({ ...rp, pending_cloud_sync: false });
+      }
+    }
+
+    for (const lp of localPayments) {
+      if (lp.pending_cloud_sync !== true) continue;
+      if (isDeletedIdentifier(deletedTokens, lp.user_id, lp.student_phone)) continue;
+      if (!merged.some(m => m.id === lp.id)) {
+        merged.unshift(lp);
+        broadcastPaymentReceipt(lp, null).then(url => {
+          if (url) {
+            try {
+              const cur = JSON.parse(localStorage.getItem('ethiolearn_admin_payments') || '[]');
+              const upd = cur.map((x: any) => x.id === lp.id ? { ...x, pending_cloud_sync: false } : x);
+              safeSetLocalStorage('ethiolearn_admin_payments', JSON.stringify(upd));
+            } catch (_) {}
+          }
+        }).catch(() => {});
+      }
+    }
+
+    safeSetLocalStorage('ethiolearn_admin_payments', JSON.stringify(merged));
+    return merged;
+  };
 
   // =========================================================================
   // 1. AUTHENTICATION, JUDGE 1-CLICK DEMO & PROFILE
@@ -1204,13 +1568,17 @@ async function handleOfflineApiRequest(
       const stored = localStorage.getItem('ethiolearn_registered_students');
       if (stored) registeredStudents = JSON.parse(stored);
     } catch (_) {}
-    const knownPhones = ['251994847287', '251900000000', '251975949200', '251911223344'];
-    const exists =
-      knownPhones.some(kp => kp === cleanPhone || (cleanPhone.length >= 9 && kp.endsWith(cleanPhone.slice(-9)))) ||
-      registeredStudents.some((s: any) => {
-        const sc = String(s.phone || '').replace(/[\s\-\(\)\+]/g, '').replace(/^0/, '251');
-        return sc === cleanPhone || (cleanPhone.length >= 9 && sc.endsWith(cleanPhone.slice(-9)));
-      });
+    const adminPhones = ['251994847287', '251900000000'];
+    let exists =
+      adminPhones.some(kp => kp === cleanPhone || (cleanPhone.length >= 9 && kp.endsWith(cleanPhone.slice(-9)))) ||
+      registeredStudents.some((s: any) => phonesMatch(s.phone || s.phone_number, rawPhone));
+
+    if (!exists && typeof navigator !== 'undefined' && navigator.onLine !== false) {
+      try {
+        const remoteList = await fetchRemoteRegistrations();
+        exists = remoteList.some((rs: any) => phonesMatch(rs.phone_number, rawPhone));
+      } catch (_) {}
+    }
     return jsonResponse({ exists });
   }
 
@@ -1299,25 +1667,42 @@ async function handleOfflineApiRequest(
       });
     }
 
-    // 2. Strict Registered Student Verification
+    // 2. Strict Registered Student Verification (local + cloud)
     let registeredStudents: any[] = [];
     try {
       const stored = localStorage.getItem('ethiolearn_registered_students');
       if (stored) registeredStudents = JSON.parse(stored);
     } catch (_) {}
 
-    const SEED_STUDENTS: any[] = [];
+    let foundStudent = registeredStudents.find((s: any) =>
+      phonesMatch(s.phone || s.phone_number, cleanPhone)
+    );
 
-    const normTarget = cleanPhone.replace(/^\+/, '').replace(/^0/, '251');
-
-    const foundStudent =
-      registeredStudents.find((s: any) => {
-        const sClean = String(s.phone || '').replace(/[\s\-\(\)\+]/g, '').replace(/^0/, '251');
-        return sClean === normTarget || (cleanPhone.length >= 9 && sClean.endsWith(cleanPhone.slice(-9)));
-      }) ||
-      SEED_STUDENTS.find(s => {
-        return s.cleanPhone === normTarget || (cleanPhone.length >= 9 && s.cleanPhone.endsWith(cleanPhone.slice(-9)));
-      });
+    if (!foundStudent && typeof navigator !== 'undefined' && navigator.onLine !== false) {
+      try {
+        const remoteList = await fetchRemoteRegistrations();
+        const remoteMatch = remoteList.find((rs: any) => phonesMatch(rs.phone_number, cleanPhone));
+        if (remoteMatch) {
+          foundStudent = {
+            id: remoteMatch.id,
+            phone: remoteMatch.phone_number,
+            name: remoteMatch.full_name,
+            full_name: remoteMatch.full_name,
+            password: remoteMatch.password || 'Student@123',
+            grade_id: remoteMatch.grade_id || 'grade-12-natural',
+            grade: remoteMatch.grade,
+            stream: remoteMatch.stream,
+            is_premium: remoteMatch.is_premium,
+            payment_tier: remoteMatch.payment_tier,
+            unlocked_grades: remoteMatch.unlocked_grades,
+            paid_amount: remoteMatch.paid_amount,
+            created_at: remoteMatch.created_at
+          };
+          registeredStudents.push(foundStudent);
+          safeSetLocalStorage('ethiolearn_registered_students', JSON.stringify(registeredStudents));
+        }
+      } catch (_) {}
+    }
 
     if (!foundStudent) {
       return jsonResponse({
@@ -1338,27 +1723,28 @@ async function handleOfflineApiRequest(
       }, 401);
     }
 
-    // Query authoritative admin students list for actual tier status
+    // Query authoritative admin students list & cloud for actual tier status
     const adminStudentsList = getAdminStudentsList();
-    const cleanDigits = cleanPhone.replace(/[^\d]/g, '');
-    const adminRec = adminStudentsList.find(s => {
-      if (s.id === foundStudent.id) return true;
-      const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
-      return cleanDigits.length >= 9 && sDigits.includes(cleanDigits);
-    });
+    const adminRec = adminStudentsList.find(s =>
+      s.id === foundStudent.id || phonesMatch(s.phone_number, cleanPhone)
+    );
 
-    let isStudentPremium = adminRec ? Boolean(adminRec.is_premium) : Boolean(foundStudent.is_premium);
-    let studentPaymentTier = adminRec ? (adminRec.payment_tier || (isStudentPremium ? 'all' : 'free')) : (foundStudent.payment_tier || 'free');
-    let studentUnlockedGrades = adminRec ? (adminRec.unlocked_grades || (isStudentPremium ? ['all'] : [])) : (foundStudent.unlocked_grades || []);
-    let studentPaidAmount = adminRec ? (adminRec.paid_amount || (studentPaymentTier === 'all' ? 300 : (studentPaymentTier === 'single' ? 200 : 0))) : 0;
+    let isStudentPremium = adminRec ? Boolean(adminRec.is_premium && adminRec.payment_tier !== 'free') : Boolean(foundStudent.is_premium && foundStudent.payment_tier !== 'free');
+    let studentPaymentTier = isStudentPremium ? (adminRec?.payment_tier || foundStudent.payment_tier || 'single') : 'free';
+    let studentUnlockedGrades = isStudentPremium ? (adminRec?.unlocked_grades || foundStudent.unlocked_grades || ['all']) : [];
+    let studentPaidAmount = adminRec ? (adminRec.paid_amount || (studentPaymentTier === 'all' ? 300 : (studentPaymentTier === 'single' ? 200 : 0))) : (foundStudent.paid_amount || 0);
 
     try {
-      const remoteApproval = await fetchRemoteApprovalForPhone(cleanPhone);
+      const remoteApproval = await fetchRemoteApprovalForPhone(cleanPhone, foundStudent.id);
       if (remoteApproval) {
-        isStudentPremium = remoteApproval.is_premium;
-        studentPaymentTier = remoteApproval.tier;
-        studentUnlockedGrades = remoteApproval.unlocked_grades;
-        studentPaidAmount = remoteApproval.tier === 'all' ? 300 : (remoteApproval.tier === 'single' ? 200 : 0);
+        isStudentPremium = Boolean(remoteApproval.is_premium && remoteApproval.tier !== 'free');
+        studentPaymentTier = isStudentPremium ? remoteApproval.tier : 'free';
+        studentUnlockedGrades = isStudentPremium
+          ? (remoteApproval.unlocked_grades && remoteApproval.unlocked_grades.length > 0
+              ? remoteApproval.unlocked_grades
+              : (studentPaymentTier === 'all' ? ['all'] : [foundStudent.grade_id || 'grade-12-natural']))
+          : [];
+        studentPaidAmount = studentPaymentTier === 'all' ? 300 : (studentPaymentTier === 'single' ? 200 : 0);
       }
     } catch (_) {}
 
@@ -1458,10 +1844,9 @@ async function handleOfflineApiRequest(
     } catch (_) {}
     if (!Array.isArray(registeredStudents)) registeredStudents = [];
 
-    const existingStudent = registeredStudents.find((s: any) => {
-      const sDigits = String(s.phone || s.phone_number || '').replace(/[^\d]/g, '');
-      return cleanDigits.length >= 9 && sDigits.includes(cleanDigits.slice(-9));
-    });
+    const existingStudent = registeredStudents.find((s: any) =>
+      phonesMatch(s.phone || s.phone_number, formattedPhone)
+    );
 
     const targetGradeId = grade_id || 'grade-12-natural';
     const gradeObj = (meta.grades || STATIC_GRADES_CATALOG).find((g: any) => g.id === targetGradeId);
@@ -1482,10 +1867,10 @@ async function handleOfflineApiRequest(
       stream: targetGradeId.includes('soc') ? 'SOCIAL' : 'NATURAL',
       device_id: device_id || 'ethiolearn-device-1',
       created_at: existingStudent?.created_at || new Date().toISOString(),
-      is_premium: false,
-      payment_tier: 'free',
-      unlocked_grades: [],
-      paid_amount: 0
+      is_premium: existingStudent?.is_premium || false,
+      payment_tier: existingStudent?.payment_tier || 'free',
+      unlocked_grades: existingStudent?.unlocked_grades || [],
+      paid_amount: existingStudent?.paid_amount || 0
     };
 
     const studentProfile = {
@@ -1496,23 +1881,47 @@ async function handleOfflineApiRequest(
       role: 'student',
       grade: gradeObj?.name || 'Grade 12 - Natural Science',
       grade_id: targetGradeId,
-      is_premium: false,
+      is_premium: newStudent.is_premium,
       is_verified: true,
-      payment_tier: 'free',
-      unlocked_grades: [],
-      paid_amount: 0,
+      payment_tier: newStudent.payment_tier,
+      unlocked_grades: newStudent.unlocked_grades,
+      paid_amount: newStudent.paid_amount,
       created_at: newStudent.created_at
     };
 
-    const regIdx = registeredStudents.findIndex((s: any) => s.id === newStudent.id || (s.phone && s.phone === formattedPhone));
+    const regIdx = registeredStudents.findIndex((s: any) => s.id === newStudent.id || phonesMatch(s.phone || s.phone_number, formattedPhone));
     if (regIdx >= 0) {
       registeredStudents[regIdx] = { ...registeredStudents[regIdx], ...newStudent };
     } else {
       registeredStudents.push(newStudent);
     }
 
+    let cloudSynced = false;
     try {
-      localStorage.setItem('ethiolearn_registered_students', JSON.stringify(registeredStudents));
+      // Clear any previous deletion tombstone for this phone/id so re-registration appears cleanly
+      try {
+        const delStr = localStorage.getItem('ethiolearn_deleted_students');
+        if (delStr) {
+          const delArr = JSON.parse(delStr);
+          if (Array.isArray(delArr)) {
+            const pLast9 = cleanDigits.slice(-9);
+            const filtered = delArr.filter((d: string) => {
+              const dl = String(d || '').toLowerCase();
+              return dl !== newStudent.id.toLowerCase() && (!pLast9 || !dl.includes(pLast9));
+            });
+            localStorage.setItem('ethiolearn_deleted_students', JSON.stringify(filtered));
+          }
+        }
+      } catch (_) {}
+
+      if (!existingStudent) {
+        localStorage.removeItem('ethiolearn_my_receipt');
+        localStorage.removeItem('ethiolearn_last_uploaded_receipt_image');
+        localStorage.removeItem('ethiolearn_payment_approved');
+        localStorage.removeItem('ethiolearn_payment_tier');
+      }
+
+      safeSetLocalStorage('ethiolearn_registered_students', JSON.stringify(registeredStudents));
       localStorage.setItem('ethiolearn_user', JSON.stringify(newStudent));
       localStorage.setItem('ethiolearn_user_profile', JSON.stringify(studentProfile));
       localStorage.setItem('ethiolearn_user_id', newStudent.id);
@@ -1520,15 +1929,11 @@ async function handleOfflineApiRequest(
       localStorage.setItem('ethiolearn_phone_session', 'verified');
       localStorage.setItem('ethiolearn_phone', formattedPhone);
 
-      // Immediately add/update in ethiolearn_admin_students so Admin sees them instantly!
+      // Immediately add/update in ethiolearn_admin_students
       const adminStr = localStorage.getItem('ethiolearn_admin_students');
       let adminList = adminStr ? JSON.parse(adminStr) : [];
       if (!Array.isArray(adminList)) adminList = [];
-      const exIdx = adminList.findIndex((s: any) => {
-        if (s.id === newStudent.id || s.phone_number === formattedPhone) return true;
-        const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
-        return cleanDigits.length >= 9 && sDigits.includes(cleanDigits.slice(-9));
-      });
+      const exIdx = adminList.findIndex((s: any) => s.id === newStudent.id || phonesMatch(s.phone_number, formattedPhone));
       const adminEntry = {
         id: newStudent.id,
         phone_number: formattedPhone,
@@ -1537,10 +1942,10 @@ async function handleOfflineApiRequest(
         grade: studentProfile.grade,
         grade_id: newStudent.grade_id,
         role: 'student',
-        is_premium: false,
-        payment_tier: 'free',
-        unlocked_grades: [],
-        paid_amount: 0,
+        is_premium: studentProfile.is_premium,
+        payment_tier: studentProfile.payment_tier,
+        unlocked_grades: studentProfile.unlocked_grades,
+        paid_amount: studentProfile.paid_amount,
         device_id: device_id || 'ethiolearn-device-1',
         created_at: newStudent.created_at,
         updated_at: newStudent.created_at
@@ -1550,18 +1955,19 @@ async function handleOfflineApiRequest(
       } else {
         adminList.push(adminEntry);
       }
-      localStorage.setItem('ethiolearn_admin_students', JSON.stringify(adminList));
+      safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(adminList));
 
-      // Broadcast registration to cloud channel so Admin on static website sees student instantly
-      broadcastStudentRegistration({
+      // Await cloud broadcast so Admin across all browsers receives student registration reliably
+      cloudSynced = await broadcastStudentRegistration({
         id: newStudent.id,
         phone_number: formattedPhone,
         full_name: newStudent.name,
+        password: studentPwd,
         grade: studentProfile.grade,
         grade_id: newStudent.grade_id,
         device_id: device_id || 'ethiolearn-device-1',
         created_at: newStudent.created_at
-      }).catch(() => {});
+      });
     } catch (_) {}
 
     return jsonResponse({
@@ -1570,6 +1976,7 @@ async function handleOfflineApiRequest(
       user: newStudent,
       is_admin: false,
       is_new: true,
+      cloud_synced: cloudSynced,
       token: 'student-registered-token',
       message: 'Student account successfully registered!'
     });
@@ -1579,57 +1986,77 @@ async function handleOfflineApiRequest(
   // GET CURRENT PROFILE (/api/auth/me)
   // -------------------------------------------------------------------------
   if (path === '/api/auth/me') {
-    const userIdHeader = headers['x-user-id'] || headers['x-user-id'.toLowerCase()];
+    const userIdHeader = headers['x-user-id'] || '';
     let savedId = userIdHeader;
     try {
-      if (!savedId) savedId = localStorage.getItem('ethiolearn_user_id');
+      if (!savedId) savedId = localStorage.getItem('ethiolearn_user_id') || '';
       const profileStr = localStorage.getItem('ethiolearn_user_profile');
       let profile = profileStr ? JSON.parse(profileStr) : null;
       if (profile) {
-        const isApprovedLocally = localStorage.getItem('ethiolearn_payment_approved') === 'true';
-        // Sync with ethiolearn_admin_students for latest authoritative status
-        const adminStudents = getAdminStudentsList();
-        const pPhone = String(profile.phone_number || profile.phone || '').replace(/[^\d]/g, '');
-        const adminRec = adminStudents.find(s => {
-          if (s.id === profile.id || (profile.phone_number && s.phone_number === profile.phone_number)) return true;
-          const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
-          return pPhone.length >= 9 && sDigits.includes(pPhone.slice(-9));
-        });
-        if (adminRec && profile.role !== 'admin') {
-          // Authoritative sync: student strictly follows admin's designated tier
-          if (adminRec.payment_tier === 'all') {
-            profile.is_premium = true;
-            profile.payment_tier = 'all';
-            profile.unlocked_grades = ['all'];
-            profile.paid_amount = 300;
-            profile.subscription_type = 'all_grades';
-            localStorage.setItem('ethiolearn_payment_approved', 'true');
-            localStorage.setItem('ethiolearn_payment_tier', 'all');
-          } else if (adminRec.payment_tier === 'single' || (adminRec.is_premium && adminRec.payment_tier !== 'free')) {
-            profile.is_premium = true;
-            profile.payment_tier = 'single';
-            profile.unlocked_grades = adminRec.unlocked_grades && adminRec.unlocked_grades.length > 0 ? adminRec.unlocked_grades : [profile.grade_id || 'grade-12-natural'];
-            profile.paid_amount = 200;
-            profile.subscription_type = 'grade_only';
-            localStorage.setItem('ethiolearn_payment_approved', 'true');
-            localStorage.setItem('ethiolearn_payment_tier', 'single');
-          } else if (adminRec.payment_tier === 'free' || adminRec.is_premium === false) {
-            profile.is_premium = false;
-            profile.payment_tier = 'free';
-            profile.unlocked_grades = [];
-            profile.paid_amount = 0;
-            profile.subscription_type = 'free';
-            localStorage.removeItem('ethiolearn_payment_approved');
-            localStorage.removeItem('ethiolearn_payment_tier');
+        if (profile.role !== 'admin') {
+          const pPhone = String(profile.phone_number || profile.phone || localStorage.getItem('ethiolearn_phone') || '');
+          let appliedRemote = false;
+
+          if ((pPhone || profile.id) && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
+            try {
+              const remoteAppr = await fetchRemoteApprovalForPhone(pPhone, profile.id || savedId);
+              if (remoteAppr) {
+                const isPaid = Boolean(remoteAppr.is_premium && remoteAppr.tier !== 'free');
+                const tier = isPaid ? (remoteAppr.tier || 'single') : 'free';
+                const grades = tier === 'all'
+                  ? ['all']
+                  : (isPaid
+                      ? (remoteAppr.unlocked_grades && remoteAppr.unlocked_grades.length > 0
+                          ? remoteAppr.unlocked_grades
+                          : [profile.grade_id || 'grade-12-natural'])
+                      : []);
+                profile.is_premium = isPaid;
+                profile.payment_tier = tier;
+                profile.unlocked_grades = grades;
+                profile.paid_amount = tier === 'all' ? 300 : (tier === 'single' ? 200 : 0);
+                profile.subscription_type = tier === 'all' ? 'all_grades' : (tier === 'single' ? 'grade_only' : 'free');
+                if (isPaid) {
+                  localStorage.setItem('ethiolearn_payment_approved', 'true');
+                  localStorage.setItem('ethiolearn_payment_tier', tier);
+                } else {
+                  localStorage.removeItem('ethiolearn_payment_approved');
+                  localStorage.setItem('ethiolearn_payment_tier', 'free');
+                }
+                localStorage.setItem('ethiolearn_user_profile', JSON.stringify(profile));
+                localStorage.setItem('ethiolearn_user', JSON.stringify(profile));
+                appliedRemote = true;
+              }
+            } catch (_) {}
           }
-          localStorage.setItem('ethiolearn_user_profile', JSON.stringify(profile));
-        } else if (isApprovedLocally && profile.role !== 'admin') {
-          profile.is_premium = true;
-          if (!profile.payment_tier || profile.payment_tier === 'free') profile.payment_tier = 'single';
-          if (!profile.unlocked_grades || profile.unlocked_grades.length === 0) {
-            profile.unlocked_grades = profile.payment_tier === 'all' ? ['all'] : [profile.grade_id || 'grade-12-natural'];
+
+          if (!appliedRemote) {
+            const adminStudents = getAdminStudentsList();
+            const adminRec = adminStudents.find(s =>
+              s.id === profile.id || phonesMatch(s.phone_number, pPhone)
+            );
+            if (adminRec) {
+              const isPaid = Boolean(adminRec.is_premium && adminRec.payment_tier !== 'free');
+              const tier = isPaid ? (adminRec.payment_tier || 'single') : 'free';
+              profile.is_premium = isPaid;
+              profile.payment_tier = tier;
+              profile.unlocked_grades = tier === 'all'
+                ? ['all']
+                : (isPaid
+                    ? (adminRec.unlocked_grades && adminRec.unlocked_grades.length > 0 ? adminRec.unlocked_grades : [profile.grade_id || 'grade-12-natural'])
+                    : []);
+              profile.paid_amount = tier === 'all' ? 300 : (tier === 'single' ? 200 : 0);
+              profile.subscription_type = tier === 'all' ? 'all_grades' : (tier === 'single' ? 'grade_only' : 'free');
+              if (isPaid) {
+                localStorage.setItem('ethiolearn_payment_approved', 'true');
+                localStorage.setItem('ethiolearn_payment_tier', tier);
+              } else {
+                localStorage.removeItem('ethiolearn_payment_approved');
+                localStorage.setItem('ethiolearn_payment_tier', 'free');
+              }
+              localStorage.setItem('ethiolearn_user_profile', JSON.stringify(profile));
+              localStorage.setItem('ethiolearn_user', JSON.stringify(profile));
+            }
           }
-          localStorage.setItem('ethiolearn_user_profile', JSON.stringify(profile));
         }
         return jsonResponse({ success: true, profile, is_admin: profile.role === 'admin' });
       }
@@ -1664,33 +2091,41 @@ async function handleOfflineApiRequest(
   if (path === '/api/auth/request-device-transfer') {
     let body: any = {};
     try { body = rawBody ? JSON.parse(rawBody) : {}; } catch (_) {}
-    const curPhone = body.phone_number || localStorage.getItem('ethiolearn_phone') || '+251975949200';
+    let curProfile: any = null;
+    try {
+      const pStr = localStorage.getItem('ethiolearn_user_profile');
+      if (pStr) curProfile = JSON.parse(pStr);
+    } catch (_) {}
+    const curPhone = body.phone_number || curProfile?.phone_number || localStorage.getItem('ethiolearn_phone') || '';
     const newDevId = body.new_device_id || localStorage.getItem('ethiolearn_device_id') || 'dev-unknown';
     const reason = body.reason || 'Requested account transfer to new device';
 
-    const newTransfer = {
+    const newTransfer: any = {
       id: `dt-${Date.now()}`,
+      user_id: curProfile?.id || localStorage.getItem('ethiolearn_user_id') || undefined,
       phone_number: curPhone,
-      student_name: 'Student',
-      old_device_id: 'dev-primary',
+      student_name: curProfile?.full_name || body.student_name || 'Student',
+      old_device_id: curProfile?.device_id || 'dev-primary',
       new_device_id: newDevId,
       reason,
       status: 'pending' as const,
       requested_at: new Date().toISOString()
     };
 
+    const cloudSynced = await broadcastDeviceTransfer(newTransfer);
+    newTransfer.pending_cloud_sync = !cloudSynced;
+
     try {
       let transfers: any[] = [];
       const stored = localStorage.getItem('ethiolearn_admin_device_transfers');
       if (stored) transfers = JSON.parse(stored);
       transfers.unshift(newTransfer);
-      localStorage.setItem('ethiolearn_admin_device_transfers', JSON.stringify(transfers));
+      safeSetLocalStorage('ethiolearn_admin_device_transfers', JSON.stringify(transfers));
     } catch (_) {}
-
-    broadcastDeviceTransfer(newTransfer).catch(() => {});
 
     return jsonResponse({
       success: true,
+      cloud_synced: cloudSynced,
       message: 'Device transfer request submitted to admin for verification.'
     });
   }
@@ -3401,10 +3836,25 @@ How can I help you excel today? You can ask me any question or explore these cor
   if (path === '/api/dashboard/admin') {
     const books = meta?.books || STATIC_BOOKS_CATALOG;
     const exams = meta?.exams || STATIC_EXAMS_CATALOG;
-    const students = getAdminStudentsList();
-    const payments = getAdminPaymentsList();
+    const cloudState = await getCloudMasterState();
+    const students = await buildAuthoritativeAdminStudents(cloudState);
+    let payments: any[] = [];
+    if (cloudState?.__synced) {
+      const delTokens: string[] = Array.isArray(cloudState.deleted_students) ? cloudState.deleted_students : [];
+      payments = (Array.isArray(cloudState.payments) ? cloudState.payments : []).filter(
+        (p: any) => !isDeletedIdentifier(delTokens, p.user_id, p.student_phone)
+      );
+    } else {
+      try {
+        payments = JSON.parse(localStorage.getItem('ethiolearn_admin_payments') || '[]');
+        if (!Array.isArray(payments)) payments = [];
+      } catch (_) {
+        payments = [];
+      }
+    }
     const premiumCount = students.filter((s: any) => s.is_premium && s.payment_tier !== 'free').length;
     const pendingCount = payments.filter((p: any) => p.status === 'pending').length;
+    const revenueSum = students.reduce((acc: number, s: any) => acc + (Number(s.paid_amount) || (s.payment_tier === 'all' ? 300 : s.payment_tier === 'single' ? 200 : 0)), 0);
     return jsonResponse({
       totalBooks: books.length,
       totalExams: exams.length,
@@ -3413,229 +3863,14 @@ How can I help you excel today? You can ask me any question or explore these cor
       total_students: students.length,
       premium_students: premiumCount,
       pending_verifications: pendingCount,
-      revenueTotal: `${premiumCount * 250} ETB`,
+      revenueTotal: `${revenueSum} ETB`,
       offlineEngineStatus: 'OPTIMAL',
-      version: '2026.11.09'
+      version: '2026.11.14'
     });
   }
 
-  // -------------------------------------------------------------------------
-  // ADMIN REGISTERED STUDENTS & CONTROLS (+251975949200, Tiers, Device Resets)
-  // -------------------------------------------------------------------------
-  const getAdminStudentsList = (): any[] => {
-    let deletedList: string[] = [];
-    try {
-      const delStr = localStorage.getItem('ethiolearn_deleted_students');
-      if (delStr) deletedList = JSON.parse(delStr);
-    } catch (_) {}
-    const deletedSet = new Set(deletedList.map(s => String(s).toLowerCase().trim()));
-
-    if (typeof localStorage !== 'undefined' && localStorage.getItem('ethiolearn_clean_reset_v4') !== 'true') {
-      try {
-        localStorage.removeItem('ethiolearn_admin_students');
-        localStorage.removeItem('ethiolearn_admin_payments');
-        localStorage.removeItem('ethiolearn_registered_students');
-        localStorage.removeItem('ethiolearn_my_receipt');
-        localStorage.removeItem('ethiolearn_last_uploaded_receipt_image');
-        localStorage.setItem('ethiolearn_clean_reset_v4', 'true');
-      } catch (_) {}
-    }
-
-    // Clean Slate: start completely empty. Real students will register via app/web!
-    const DEFAULT_STUDENTS: any[] = [];
-
-    let currentList: any[] = [];
-    try {
-      const stored = localStorage.getItem('ethiolearn_admin_students');
-      if (stored) currentList = JSON.parse(stored);
-    } catch (_) {}
-
-    // Auto-purge any stale sample numbers previously saved in localStorage
-    const STALE_SAMPLE_PHONES = new Set(['+251911223344', '+251922334455', '0911223344', '0922334455', 'usr-student-premium', 'usr-student-free', '+251911111111', '+251964297591', '+251938935404', 'student-251911111111', 'student-251964297591', 'student-251938935404', 'usr-devpost-judge']);
-    if (Array.isArray(currentList)) {
-      currentList = currentList.filter(s => {
-        const p = String(s.phone_number || '').trim();
-        const id = String(s.id || '').trim();
-        return !STALE_SAMPLE_PHONES.has(p) && !STALE_SAMPLE_PHONES.has(id);
-      });
-    }
-
-    if (!Array.isArray(currentList)) {
-      currentList = [];
-    } else {
-      currentList = currentList.filter(s => 
-        !deletedSet.has(String(s.id).toLowerCase()) && 
-        !deletedSet.has(String(s.phone_number).toLowerCase())
-      );
-    }
-
-    // 2. Merge all registered students from ethiolearn_registered_students
-    try {
-      const regStr = localStorage.getItem('ethiolearn_registered_students');
-      if (regStr) {
-        const regList = JSON.parse(regStr);
-        if (Array.isArray(regList)) {
-          for (const rs of regList) {
-            const rawPhone = String(rs.phone || rs.phone_number || '').trim();
-            const cleanDigits = rawPhone.replace(/[^\d]/g, '');
-            if (!cleanDigits || cleanDigits.length < 9) continue;
-            if (
-              STALE_SAMPLE_PHONES.has(rawPhone) ||
-              (cleanDigits.length >= 9 && STALE_SAMPLE_PHONES.has('0' + cleanDigits.slice(-9))) ||
-              (rs.id && deletedSet.has(String(rs.id).toLowerCase())) ||
-              (rawPhone && deletedSet.has(rawPhone.toLowerCase()))
-            ) {
-              continue;
-            }
-            const existing = currentList.find(s => {
-              if (s.id === rs.id || s.phone_number === rawPhone) return true;
-              const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
-              return sDigits.includes(cleanDigits.slice(-9));
-            });
-            if (!existing) {
-              const formatted = rawPhone.startsWith('+') ? rawPhone : ('+251' + cleanDigits.slice(-9));
-              currentList.push({
-                id: rs.id || `usr-student-${cleanDigits.slice(-9)}`,
-                phone_number: formatted,
-                full_name: rs.name || rs.full_name || 'Registered Student',
-                grade: rs.grade || (rs.grade_id && rs.grade_id.includes('12') ? 'Grade 12 - Natural Science' : 'Grade 10'),
-                grade_id: rs.grade_id || 'grade-12-natural',
-                role: 'student',
-                is_premium: Boolean(rs.is_premium),
-                payment_tier: rs.payment_tier || (rs.is_premium ? 'all' : 'free'),
-                unlocked_grades: rs.unlocked_grades || (rs.is_premium ? ['all'] : []),
-                paid_amount: rs.paid_amount || (rs.payment_tier === 'all' ? 300 : (rs.payment_tier === 'single' ? 200 : 0)),
-                device_id: rs.device_id || 'dev-phone-' + cleanDigits.slice(-6),
-                created_at: rs.created_at || new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              });
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    // 3. Merge active user profile if not in list
-    try {
-      const userProfileStr = localStorage.getItem('ethiolearn_user_profile');
-      if (userProfileStr) {
-        const up = JSON.parse(userProfileStr);
-        if (up && (up.phone_number || up.phone) && up.role !== 'admin') {
-          const rawPhone = String(up.phone_number || up.phone).trim();
-          const cleanDigits = rawPhone.replace(/[^\d]/g, '');
-          if (cleanDigits.length >= 9) {
-            const existing = currentList.find(s => {
-              if (s.id === up.id || s.phone_number === rawPhone) return true;
-              const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
-              return sDigits.includes(cleanDigits.slice(-9));
-            });
-            if (!existing && !deletedSet.has(rawPhone.toLowerCase())) {
-              currentList.push({
-                id: up.id || `usr-student-${cleanDigits.slice(-9)}`,
-                phone_number: rawPhone.startsWith('+') ? rawPhone : ('+251' + cleanDigits.slice(-9)),
-                full_name: up.full_name || 'Registered Student',
-                grade: up.grade || 'Grade 12 - Natural Science',
-                grade_id: up.grade_id || 'grade-12-natural',
-                role: 'student',
-                is_premium: Boolean(up.is_premium),
-                payment_tier: up.payment_tier || (up.is_premium ? 'all' : 'free'),
-                unlocked_grades: up.unlocked_grades || (up.is_premium ? ['all'] : []),
-                paid_amount: up.paid_amount || (up.payment_tier === 'all' ? 300 : (up.payment_tier === 'single' ? 200 : 0)),
-                device_id: up.device_id || 'dev-phone-' + cleanDigits.slice(-6),
-                created_at: up.created_at || new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              });
-            }
-          }
-        }
-      }
-    } catch (_) {}
-
-    try {
-      localStorage.setItem('ethiolearn_admin_students', JSON.stringify(currentList));
-    } catch (_) {}
-
-    return currentList;
-  };
-
   if (path === '/api/admin/students' && method === 'GET') {
-    const list = getAdminStudentsList();
-    try {
-      const remoteStudents = await fetchRemoteRegistrations();
-      if (Array.isArray(remoteStudents) && remoteStudents.length > 0) {
-        let modified = false;
-        for (const rs of remoteStudents) {
-          const rsClean = String(rs.phone_number || '').replace(/[^\d]/g, '');
-          if (rsClean.length < 9) continue;
-          const existing = list.find((s: any) => {
-            if (s.id === rs.id) return true;
-            const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
-            return rsClean.length >= 9 && sClean.slice(-9) === rsClean.slice(-9);
-          });
-          if (!existing) {
-            list.push({
-              id: rs.id,
-              phone_number: rs.phone_number,
-              full_name: rs.full_name,
-              grade: rs.grade || 'Grade 12 - Natural Science',
-              grade_id: rs.grade_id || 'grade-12-natural',
-              role: 'student',
-              is_premium: Boolean(rs.is_premium),
-              payment_tier: rs.payment_tier || (rs.is_premium ? 'all' : 'free'),
-              unlocked_grades: rs.unlocked_grades || (rs.is_premium ? ['all'] : []),
-              paid_amount: rs.paid_amount || (rs.payment_tier === 'all' ? 300 : (rs.payment_tier === 'single' ? 200 : 0)),
-              device_id: rs.device_id || 'dev-phone-' + rsClean.slice(-6),
-              created_at: rs.created_at || new Date().toISOString(),
-              updated_at: rs.updated_at || new Date().toISOString()
-            });
-            modified = true;
-          } else {
-            // Update tier and premium status if remote has newer or more specific info
-            if (rs.payment_tier && rs.payment_tier !== existing.payment_tier) {
-              existing.payment_tier = rs.payment_tier;
-              existing.is_premium = rs.payment_tier !== 'free';
-              existing.unlocked_grades = rs.unlocked_grades || (existing.payment_tier === 'all' ? ['all'] : [existing.grade_id || 'grade-12-natural']);
-              existing.paid_amount = rs.paid_amount || (existing.payment_tier === 'all' ? 300 : (existing.payment_tier === 'single' ? 200 : 0));
-              existing.updated_at = rs.updated_at || new Date().toISOString();
-              modified = true;
-            } else if (rs.is_premium && !existing.is_premium) {
-              existing.is_premium = true;
-              existing.payment_tier = rs.payment_tier || 'single';
-              existing.unlocked_grades = rs.unlocked_grades || ['all'];
-              existing.paid_amount = rs.paid_amount || 200;
-              existing.updated_at = rs.updated_at || new Date().toISOString();
-              modified = true;
-            }
-          }
-        }
-        if (modified) {
-          try {
-            localStorage.setItem('ethiolearn_admin_students', JSON.stringify(list));
-          } catch (_) {}
-        }
-
-        // Two-way sync: Push any local student not in remoteStudents to cloud master state
-        const missingInRemote = list.filter((s: any) => {
-          const sClean = String(s.phone_number || '').replace(/[^\d]/g, '');
-          return sClean.length >= 9 && !remoteStudents.some((rs: any) => {
-            const rsClean = String(rs.phone_number || '').replace(/[^\d]/g, '');
-            return rsClean.length >= 9 && rsClean.slice(-9) === sClean.slice(-9);
-          });
-        });
-        if (missingInRemote.length > 0) {
-          getCloudMasterState().then(current => {
-            const currentStudents: any[] = Array.isArray(current.students) ? current.students : [];
-            const merged = [...currentStudents, ...missingInRemote];
-            updateCloudMasterState({ ...current, students: merged });
-          }).catch(() => {});
-        }
-      } else if (Array.isArray(list) && list.length > 0) {
-        // Cloud was empty! Push all local students to cloud!
-        getCloudMasterState().then(current => {
-          updateCloudMasterState({ ...current, students: list });
-        }).catch(() => {});
-      }
-    } catch (_) {}
+    const list = await buildAuthoritativeAdminStudents();
     return jsonResponse(list);
   }
 
@@ -3645,15 +3880,14 @@ How can I help you excel today? You can ask me any question or explore these cor
     const cleanDigits = rawStudentId.replace(/[^\d]/g, '');
     let body: any = {};
     try { body = rawBody ? JSON.parse(rawBody) : {}; } catch (_) {}
-    const tier = body.tier;
+    const tier = body.tier === 'all' || body.tier === 'single' ? body.tier : 'free';
     const gradeId = body.grade_id || 'grade-12-natural';
 
-    const list = getAdminStudentsList();
+    const list = await buildAuthoritativeAdminStudents();
     const student = list.find(s => {
       if (s.id === rawStudentId || s.phone_number === rawStudentId) return true;
-      const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
-      if (cleanDigits.length >= 9 && sDigits.includes(cleanDigits.slice(-9))) return true;
-      if (rawStudentId.toLowerCase().includes('nafkun') && (s.id.toLowerCase().includes('nafkun') || String(s.phone_number).includes('975949200'))) return true;
+      if (phonesMatch(s.phone_number, rawStudentId)) return true;
+      if (rawStudentId.toLowerCase().includes('nafkun') && (String(s.id).toLowerCase().includes('nafkun') || String(s.phone_number).includes('975949200'))) return true;
       return false;
     });
     if (!student) return jsonResponse({ error: 'Student not found' }, 404);
@@ -3665,24 +3899,23 @@ How can I help you excel today? You can ask me any question or explore these cor
     student.updated_at = new Date().toISOString();
 
     try {
-      localStorage.setItem('ethiolearn_admin_students', JSON.stringify(list));
+      safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(list));
 
       // Also update in ethiolearn_registered_students
       const regStr = localStorage.getItem('ethiolearn_registered_students');
       if (regStr) {
         const regList = JSON.parse(regStr);
         if (Array.isArray(regList)) {
-          const regItem = regList.find((rs: any) => {
-            if (rs.id === student.id || rs.phone === student.phone_number) return true;
-            const rDigits = String(rs.phone || '').replace(/[^\d]/g, '');
-            return cleanDigits.length >= 9 && rDigits.includes(cleanDigits);
-          });
+          const regItem = regList.find((rs: any) =>
+            rs.id === student.id ||
+            phonesMatch(rs.phone || rs.phone_number, student.phone_number)
+          );
           if (regItem) {
             regItem.is_premium = student.is_premium;
             regItem.payment_tier = student.payment_tier;
             regItem.unlocked_grades = student.unlocked_grades;
             regItem.paid_amount = student.paid_amount;
-            localStorage.setItem('ethiolearn_registered_students', JSON.stringify(regList));
+            safeSetLocalStorage('ethiolearn_registered_students', JSON.stringify(regList));
           }
         }
       }
@@ -3690,34 +3923,43 @@ How can I help you excel today? You can ask me any question or explore these cor
       // If active session matches, update session profile immediately
       const currentUserId = localStorage.getItem('ethiolearn_user_id');
       const currentUserPhone = localStorage.getItem('ethiolearn_phone');
-      const curDigits = String(currentUserPhone || '').replace(/[^\d]/g, '');
-      const sDigits = String(student.phone_number || '').replace(/[^\d]/g, '');
-      if (currentUserId === student.id || currentUserPhone === student.phone_number || (curDigits.length >= 9 && sDigits.includes(curDigits))) {
-        const storedProfile = localStorage.getItem('ethiolearn_user_profile');
+      if (
+        (currentUserId && currentUserId === student.id) ||
+        phonesMatch(currentUserPhone || '', student.phone_number)
+      ) {
+        const storedProfile = localStorage.getItem('ethiolearn_user_profile') || localStorage.getItem('ethiolearn_user');
         if (storedProfile) {
           const prof = JSON.parse(storedProfile);
           prof.is_premium = student.is_premium;
           prof.payment_tier = student.payment_tier;
+          prof.subscription_type = tier === 'all' ? 'all_grades' : (tier === 'single' ? 'grade_only' : 'free');
           prof.unlocked_grades = student.unlocked_grades;
           prof.paid_amount = student.paid_amount;
-          localStorage.setItem('ethiolearn_user_profile', JSON.stringify(prof));
-          localStorage.setItem('ethiolearn_user', JSON.stringify(prof));
+          safeSetLocalStorage('ethiolearn_user_profile', JSON.stringify(prof));
+          safeSetLocalStorage('ethiolearn_user', JSON.stringify(prof));
+          safeSetLocalStorage('ethiolearn_payment_approved', tier !== 'free' ? 'true' : 'false');
+          safeSetLocalStorage('ethiolearn_payment_tier', tier);
           try { window.dispatchEvent(new Event('auth-change')); } catch (_) {}
         }
       }
-
-      // Broadcast approval to cloud so student's phone automatically unlocks remotely!
-      broadcastStudentApproval({
-        phone_number: student.phone_number,
-        user_id: student.id,
-        tier: student.payment_tier,
-        unlocked_grades: student.unlocked_grades,
-        is_premium: student.is_premium,
-        approved_at: new Date().toISOString()
-      }).catch(() => {});
     } catch (_) {}
 
-    return jsonResponse({ success: true, message: `Access tier updated to ${tier} for ${student.full_name}`, student });
+    const cloudSynced = await broadcastStudentApproval({
+      phone_number: student.phone_number,
+      user_id: student.id,
+      tier: student.payment_tier,
+      unlocked_grades: student.unlocked_grades,
+      grade_id: student.grade_id,
+      is_premium: student.is_premium,
+      approved_at: new Date().toISOString()
+    }).catch(() => false);
+
+    return jsonResponse({
+      success: true,
+      cloud_synced: Boolean(cloudSynced),
+      message: `Access tier updated to ${tier} for ${student.full_name}`,
+      student
+    });
   }
 
   // -------------------------------------------------------------------------
@@ -3766,13 +4008,24 @@ How can I help you excel today? You can ask me any question or explore these cor
       updated_at: new Date().toISOString()
     };
 
-    // Update admin students list
-    const adminStudentsList = getAdminStudentsList();
-    const existingIdx = adminStudentsList.findIndex(s => {
-      if (s.id === newStudent.id || s.phone_number === formattedPhone) return true;
-      const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
-      return cleanDigits.length >= 9 && sDigits.includes(cleanDigits.slice(-9));
-    });
+    // Clear deletion tombstone locally if previously deleted
+    try {
+      const delStr = localStorage.getItem('ethiolearn_deleted_students');
+      if (delStr) {
+        const delList = JSON.parse(delStr);
+        if (Array.isArray(delList)) {
+          const remaining = delList.filter((tok: string) =>
+            !phonesMatch(tok, formattedPhone) && String(tok).toLowerCase() !== String(newStudent.id).toLowerCase()
+          );
+          safeSetLocalStorage('ethiolearn_deleted_students', JSON.stringify(remaining));
+        }
+      }
+    } catch (_) {}
+
+    const adminStudentsList = await buildAuthoritativeAdminStudents();
+    const existingIdx = adminStudentsList.findIndex(s =>
+      s.id === newStudent.id || phonesMatch(s.phone_number, formattedPhone)
+    );
 
     if (existingIdx >= 0) {
       adminStudentsList[existingIdx] = { ...adminStudentsList[existingIdx], ...newStudent };
@@ -3780,11 +4033,8 @@ How can I help you excel today? You can ask me any question or explore these cor
       adminStudentsList.push(newStudent);
     }
 
-    try {
-      localStorage.setItem('ethiolearn_admin_students', JSON.stringify(adminStudentsList));
-    } catch (_) {}
+    safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(adminStudentsList));
 
-    // Add approved payment receipt with screenshot if provided or generated
     const receiptImage = screenshot_data_url || generateAuthenticReceiptSvg(formattedPhone, studentName, paidAmt, chosenTier === 'all');
     const newReceipt = {
       id: `rcpt-${Date.now()}`,
@@ -3797,41 +4047,43 @@ How can I help you excel today? You can ask me any question or explore these cor
       upgrade_all_grades: chosenTier === 'all',
       receipt_storage_path: receiptImage,
       receipt_filename: screenshot_filename || 'payment_screenshot.png',
-      status: 'approved',
+      status: 'approved' as const,
       submitted_at: new Date().toISOString(),
       reviewed_at: new Date().toISOString(),
       reviewed_by: 'admin@ethiolearn.edu.et',
       created_at: new Date().toISOString()
     };
 
-    const adminPayments = getAdminPaymentsList();
-    const existingRcptIdx = adminPayments.findIndex(p => {
-      const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
-      return cleanDigits.length >= 9 && pClean.includes(cleanDigits.slice(-9));
-    });
+    let adminPayments: any[] = [];
+    try {
+      adminPayments = JSON.parse(localStorage.getItem('ethiolearn_admin_payments') || '[]');
+      if (!Array.isArray(adminPayments)) adminPayments = [];
+    } catch (_) {
+      adminPayments = [];
+    }
+    const existingRcptIdx = adminPayments.findIndex(p => phonesMatch(p.student_phone, formattedPhone));
     if (existingRcptIdx >= 0) {
       adminPayments[existingRcptIdx] = { ...adminPayments[existingRcptIdx], ...newReceipt };
     } else {
       adminPayments.unshift(newReceipt);
     }
+    safeSetLocalStorage('ethiolearn_admin_payments', JSON.stringify(adminPayments));
 
-    try {
-      localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(adminPayments));
-    } catch (_) {}
-
-    // Broadcast to cloud channels
-    broadcastStudentRegistration(newStudent).catch(() => {});
-    broadcastStudentApproval({
+    const regOk = await broadcastStudentRegistration(newStudent).catch(() => false);
+    const appOk = await broadcastStudentApproval({
       phone_number: formattedPhone,
+      user_id: newStudent.id,
       tier: chosenTier,
       unlocked_grades: unlockedGrades,
+      grade_id: targetGrade,
       is_premium: isPrem,
       approved_at: new Date().toISOString()
-    }).catch(() => {});
-    broadcastPaymentReceipt(newReceipt, null).catch(() => {});
+    }).catch(() => false);
+    const rcptUrl = await broadcastPaymentReceipt(newReceipt, null).catch(() => null);
 
     return jsonResponse({
       success: true,
+      cloud_synced: Boolean(regOk && appOk && rcptUrl),
       message: `Student ${studentName} (${formattedPhone}) registered and activated for ${chosenTier === 'all' ? '300 ETB (All Grades)' : '200 ETB (Single Grade)'}!`,
       student: newStudent,
       receipt: newReceipt
@@ -3841,22 +4093,14 @@ How can I help you excel today? You can ask me any question or explore these cor
   const studentResetDeviceMatch = path.match(/^\/api\/admin\/students\/([^\/]+)\/reset-device$/);
   if (studentResetDeviceMatch && method === 'POST') {
     const rawStudentId = decodeURIComponent(studentResetDeviceMatch[1]).trim();
-    const cleanDigits = rawStudentId.replace(/[^\d]/g, '');
-    const list = getAdminStudentsList();
-    const student = list.find(s => {
-      if (s.id === rawStudentId || s.phone_number === rawStudentId) return true;
-      const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
-      return cleanDigits.length >= 9 && sDigits.includes(cleanDigits);
-    });
+    const list = await buildAuthoritativeAdminStudents();
+    const student = list.find(s => s.id === rawStudentId || phonesMatch(s.phone_number, rawStudentId));
     if (!student) return jsonResponse({ error: 'Student not found' }, 404);
 
     delete student.device_id;
     delete student.premium_device_id;
     student.updated_at = new Date().toISOString();
-
-    try {
-      localStorage.setItem('ethiolearn_admin_students', JSON.stringify(list));
-    } catch (_) {}
+    safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(list));
 
     return jsonResponse({ success: true, message: `Device lock cleared for ${student.full_name}`, student });
   }
@@ -3864,13 +4108,8 @@ How can I help you excel today? You can ask me any question or explore these cor
   const studentToggleMatch = path.match(/^\/api\/admin\/students\/([^\/]+)\/toggle-access$/);
   if (studentToggleMatch && method === 'POST') {
     const rawStudentId = decodeURIComponent(studentToggleMatch[1]).trim();
-    const cleanDigits = rawStudentId.replace(/[^\d]/g, '');
-    const list = getAdminStudentsList();
-    const student = list.find(s => {
-      if (s.id === rawStudentId || s.phone_number === rawStudentId) return true;
-      const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
-      return cleanDigits.length >= 9 && sDigits.includes(cleanDigits);
-    });
+    const list = await buildAuthoritativeAdminStudents();
+    const student = list.find(s => s.id === rawStudentId || phonesMatch(s.phone_number, rawStudentId));
     if (!student) return jsonResponse({ error: 'Student not found' }, 404);
 
     student.is_premium = !student.is_premium;
@@ -3880,26 +4119,24 @@ How can I help you excel today? You can ask me any question or explore these cor
     student.updated_at = new Date().toISOString();
 
     try {
-      localStorage.setItem('ethiolearn_admin_students', JSON.stringify(list));
+      safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(list));
       const regStr = localStorage.getItem('ethiolearn_registered_students');
       if (regStr) {
         const regList = JSON.parse(regStr);
         if (Array.isArray(regList)) {
-          const regItem = regList.find((rs: any) => rs.id === student.id || rs.phone === student.phone_number);
+          const regItem = regList.find((rs: any) => rs.id === student.id || phonesMatch(rs.phone || rs.phone_number, student.phone_number));
           if (regItem) {
             regItem.is_premium = student.is_premium;
             regItem.payment_tier = student.payment_tier;
             regItem.unlocked_grades = student.unlocked_grades;
             regItem.paid_amount = student.paid_amount;
-            localStorage.setItem('ethiolearn_registered_students', JSON.stringify(regList));
+            safeSetLocalStorage('ethiolearn_registered_students', JSON.stringify(regList));
           }
         }
       }
       const currentUserId = localStorage.getItem('ethiolearn_user_id');
       const currentUserPhone = localStorage.getItem('ethiolearn_phone');
-      const curDigits = String(currentUserPhone || '').replace(/[^\d]/g, '');
-      const sDigits = String(student.phone_number || '').replace(/[^\d]/g, '');
-      if (currentUserId === student.id || currentUserPhone === student.phone_number || (curDigits.length >= 9 && sDigits.includes(curDigits))) {
+      if ((currentUserId && currentUserId === student.id) || phonesMatch(currentUserPhone || '', student.phone_number)) {
         const storedProfile = localStorage.getItem('ethiolearn_user_profile');
         if (storedProfile) {
           const prof = JSON.parse(storedProfile);
@@ -3907,14 +4144,26 @@ How can I help you excel today? You can ask me any question or explore these cor
           prof.payment_tier = student.payment_tier;
           prof.unlocked_grades = student.unlocked_grades;
           prof.paid_amount = student.paid_amount;
-          localStorage.setItem('ethiolearn_user_profile', JSON.stringify(prof));
-          localStorage.setItem('ethiolearn_user', JSON.stringify(prof));
+          safeSetLocalStorage('ethiolearn_user_profile', JSON.stringify(prof));
+          safeSetLocalStorage('ethiolearn_user', JSON.stringify(prof));
+          safeSetLocalStorage('ethiolearn_payment_approved', student.is_premium ? 'true' : 'false');
+          safeSetLocalStorage('ethiolearn_payment_tier', student.payment_tier);
           try { window.dispatchEvent(new Event('auth-change')); } catch (_) {}
         }
       }
     } catch (_) {}
 
-    return jsonResponse({ success: true, student });
+    const cloudSynced = await broadcastStudentApproval({
+      phone_number: student.phone_number,
+      user_id: student.id,
+      tier: student.payment_tier,
+      unlocked_grades: student.unlocked_grades,
+      grade_id: student.grade_id,
+      is_premium: student.is_premium,
+      approved_at: new Date().toISOString()
+    }).catch(() => false);
+
+    return jsonResponse({ success: true, cloud_synced: Boolean(cloudSynced), student });
   }
 
   const studentDeleteMatch = path.match(/^\/api\/admin\/students\/([^\/]+)$/);
@@ -3922,19 +4171,20 @@ How can I help you excel today? You can ask me any question or explore these cor
     const rawParam = decodeURIComponent(studentDeleteMatch[1]).trim();
     const cleanDigits = rawParam.replace(/[^\d]/g, '');
 
-    let list = getAdminStudentsList();
-    const targetStudent = list.find(s => {
-      const sId = String(s.id || '').trim();
-      const sPhone = String(s.phone_number || '').trim();
-      const sDigits = sPhone.replace(/[^\d]/g, '');
-      return sId === rawParam || sPhone === rawParam || (cleanDigits.length >= 9 && sDigits.includes(cleanDigits));
-    });
+    let list = await buildAuthoritativeAdminStudents();
+    const targetStudent = list.find(s =>
+      String(s.id || '').trim() === rawParam || phonesMatch(s.phone_number, rawParam)
+    );
+
+    const targetId = targetStudent?.id || rawParam;
+    const targetPhone = targetStudent?.phone_number || (cleanDigits.length >= 9 ? rawParam : '');
 
     let deletedList: string[] = [];
     try {
       const delStr = localStorage.getItem('ethiolearn_deleted_students');
       if (delStr) deletedList = JSON.parse(delStr);
     } catch (_) {}
+    if (!Array.isArray(deletedList)) deletedList = [];
     deletedList.push(rawParam.toLowerCase());
     if (cleanDigits) deletedList.push(cleanDigits);
     if (targetStudent?.id) deletedList.push(String(targetStudent.id).toLowerCase());
@@ -3944,40 +4194,37 @@ How can I help you excel today? You can ask me any question or explore these cor
       if (pDigits) deletedList.push(pDigits);
     }
     const uniqueDeleted = Array.from(new Set(deletedList));
-    try {
-      localStorage.setItem('ethiolearn_deleted_students', JSON.stringify(uniqueDeleted));
-    } catch (_) {}
+    safeSetLocalStorage('ethiolearn_deleted_students', JSON.stringify(uniqueDeleted));
 
-    // Filter out of ethiolearn_admin_students
     list = list.filter(s => {
       const sId = String(s.id || '').trim().toLowerCase();
-      const sPhone = String(s.phone_number || '').trim().toLowerCase();
-      const sDigits = sPhone.replace(/[^\d]/g, '');
-      const match = sId === rawParam.toLowerCase() || sPhone === rawParam.toLowerCase() ||
-        (cleanDigits.length >= 9 && sDigits.includes(cleanDigits)) ||
-        (targetStudent && (sId === String(targetStudent.id).toLowerCase() || sPhone === String(targetStudent.phone_number).toLowerCase()));
+      const sPhone = String(s.phone_number || '').trim();
+      const match = sId === rawParam.toLowerCase() ||
+        phonesMatch(sPhone, rawParam) ||
+        (targetStudent && (sId === String(targetStudent.id).toLowerCase() || phonesMatch(sPhone, targetStudent.phone_number)));
       return !match;
     });
+    safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(list));
+
+    // Also remove payments for this deleted student locally
     try {
-      localStorage.setItem('ethiolearn_admin_students', JSON.stringify(list));
+      const pStr = localStorage.getItem('ethiolearn_admin_payments');
+      if (pStr) {
+        let pList = JSON.parse(pStr);
+        if (Array.isArray(pList)) {
+          pList = pList.filter((p: any) => !isDeletedIdentifier(uniqueDeleted, p.user_id, p.student_phone));
+          safeSetLocalStorage('ethiolearn_admin_payments', JSON.stringify(pList));
+        }
+      }
     } catch (_) {}
 
-    // Filter out of ethiolearn_registered_students
     try {
       const regStr = localStorage.getItem('ethiolearn_registered_students');
       if (regStr) {
         let regList = JSON.parse(regStr);
         if (Array.isArray(regList)) {
-          regList = regList.filter((rs: any) => {
-            const rId = String(rs.id || '').trim().toLowerCase();
-            const rPhone = String(rs.phone || '').trim().toLowerCase();
-            const rDigits = rPhone.replace(/[^\d]/g, '');
-            const match = rId === rawParam.toLowerCase() || rPhone === rawParam.toLowerCase() ||
-              (cleanDigits.length >= 9 && rDigits.includes(cleanDigits)) ||
-              (targetStudent && (rId === String(targetStudent.id).toLowerCase() || rPhone === String(targetStudent.phone_number).toLowerCase()));
-            return !match;
-          });
-          localStorage.setItem('ethiolearn_registered_students', JSON.stringify(regList));
+          regList = regList.filter((rs: any) => !isDeletedIdentifier(uniqueDeleted, rs.id, rs.phone || rs.phone_number));
+          safeSetLocalStorage('ethiolearn_registered_students', JSON.stringify(regList));
         }
       }
     } catch (_) {}
@@ -3986,18 +4233,19 @@ How can I help you excel today? You can ask me any question or explore these cor
     try {
       const curId = localStorage.getItem('ethiolearn_user_id');
       const curPhone = localStorage.getItem('ethiolearn_phone');
-      if (
-        curId === rawParam || curPhone === rawParam ||
-        (targetStudent && (curId === targetStudent.id || curPhone === targetStudent.phone_number))
-      ) {
+      if (isDeletedIdentifier(uniqueDeleted, curId || '', curPhone || '')) {
         localStorage.removeItem('ethiolearn_user_id');
         localStorage.removeItem('ethiolearn_phone');
         localStorage.removeItem('ethiolearn_user_profile');
         localStorage.removeItem('ethiolearn_user');
+        localStorage.removeItem('ethiolearn_my_receipt');
+        localStorage.removeItem('ethiolearn_payment_approved');
+        localStorage.removeItem('ethiolearn_payment_tier');
       }
     } catch (_) {}
 
-    return jsonResponse({ success: true, message: 'Student permanently removed from registry' });
+    const cloudSynced = await broadcastStudentDeletion(targetId, targetPhone).catch(() => false);
+    return jsonResponse({ success: true, cloud_synced: Boolean(cloudSynced), message: 'Student permanently removed from registry' });
   }
 
   if (path === '/api/students/me' && method === 'DELETE') {
@@ -4009,194 +4257,146 @@ How can I help you excel today? You can ask me any question or explore these cor
         const delStr = localStorage.getItem('ethiolearn_deleted_students');
         if (delStr) deletedList = JSON.parse(delStr);
       } catch (_) {}
+      if (!Array.isArray(deletedList)) deletedList = [];
       if (curId) deletedList.push(curId.toLowerCase());
       if (curPhone) deletedList.push(curPhone.toLowerCase());
-      try {
-        localStorage.setItem('ethiolearn_deleted_students', JSON.stringify(Array.from(new Set(deletedList))));
-      } catch (_) {}
+      safeSetLocalStorage('ethiolearn_deleted_students', JSON.stringify(Array.from(new Set(deletedList))));
 
       try {
         const regStr = localStorage.getItem('ethiolearn_registered_students');
         if (regStr) {
           let regList = JSON.parse(regStr);
           if (Array.isArray(regList)) {
-            regList = regList.filter((rs: any) => rs.id !== curId && rs.phone !== curPhone);
-            localStorage.setItem('ethiolearn_registered_students', JSON.stringify(regList));
+            regList = regList.filter((rs: any) => rs.id !== curId && !phonesMatch(rs.phone || rs.phone_number, curPhone || ''));
+            safeSetLocalStorage('ethiolearn_registered_students', JSON.stringify(regList));
           }
         }
       } catch (_) {}
 
       try {
         let adminList = getAdminStudentsList();
-        adminList = adminList.filter(s => s.id !== curId && s.phone_number !== curPhone);
-        localStorage.setItem('ethiolearn_admin_students', JSON.stringify(adminList));
+        adminList = adminList.filter(s => s.id !== curId && !phonesMatch(s.phone_number, curPhone || ''));
+        safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(adminList));
       } catch (_) {}
+
+      await broadcastStudentDeletion(curId || curPhone || '', curPhone || '').catch(() => {});
 
       localStorage.removeItem('ethiolearn_user_id');
       localStorage.removeItem('ethiolearn_phone');
       localStorage.removeItem('ethiolearn_user_profile');
       localStorage.removeItem('ethiolearn_user');
+      localStorage.removeItem('ethiolearn_my_receipt');
+      localStorage.removeItem('ethiolearn_payment_approved');
+      localStorage.removeItem('ethiolearn_payment_tier');
     }
     return jsonResponse({ success: true, message: 'Account successfully deleted' });
   }
 
   if (path === '/api/admin/device-transfers') {
-    let transfers: any[] = [];
+    let localTransfers: any[] = [];
     try {
       const stored = localStorage.getItem('ethiolearn_admin_device_transfers');
-      if (stored) transfers = JSON.parse(stored);
-    } catch (_) {}
+      if (stored) localTransfers = JSON.parse(stored);
+      if (!Array.isArray(localTransfers)) localTransfers = [];
+    } catch (_) {
+      localTransfers = [];
+    }
 
-    try {
-      const remoteTransfers = await fetchRemoteDeviceTransfers();
-      if (Array.isArray(remoteTransfers) && remoteTransfers.length > 0) {
-        let modified = false;
-        for (const rt of remoteTransfers) {
-          const exists = transfers.find((t: any) => t.id === rt.id || (t.phone_number === rt.phone_number && t.new_device_id === rt.new_device_id));
-          if (!exists) {
-            transfers.unshift(rt);
-            modified = true;
-          }
-        }
-        if (modified) {
-          localStorage.setItem('ethiolearn_admin_device_transfers', JSON.stringify(transfers));
+    const cloudState = await getCloudMasterState();
+    if (cloudState?.__synced) {
+      const delTokens: string[] = Array.isArray(cloudState.deleted_students) ? cloudState.deleted_students : [];
+      const result: any[] = (Array.isArray(cloudState.transfers) ? cloudState.transfers : []).filter(
+        (t: any) => !isDeletedIdentifier(delTokens, t.user_id, t.phone_number)
+      );
+      for (const lt of localTransfers) {
+        if (lt.pending_cloud_sync !== true) continue;
+        if (isDeletedIdentifier(delTokens, lt.user_id, lt.phone_number)) continue;
+        if (!result.some(rt => rt.id === lt.id || (phonesMatch(rt.phone_number, lt.phone_number) && rt.new_device_id === lt.new_device_id))) {
+          result.unshift(lt);
         }
       }
-    } catch (_) {}
+      safeSetLocalStorage('ethiolearn_admin_device_transfers', JSON.stringify(result));
+      return jsonResponse(result);
+    }
 
-    return jsonResponse(transfers);
+    return jsonResponse(localTransfers);
   }
 
   const transferApproveMatch = path.match(/^\/api\/admin\/device-transfers\/([^\/]+)\/approve$/);
   if (transferApproveMatch && method === 'POST') {
-    const transferId = transferApproveMatch[1];
+    const transferId = decodeURIComponent(transferApproveMatch[1]);
+    let transfers: any[] = [];
     try {
-      const stored = localStorage.getItem('ethiolearn_admin_device_transfers');
-      if (stored) {
-        const transfers = JSON.parse(stored);
-        const tr = transfers.find((t: any) => t.id === transferId);
-        if (tr) {
-          tr.status = 'approved';
-          localStorage.setItem('ethiolearn_admin_device_transfers', JSON.stringify(transfers));
+      transfers = JSON.parse(localStorage.getItem('ethiolearn_admin_device_transfers') || '[]');
+      if (!Array.isArray(transfers)) transfers = [];
+    } catch (_) {
+      transfers = [];
+    }
 
-          // Re-bind device in student record
-          const students = getAdminStudentsList();
-          const cleanPhone = String(tr.phone_number).replace(/[^\d]/g, '');
-          const st = students.find((s: any) => String(s.phone_number || '').replace(/[^\d]/g, '').includes(cleanPhone.slice(-9)));
-          if (st) {
-            st.device_id = tr.new_device_id;
-            st.premium_device_id = tr.new_device_id;
-            localStorage.setItem('ethiolearn_admin_students', JSON.stringify(students));
-          }
-          // Broadcast device approval to cloud so student's new device is allowed to log in
-          broadcastDeviceApproval(tr.phone_number, tr.new_device_id).catch(() => {});
-        }
+    let tr = transfers.find((t: any) => t.id === transferId);
+    if (!tr) {
+      const cloudState = await getCloudMasterState();
+      const remoteTr = (cloudState.transfers || []).find((t: any) => t.id === transferId);
+      if (remoteTr) {
+        tr = { ...remoteTr };
+        transfers.unshift(tr);
       }
-    } catch (_) {}
-    return jsonResponse({ success: true, message: 'Device transfer approved and new device bound successfully.' });
+    }
+
+    let cloudSynced = false;
+    if (tr) {
+      tr.status = 'approved';
+      safeSetLocalStorage('ethiolearn_admin_device_transfers', JSON.stringify(transfers));
+
+      const students = await buildAuthoritativeAdminStudents();
+      const st = students.find((s: any) => phonesMatch(s.phone_number, tr.phone_number) || (tr.user_id && s.id === tr.user_id));
+      if (st) {
+        st.device_id = tr.new_device_id;
+        st.premium_device_id = tr.new_device_id;
+        st.updated_at = new Date().toISOString();
+        safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(students));
+      }
+      cloudSynced = await broadcastDeviceApproval(tr.phone_number, tr.new_device_id, transferId).catch(() => false);
+    }
+    return jsonResponse({ success: true, cloud_synced: Boolean(cloudSynced), message: 'Device transfer approved and new device bound successfully.' });
   }
 
   const transferRejectMatch = path.match(/^\/api\/admin\/device-transfers\/([^\/]+)\/reject$/);
   if (transferRejectMatch && method === 'POST') {
-    const transferId = transferRejectMatch[1];
+    const transferId = decodeURIComponent(transferRejectMatch[1]);
+    let transfers: any[] = [];
     try {
-      const stored = localStorage.getItem('ethiolearn_admin_device_transfers');
-      if (stored) {
-        const transfers = JSON.parse(stored);
-        const tr = transfers.find((t: any) => t.id === transferId);
-        if (tr) {
-          tr.status = 'rejected';
-          localStorage.setItem('ethiolearn_admin_device_transfers', JSON.stringify(transfers));
-        }
+      transfers = JSON.parse(localStorage.getItem('ethiolearn_admin_device_transfers') || '[]');
+      if (!Array.isArray(transfers)) transfers = [];
+    } catch (_) {
+      transfers = [];
+    }
+
+    let tr = transfers.find((t: any) => t.id === transferId);
+    if (!tr) {
+      const cloudState = await getCloudMasterState();
+      const remoteTr = (cloudState.transfers || []).find((t: any) => t.id === transferId);
+      if (remoteTr) {
+        tr = { ...remoteTr };
+        transfers.unshift(tr);
       }
-    } catch (_) {}
-    return jsonResponse({ success: true, message: 'Device transfer appeal rejected' });
+    }
+
+    let cloudSynced = false;
+    if (tr) {
+      tr.status = 'rejected';
+      safeSetLocalStorage('ethiolearn_admin_device_transfers', JSON.stringify(transfers));
+      cloudSynced = await broadcastDeviceTransferRejection(transferId).catch(() => false);
+    }
+    return jsonResponse({ success: true, cloud_synced: Boolean(cloudSynced), message: 'Device transfer appeal rejected' });
   }
 
-  const getAdminPaymentsList = (): any[] => {
-    const DEFAULT_PAYMENTS: any[] = [];
-
-    let payments: any[] = [];
-    try {
-      const stored = localStorage.getItem('ethiolearn_admin_payments');
-      if (stored) payments = JSON.parse(stored);
-    } catch (_) {}
-
-    // Auto-purge any stale sample payments
-    const STALE_PAY_PHONES = new Set(['+251911223344', '+251922334455', 'usr-student-premium', 'usr-student-free', '+251911111111', '+251964297591', '+251938935404', 'rcpt-pending-1111', 'rcpt-pending-devpost', 'rcpt-moibon-300', 'rcpt-student5404-200', 'rcpt-nafkun-200']);
-    if (Array.isArray(payments)) {
-      payments = payments.filter(p => !STALE_PAY_PHONES.has(p.student_phone) && !STALE_PAY_PHONES.has(p.user_id) && !STALE_PAY_PHONES.has(p.id));
-    }
-
-    if (!Array.isArray(payments)) {
-      payments = [];
-    }
-    return payments;
-  };
-
   if (path === '/api/admin/payments' || path === '/api/payments') {
-    const payments = getAdminPaymentsList();
-    try {
-      const remotePayments = await fetchRemotePayments();
-      if (Array.isArray(remotePayments) && remotePayments.length > 0) {
-        let modified = false;
-        for (const rp of remotePayments) {
-          const rpClean = String(rp.student_phone || '').replace(/[^\d]/g, '');
-          if (rpClean.length < 9) continue;
-          const existing = payments.find((p: any) => {
-            if (p.id === rp.id) return true;
-            const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
-            return rpClean.length >= 9 && pClean.slice(-9) === rpClean.slice(-9);
-          });
-          if (!existing) {
-            payments.unshift(rp);
-            modified = true;
-          } else {
-            if (rp.receipt_storage_path && rp.receipt_storage_path !== existing.receipt_storage_path) {
-              existing.receipt_storage_path = rp.receipt_storage_path;
-              existing.receipt_filename = rp.receipt_filename || existing.receipt_filename;
-              modified = true;
-            }
-            if (rp.status && rp.status !== existing.status) {
-              existing.status = rp.status;
-              existing.reviewed_at = rp.reviewed_at || existing.reviewed_at;
-              existing.reviewed_by = rp.reviewed_by || existing.reviewed_by;
-              modified = true;
-            }
-          }
-        }
-        if (modified) {
-          try {
-            localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(payments));
-          } catch (_) {}
-        }
-
-        // Two-way sync: Push any local payments missing in remote to cloud
-        const missingInRemote = payments.filter((p: any) => {
-          const pClean = String(p.student_phone || '').replace(/[^\d]/g, '');
-          return pClean.length >= 9 && !remotePayments.some((rp: any) => {
-            const rpClean = String(rp.student_phone || '').replace(/[^\d]/g, '');
-            return rpClean.length >= 9 && rpClean.slice(-9) === pClean.slice(-9);
-          });
-        });
-        if (missingInRemote.length > 0) {
-          getCloudMasterState().then(current => {
-            const currentPayments: any[] = Array.isArray(current.payments) ? current.payments : [];
-            const merged = [...missingInRemote, ...currentPayments];
-            updateCloudMasterState({ ...current, payments: merged.slice(0, 50) });
-          }).catch(() => {});
-        }
-      } else if (Array.isArray(payments) && payments.length > 0) {
-        // Cloud was empty! Push all local payments to cloud!
-        getCloudMasterState().then(current => {
-          updateCloudMasterState({ ...current, payments: payments.slice(0, 50) });
-        }).catch(() => {});
-      }
-    } catch (_) {}
+    const payments = await buildAuthoritativeAdminPayments();
     return jsonResponse(payments);
   }
 
-    if (path === '/api/payments/submit-receipt' && method === 'POST') {
+  if (path === '/api/payments/submit-receipt' && method === 'POST') {
     let body: any = {};
     try { body = rawBody ? JSON.parse(rawBody) : {}; } catch (_) {}
     let curProfile: any = null;
@@ -4205,21 +4405,28 @@ How can I help you excel today? You can ask me any question or explore these cor
       if (profStr) curProfile = JSON.parse(profStr);
     } catch (_) {}
 
-    const curUserId = body.user_id || curProfile?.id || localStorage.getItem('ethiolearn_user_id') || 'usr-reg-student';
-    const curPhone = body.student_phone || curProfile?.phone_number || curProfile?.phone || localStorage.getItem('ethiolearn_phone') || '+251975949200';
-    const curName = body.student_name || curProfile?.full_name || 'Registered Student';
+    const fdAmount = reqFormData?.get('amount_birr');
+    const fdUpgrade = reqFormData?.get('upgrade_all_grades');
+    const fdGrade = reqFormData?.get('target_grade_id');
+    const fdPhone = reqFormData?.get('student_phone');
+    const fdName = reqFormData?.get('student_name');
+    const fdUserId = reqFormData?.get('user_id');
 
-    const rawAmount = Number(body.amount_birr);
+    const curUserId = body.user_id || (fdUserId ? String(fdUserId) : '') || curProfile?.id || localStorage.getItem('ethiolearn_user_id') || 'usr-reg-student';
+    const curPhone = body.student_phone || (fdPhone ? String(fdPhone) : '') || curProfile?.phone_number || curProfile?.phone || localStorage.getItem('ethiolearn_phone') || '+251975949200';
+    const curName = body.student_name || (fdName ? String(fdName) : '') || curProfile?.full_name || 'Registered Student';
+
+    const rawAmount = Number(body.amount_birr ?? fdAmount ?? 0);
+    const upgradeFlagStr = String(body.upgrade_all_grades ?? fdUpgrade ?? '').toLowerCase();
+    const upgradeFlag = upgradeFlagStr === 'true' || upgradeFlagStr === '1';
     const isProfileSingleGrade = curProfile?.payment_tier === 'single' || (curProfile?.is_premium && !curProfile?.unlocked_grades?.includes('all'));
-    const isUpgrade100 = rawAmount === 100 || body.upgrade_all_grades === 'true' && isProfileSingleGrade;
-    const isAll300 = rawAmount === 300 || (body.upgrade_all_grades === 'true' && !isProfileSingleGrade && rawAmount !== 100 && rawAmount !== 200);
+    const isUpgrade100 = rawAmount === 100 || (upgradeFlag && isProfileSingleGrade && rawAmount !== 300 && rawAmount !== 200);
+    const isAll300 = rawAmount === 300 || (upgradeFlag && !isProfileSingleGrade && rawAmount !== 100 && rawAmount !== 200);
 
-    // Strict 100 Birr vs 200 Birr vs 300 Birr rule:
     const amountBirr = isUpgrade100 ? 100 : (isAll300 ? 300 : 200);
     const isAll = isUpgrade100 || isAll300;
-    const targetGrade = isAll ? 'all' : (body.target_grade_id || curProfile?.grade_id || 'grade-12-natural');
+    const targetGrade = isAll ? 'all' : (body.target_grade_id || (fdGrade ? String(fdGrade) : '') || curProfile?.grade_id || 'grade-12-natural');
 
-    // Extract student's actual screenshot (Base64 Data URL or File)
     let receiptImage = body.receipt_data_url || '';
     let receiptFilename = body.receipt_filename || body.receipt_name || 'payment_screenshot.png';
 
@@ -4259,7 +4466,7 @@ How can I help you excel today? You can ask me any question or explore these cor
       receiptImage = generateAuthenticReceiptSvg(curPhone, curName, amountBirr, isAll);
     }
 
-    const newReceipt = {
+    const newReceipt: any = {
       id: `rcpt-${Date.now()}`,
       user_id: curUserId,
       student_phone: curPhone,
@@ -4275,121 +4482,193 @@ How can I help you excel today? You can ask me any question or explore these cor
       created_at: new Date().toISOString()
     };
 
-    const payments = getAdminPaymentsList();
-    payments.unshift(newReceipt);
-    try {
-      localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(payments));
-      localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(newReceipt));
-    } catch (_) {}
-
-    // Broadcast payment submission & screenshot to cloud channel so Admin on static website receives it immediately
     const rawFileForUpload = reqFormData?.get('receipt');
-    broadcastPaymentReceipt(newReceipt, rawFileForUpload instanceof Blob ? rawFileForUpload : null).then(cloudUrl => {
-      if (cloudUrl) {
-        newReceipt.receipt_storage_path = cloudUrl;
-        try {
-          const stored = localStorage.getItem('ethiolearn_admin_payments');
-          if (stored) {
-            const list = JSON.parse(stored);
-            const found = list.find((p: any) => p.id === newReceipt.id);
-            if (found) found.receipt_storage_path = cloudUrl;
-            localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(list));
-          }
-        } catch (_) {}
-      }
-    }).catch(() => {});
+    const cloudUrl = await broadcastPaymentReceipt(
+      newReceipt,
+      typeof Blob !== 'undefined' && rawFileForUpload instanceof Blob ? rawFileForUpload : null
+    ).catch(() => null);
 
-    return jsonResponse({ success: true, receipt: newReceipt, message: 'Receipt submitted for verification' });
+    if (cloudUrl) {
+      newReceipt.receipt_storage_path = cloudUrl;
+      newReceipt.pending_cloud_sync = false;
+    } else {
+      newReceipt.pending_cloud_sync = true;
+    }
+
+    let payments = getAdminPaymentsList();
+    // Replace prior pending/rejected receipts for this same student while retaining approved history
+    payments = payments.filter((p: any) => {
+      const sameUser = (p.user_id && p.user_id === curUserId) || phonesMatch(p.student_phone, curPhone);
+      if (!sameUser) return true;
+      return p.status === 'approved';
+    });
+    payments.unshift(newReceipt);
+
+    safeSetLocalStorage('ethiolearn_admin_payments', JSON.stringify(payments));
+    safeSetLocalStorage('ethiolearn_my_receipt', JSON.stringify(newReceipt));
+
+    return jsonResponse({
+      success: true,
+      cloud_synced: Boolean(cloudUrl),
+      receipt: newReceipt,
+      message: 'Receipt submitted for verification'
+    });
   }
 
   const paymentApproveMatch = path.match(/^\/api\/admin\/payments\/([^\/]+)\/(approve|approve-tier)$/);
   if (paymentApproveMatch && method === 'POST') {
-    const receiptId = paymentApproveMatch[1];
+    const receiptId = decodeURIComponent(paymentApproveMatch[1]);
     let body: any = {};
     try { body = rawBody ? JSON.parse(rawBody) : {}; } catch (_) {}
     const requestedTier = body.tier;
 
-    const payments = getAdminPaymentsList();
-    const rcpt = payments.find(p => p.id === receiptId);
-    if (rcpt) {
-      rcpt.status = 'approved';
-      rcpt.reviewed_at = new Date().toISOString();
-      rcpt.reviewed_by = 'admin@ethiolearn.edu.et';
-      if (requestedTier) {
-        rcpt.amount_birr = requestedTier === 'upgrade' ? 100 : (requestedTier === 'all' ? 300 : 200);
-        rcpt.upgrade_all_grades = requestedTier === 'all' || requestedTier === 'upgrade';
-      }
-      try {
-        localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(payments));
-      } catch (_) {}
-
-      const students = getAdminStudentsList();
-      const pClean = String(rcpt.student_phone || '').replace(/[^\d]/g, '');
-      const st = students.find(s => {
-        if (s.id === rcpt.user_id) return true;
-        if (s.phone_number && s.phone_number === rcpt.student_phone) return true;
-        const sDigits = String(s.phone_number || '').replace(/[^\d]/g, '');
-        return pClean.length >= 9 && sDigits.includes(pClean.slice(-9));
-      });
-      const grantAll = requestedTier === 'all' || requestedTier === 'upgrade' || rcpt.upgrade_all_grades || rcpt.amount_birr === 300;
-      const targetGrade = grantAll ? 'all' : (st?.grade_id || rcpt.target_grade_id || 'grade-12-natural');
-
-      if (st) {
-        st.is_premium = true;
-        st.payment_tier = grantAll ? 'all' : 'single';
-        st.unlocked_grades = grantAll ? ['all'] : [targetGrade];
-        st.updated_at = new Date().toISOString();
-        try {
-          localStorage.setItem('ethiolearn_admin_students', JSON.stringify(students));
-          const curId = localStorage.getItem('ethiolearn_user_id');
-          const curPhone = localStorage.getItem('ethiolearn_phone');
-          if (curId === st.id || curPhone === st.phone_number) {
-            const storedProf = localStorage.getItem('ethiolearn_user_profile');
-            if (storedProf) {
-              const prof = JSON.parse(storedProf);
-              prof.is_premium = true;
-              prof.payment_tier = st.payment_tier;
-              prof.unlocked_grades = st.unlocked_grades;
-              localStorage.setItem('ethiolearn_user_profile', JSON.stringify(prof));
-              localStorage.setItem('ethiolearn_user', JSON.stringify(prof));
-            }
-          }
-        } catch (_) {}
-      }
-
-      // Broadcast approval to cloud so student's app unlocks immediately
-      const phoneToUnlock = rcpt.student_phone || st?.phone_number || '';
-      if (phoneToUnlock || rcpt.user_id || st?.id) {
-        broadcastStudentApproval({
-          phone_number: phoneToUnlock,
-          user_id: rcpt.user_id || st?.id,
-          tier: grantAll ? 'all' : 'single',
-          unlocked_grades: grantAll ? ['all'] : [targetGrade],
-          is_premium: true,
-          approved_at: new Date().toISOString()
-        }).catch(() => {});
+    const payments = await buildAuthoritativeAdminPayments();
+    let rcpt = payments.find((p: any) => p.id === receiptId);
+    if (!rcpt) {
+      const fresh = await getCloudMasterState(true);
+      const fromCloud = (fresh.payments || []).find((p: any) => p.id === receiptId);
+      if (fromCloud) {
+        rcpt = { ...fromCloud };
+        payments.unshift(rcpt);
       }
     }
-    return jsonResponse({ success: true, message: 'Payment approved. Student upgraded to premium.', receipt: rcpt });
+
+    if (!rcpt) {
+      return jsonResponse({ error: 'Payment receipt not found' }, 404);
+    }
+
+    rcpt.status = 'approved';
+    rcpt.reviewed_at = new Date().toISOString();
+    rcpt.reviewed_by = 'admin@ethiolearn.edu.et';
+    if (requestedTier) {
+      rcpt.amount_birr = requestedTier === 'upgrade' ? 100 : (requestedTier === 'all' ? 300 : 200);
+      rcpt.upgrade_all_grades = requestedTier === 'all' || requestedTier === 'upgrade';
+    }
+    safeSetLocalStorage('ethiolearn_admin_payments', JSON.stringify(payments));
+
+    const students = await buildAuthoritativeAdminStudents();
+    let st = students.find((s: any) =>
+      (rcpt.user_id && s.id === rcpt.user_id) ||
+      phonesMatch(s.phone_number, rcpt.student_phone)
+    );
+    const grantAll =
+      requestedTier === 'all' ||
+      requestedTier === 'upgrade' ||
+      Boolean(rcpt.upgrade_all_grades) ||
+      Number(rcpt.amount_birr) === 300 ||
+      Number(rcpt.amount_birr) === 100;
+    const tier = grantAll ? 'all' : 'single';
+    const targetGrade = grantAll ? 'all' : (body.grade_id || st?.grade_id || rcpt.target_grade_id || 'grade-12-natural');
+    const unlockedGrades = grantAll ? ['all'] : [targetGrade];
+    const paidAmount = grantAll ? 300 : 200;
+
+    if (!st) {
+      const pDigits = String(rcpt.student_phone || '').replace(/[^\d]/g, '');
+      st = {
+        id: rcpt.user_id || `usr-student-${pDigits.slice(-9) || Date.now()}`,
+        phone_number: rcpt.student_phone,
+        full_name: rcpt.student_name || 'Registered Student',
+        grade: targetGrade === 'grade-10' ? 'Grade 10' : 'Grade 12 - Natural Science',
+        grade_id: targetGrade === 'all' ? 'grade-12-natural' : targetGrade,
+        role: 'student',
+        is_premium: true,
+        payment_tier: tier,
+        unlocked_grades: unlockedGrades,
+        paid_amount: paidAmount,
+        created_at: rcpt.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      students.push(st);
+    } else {
+      st.is_premium = true;
+      st.payment_tier = tier;
+      st.unlocked_grades = unlockedGrades;
+      st.paid_amount = paidAmount;
+      st.updated_at = new Date().toISOString();
+    }
+
+    safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(students));
+
+    try {
+      const curId = localStorage.getItem('ethiolearn_user_id');
+      const curPhone = localStorage.getItem('ethiolearn_phone');
+      if ((curId && curId === st.id) || phonesMatch(curPhone || '', st.phone_number)) {
+        const storedProf = localStorage.getItem('ethiolearn_user_profile') || localStorage.getItem('ethiolearn_user');
+        if (storedProf) {
+          const prof = JSON.parse(storedProf);
+          prof.is_premium = true;
+          prof.subscription_type = grantAll ? 'all_grades' : 'grade_only';
+          prof.payment_tier = st.payment_tier;
+          prof.unlocked_grades = st.unlocked_grades;
+          prof.paid_amount = paidAmount;
+          safeSetLocalStorage('ethiolearn_user_profile', JSON.stringify(prof));
+          safeSetLocalStorage('ethiolearn_user', JSON.stringify(prof));
+          safeSetLocalStorage('ethiolearn_payment_approved', 'true');
+          safeSetLocalStorage('ethiolearn_payment_tier', st.payment_tier);
+          try { window.dispatchEvent(new Event('auth-change')); } catch (_) {}
+        }
+      }
+      const myRStr = localStorage.getItem('ethiolearn_my_receipt');
+      if (myRStr) {
+        const myR = JSON.parse(myRStr);
+        if (myR.id === rcpt.id) {
+          safeSetLocalStorage('ethiolearn_my_receipt', JSON.stringify(rcpt));
+        }
+      }
+    } catch (_) {}
+
+    const phoneToUnlock = rcpt.student_phone || st?.phone_number || '';
+    let cloudSynced = false;
+    if (phoneToUnlock || rcpt.user_id || st?.id) {
+      cloudSynced = await broadcastStudentApproval({
+        phone_number: phoneToUnlock,
+        user_id: rcpt.user_id || st?.id,
+        receipt_id: rcpt.id,
+        tier,
+        unlocked_grades: unlockedGrades,
+        grade_id: st?.grade_id || rcpt.target_grade_id,
+        is_premium: true,
+        approved_at: new Date().toISOString()
+      }).catch(() => false);
+    }
+
+    return jsonResponse({
+      success: true,
+      cloud_synced: Boolean(cloudSynced),
+      message: `Payment approved (${grantAll ? '300 ETB All Grades' : '200 ETB Single Grade'}). Student upgraded to premium.`,
+      receipt: rcpt
+    });
   }
 
   const paymentRejectMatch = path.match(/^\/api\/admin\/payments\/([^\/]+)\/reject$/);
   if (paymentRejectMatch && method === 'POST') {
-    const receiptId = paymentRejectMatch[1];
+    const receiptId = decodeURIComponent(paymentRejectMatch[1]);
     let body: any = {};
     try { body = rawBody ? JSON.parse(rawBody) : {}; } catch (_) {}
-    const payments = getAdminPaymentsList();
-    const rcpt = payments.find(p => p.id === receiptId);
+    const payments = await buildAuthoritativeAdminPayments();
+    const rcpt = payments.find((p: any) => p.id === receiptId);
+    const reason = body.rejection_reason || 'Screenshot unclear or payment reference could not be verified.';
+    let cloudSynced = false;
     if (rcpt) {
       rcpt.status = 'rejected';
-      rcpt.rejection_reason = body.rejection_reason || 'Screenshot unclear or payment reference could not be verified.';
+      rcpt.rejection_reason = reason;
       rcpt.reviewed_at = new Date().toISOString();
       rcpt.reviewed_by = 'admin@ethiolearn.edu.et';
+      safeSetLocalStorage('ethiolearn_admin_payments', JSON.stringify(payments));
+
       try {
-        localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(payments));
+        const myRStr = localStorage.getItem('ethiolearn_my_receipt');
+        if (myRStr) {
+          const myR = JSON.parse(myRStr);
+          if (myR.id === rcpt.id) {
+            safeSetLocalStorage('ethiolearn_my_receipt', JSON.stringify(rcpt));
+          }
+        }
       } catch (_) {}
+
+      cloudSynced = await broadcastPaymentRejection(rcpt.id, rcpt.student_phone || '', reason).catch(() => false);
     }
-    return jsonResponse({ success: true, message: 'Payment receipt rejected', receipt: rcpt });
+    return jsonResponse({ success: true, cloud_synced: Boolean(cloudSynced), message: 'Payment receipt rejected', receipt: rcpt });
   }
 
   if (path === '/api/admin/audit-logs') {
@@ -4407,30 +4686,29 @@ How can I help you excel today? You can ask me any question or explore these cor
   }
 
   if (path === '/api/admin/feedback' || path === '/api/admin/questions/feedback') {
-    let feedbacks: any[] = [];
+    let localFeedbacks: any[] = [];
     try {
       const stored = localStorage.getItem('ethiolearn_admin_question_feedback');
-      if (stored) feedbacks = JSON.parse(stored);
-    } catch (_) {}
+      if (stored) localFeedbacks = JSON.parse(stored);
+      if (!Array.isArray(localFeedbacks)) localFeedbacks = [];
+    } catch (_) {
+      localFeedbacks = [];
+    }
 
-    try {
-      const remoteFeedbacks = await fetchRemoteQuestionFeedbacks();
-      if (Array.isArray(remoteFeedbacks) && remoteFeedbacks.length > 0) {
-        let modified = false;
-        for (const rf of remoteFeedbacks) {
-          const exists = feedbacks.find((f: any) => f.id === rf.id || (f.question_id === rf.question_id && f.comment === rf.comment));
-          if (!exists) {
-            feedbacks.unshift(rf);
-            modified = true;
-          }
-        }
-        if (modified) {
-          localStorage.setItem('ethiolearn_admin_question_feedback', JSON.stringify(feedbacks));
+    const cloudState = await getCloudMasterState();
+    if (cloudState?.__synced) {
+      const merged: any[] = [...(Array.isArray(cloudState.feedbacks) ? cloudState.feedbacks : [])];
+      for (const lf of localFeedbacks) {
+        if (lf.pending_cloud_sync !== true) continue;
+        if (!merged.some(rf => rf.id === lf.id)) {
+          merged.unshift(lf);
         }
       }
-    } catch (_) {}
+      safeSetLocalStorage('ethiolearn_admin_question_feedback', JSON.stringify(merged));
+      return jsonResponse(merged);
+    }
 
-    return jsonResponse(feedbacks);
+    return jsonResponse(localFeedbacks);
   }
 
   if (path === '/api/questions/feedback' && method === 'POST') {
@@ -4442,7 +4720,7 @@ How can I help you excel today? You can ask me any question or explore these cor
       if (profStr) curProfile = JSON.parse(profStr);
     } catch (_) {}
 
-    const newFb = {
+    const newFb: any = {
       id: `qfb-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       question_id: body.question_id || 'q-unknown',
       question_number: body.question_number || 1,
@@ -4458,49 +4736,62 @@ How can I help you excel today? You can ask me any question or explore these cor
       created_at: new Date().toISOString()
     };
 
+    const cloudSynced = await broadcastQuestionFeedback(newFb).catch(() => false);
+    newFb.pending_cloud_sync = !cloudSynced;
+
     try {
       let feedbacks: any[] = [];
       const stored = localStorage.getItem('ethiolearn_admin_question_feedback');
       if (stored) feedbacks = JSON.parse(stored);
+      if (!Array.isArray(feedbacks)) feedbacks = [];
       feedbacks.unshift(newFb);
-      localStorage.setItem('ethiolearn_admin_question_feedback', JSON.stringify(feedbacks));
+      safeSetLocalStorage('ethiolearn_admin_question_feedback', JSON.stringify(feedbacks));
     } catch (_) {}
 
-    broadcastQuestionFeedback(newFb).catch(() => {});
-
-    return jsonResponse({ success: true, feedback: newFb, message: 'Thank you! Your feedback has been submitted to the academic team.' });
+    return jsonResponse({
+      success: true,
+      cloud_synced: Boolean(cloudSynced),
+      feedback: newFb,
+      message: 'Thank you! Your feedback has been submitted to the academic team.'
+    });
   }
 
   const patchFeedbackMatch = path.match(/^\/api\/admin\/questions\/feedback\/([^\/]+)$/);
   if (patchFeedbackMatch && (method === 'PATCH' || method === 'PUT')) {
-    const fbId = patchFeedbackMatch[1];
+    const fbId = decodeURIComponent(patchFeedbackMatch[1]);
     let body: any = {};
     try { body = rawBody ? JSON.parse(rawBody) : {}; } catch (_) {}
     try {
       const stored = localStorage.getItem('ethiolearn_admin_question_feedback');
       if (stored) {
         const feedbacks = JSON.parse(stored);
-        const fb = feedbacks.find((f: any) => f.id === fbId);
-        if (fb) {
-          if (body.status) fb.status = body.status;
-          localStorage.setItem('ethiolearn_admin_question_feedback', JSON.stringify(feedbacks));
+        if (Array.isArray(feedbacks)) {
+          const fb = feedbacks.find((f: any) => f.id === fbId);
+          if (fb && body.status) {
+            fb.status = body.status;
+            safeSetLocalStorage('ethiolearn_admin_question_feedback', JSON.stringify(feedbacks));
+          }
         }
       }
     } catch (_) {}
-    return jsonResponse({ success: true, message: 'Feedback status updated.' });
+    const cloudSynced = await broadcastQuestionFeedbackUpdate(fbId, body.status, false).catch(() => false);
+    return jsonResponse({ success: true, cloud_synced: Boolean(cloudSynced), message: 'Feedback status updated.' });
   }
 
   if (patchFeedbackMatch && method === 'DELETE') {
-    const fbId = patchFeedbackMatch[1];
+    const fbId = decodeURIComponent(patchFeedbackMatch[1]);
     try {
       const stored = localStorage.getItem('ethiolearn_admin_question_feedback');
       if (stored) {
         let feedbacks = JSON.parse(stored);
-        feedbacks = feedbacks.filter((f: any) => f.id !== fbId);
-        localStorage.setItem('ethiolearn_admin_question_feedback', JSON.stringify(feedbacks));
+        if (Array.isArray(feedbacks)) {
+          feedbacks = feedbacks.filter((f: any) => f.id !== fbId);
+          safeSetLocalStorage('ethiolearn_admin_question_feedback', JSON.stringify(feedbacks));
+        }
       }
     } catch (_) {}
-    return jsonResponse({ success: true, message: 'Feedback deleted.' });
+    const cloudSynced = await broadcastQuestionFeedbackUpdate(fbId, undefined, true).catch(() => false);
+    return jsonResponse({ success: true, cloud_synced: Boolean(cloudSynced), message: 'Feedback deleted.' });
   }
 
   if (path === '/api/questions/feedback') return jsonResponse([]);
@@ -4530,90 +4821,129 @@ How can I help you excel today? You can ask me any question or explore these cor
     });
   }
 
-    if (path === '/api/payments/my-receipt') {
-      const curUserId = localStorage.getItem('ethiolearn_user_id');
-      let curPhone = localStorage.getItem('ethiolearn_phone');
-      if (!curPhone) {
-        try {
-          const prof = JSON.parse(localStorage.getItem('ethiolearn_user_profile') || '{}');
-          curPhone = prof.phone_number || prof.phone || '';
-        } catch (_) {}
-      }
+  if (path === '/api/payments/my-receipt') {
+    const curUserId = localStorage.getItem('ethiolearn_user_id') || '';
+    let curPhone = localStorage.getItem('ethiolearn_phone') || '';
+    if (!curPhone) {
+      try {
+        const prof = JSON.parse(localStorage.getItem('ethiolearn_user_profile') || '{}');
+        curPhone = prof.phone_number || prof.phone || '';
+      } catch (_) {}
+    }
 
-      if (curPhone) {
-        try {
-          const remoteAppr = await fetchRemoteApprovalForPhone(curPhone);
-          if (remoteAppr && (remoteAppr.is_premium || remoteAppr.tier !== 'free')) {
-            const payments = getAdminPaymentsList();
-            const cleanCurPhone = curPhone.replace(/[^\d]/g, '');
-            const rcpt = payments.find(p => String(p.student_phone || '').replace(/[^\d]/g, '').includes(cleanCurPhone.slice(-9)));
-            if (rcpt && rcpt.status !== 'approved') {
-              rcpt.status = 'approved';
-              localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(payments));
+    const cloudState = await getCloudMasterState(true);
+    let remoteAppr: any = null;
+    if (curPhone || curUserId) {
+      try {
+        remoteAppr = await fetchRemoteApprovalForPhone(curPhone, curUserId || undefined);
+      } catch (_) {}
+    }
+
+    if (remoteAppr) {
+      const isPaid = Boolean(remoteAppr.is_premium && remoteAppr.tier && remoteAppr.tier !== 'free');
+      const targetTier = isPaid ? remoteAppr.tier : 'free';
+      try {
+        const userStr = localStorage.getItem('ethiolearn_user_profile') || localStorage.getItem('ethiolearn_user');
+        if (userStr) {
+          const u = JSON.parse(userStr);
+          if (u.role !== 'admin') {
+            const changed =
+              u.payment_tier !== targetTier ||
+              Boolean(u.is_premium) !== isPaid;
+            u.is_premium = isPaid;
+            u.payment_tier = targetTier;
+            u.subscription_type = targetTier === 'all' ? 'all_grades' : (targetTier === 'single' ? 'grade_only' : 'free');
+            if (targetTier === 'all') {
+              u.unlocked_grades = ['all', 'grade-9', 'grade-10', 'grade-11-natural', 'grade-11-social', 'grade-12-natural', 'grade-12-social'];
+              u.paid_amount = 300;
+            } else if (targetTier === 'single') {
+              u.unlocked_grades = [remoteAppr.grade_id || u.grade_id || 'grade-12-natural'];
+              u.paid_amount = 200;
+            } else {
+              u.unlocked_grades = [];
+              u.paid_amount = 0;
             }
+            safeSetLocalStorage('ethiolearn_user_profile', JSON.stringify(u));
+            safeSetLocalStorage('ethiolearn_user', JSON.stringify(u));
+            safeSetLocalStorage('ethiolearn_payment_approved', isPaid ? 'true' : 'false');
+            safeSetLocalStorage('ethiolearn_payment_tier', targetTier);
 
-            const userStr = localStorage.getItem('ethiolearn_user_profile') || localStorage.getItem('ethiolearn_user');
-            if (userStr) {
-              const u = JSON.parse(userStr);
-              u.is_premium = true;
-              u.subscription_type = remoteAppr.tier === 'all' ? 'all_grades' : 'grade_only';
-              u.payment_tier = remoteAppr.tier;
-              if (remoteAppr.tier === 'all') {
-                u.unlocked_grades = ['all', 'grade-9', 'grade-10', 'grade-11-natural', 'grade-11-social', 'grade-12-natural', 'grade-12-social'];
-                u.paid_amount = 300;
-              } else if (remoteAppr.tier === 'single') {
-                u.unlocked_grades = [remoteAppr.grade_id || u.grade_id || 'grade-12-natural'];
-                u.paid_amount = 200;
-              }
-              localStorage.setItem('ethiolearn_user_profile', JSON.stringify(u));
-              localStorage.setItem('ethiolearn_user', JSON.stringify(u));
-              localStorage.setItem('ethiolearn_payment_approved', 'true');
-              localStorage.setItem('ethiolearn_payment_tier', remoteAppr.tier);
-
-              // Update admin students list on device
+            const updateList = (key: string) => {
               try {
-                const aStr = localStorage.getItem('ethiolearn_admin_students');
-                if (aStr) {
-                  const aList = JSON.parse(aStr);
-                  if (Array.isArray(aList)) {
-                    aList.forEach((st: any) => {
-                      const sDigits = String(st.phone_number || '').replace(/[^\d]/g, '');
-                      if (cleanCurPhone.length >= 9 && sDigits.includes(cleanCurPhone.slice(-9))) {
-                        st.is_premium = true;
-                        st.payment_tier = remoteAppr.tier;
-                        st.unlocked_grades = u.unlocked_grades;
-                        st.paid_amount = u.paid_amount;
-                      }
-                    });
-                    localStorage.setItem('ethiolearn_admin_students', JSON.stringify(aList));
+                const raw = localStorage.getItem(key);
+                if (!raw) return;
+                const arr = JSON.parse(raw);
+                if (!Array.isArray(arr)) return;
+                arr.forEach((st: any) => {
+                  const stPhone = st.phone_number || st.phone || '';
+                  if ((curUserId && st.id === curUserId) || (curPhone && phonesMatch(stPhone, curPhone))) {
+                    st.is_premium = isPaid;
+                    st.payment_tier = targetTier;
+                    st.unlocked_grades = u.unlocked_grades;
+                    st.paid_amount = u.paid_amount;
                   }
-                }
+                });
+                safeSetLocalStorage(key, JSON.stringify(arr));
               } catch (_) {}
+            };
+            updateList('ethiolearn_admin_students');
+            updateList('ethiolearn_registered_students');
 
+            if (changed) {
               try { window.dispatchEvent(new Event('auth-change')); } catch (_) {}
             }
           }
-        } catch (_) {}
-      }
-
-      const payments = getAdminPaymentsList();
-      const cleanPhoneDigits = curPhone ? curPhone.replace(/[^\d]/g, '') : '';
-      const isApprovedLocally = localStorage.getItem('ethiolearn_payment_approved') === 'true';
-      const myReceipt = payments.find(p => {
-        if (curUserId && p.user_id === curUserId) return true;
-        if (curPhone && p.student_phone === curPhone) return true;
-        if (cleanPhoneDigits.length >= 9) {
-          const pDigits = String(p.student_phone || '').replace(/[^\d]/g, '');
-          return pDigits.includes(cleanPhoneDigits.slice(-9));
         }
-        return false;
-      }) || null;
+      } catch (_) {}
+    }
 
-      if (myReceipt && isApprovedLocally) {
+    const paymentsSource = cloudState?.__synced
+      ? await buildAuthoritativeAdminPayments(cloudState)
+      : getAdminPaymentsList();
+
+    const matchingPayments = paymentsSource.filter((p: any) =>
+      (curUserId && p.user_id === curUserId) ||
+      (curPhone && phonesMatch(p.student_phone, curPhone))
+    );
+
+    // Check ethiolearn_my_receipt only if unsynced offline or when offline
+    if (matchingPayments.length === 0) {
+      try {
+        const cachedStr = localStorage.getItem('ethiolearn_my_receipt');
+        if (cachedStr) {
+          const cachedR = JSON.parse(cachedStr);
+          if (cachedR && cachedR.id && (!cloudState?.__synced || cachedR.pending_cloud_sync === true)) {
+            matchingPayments.push(cachedR);
+          }
+        }
+      } catch (_) {}
+    }
+
+    matchingPayments.sort((a: any, b: any) => {
+      const ta = new Date(a.submitted_at || a.created_at || 0).getTime();
+      const tb = new Date(b.submitted_at || b.created_at || 0).getTime();
+      return tb - ta;
+    });
+
+    const myReceipt = matchingPayments[0] ? { ...matchingPayments[0] } : null;
+
+    if (myReceipt) {
+      const isPaid = Boolean(remoteAppr && remoteAppr.is_premium && remoteAppr.tier && remoteAppr.tier !== 'free');
+      if (
+        myReceipt.status === 'pending' &&
+        isPaid &&
+        (remoteAppr.receipt_id === myReceipt.id ||
+          (remoteAppr.approved_at && (!myReceipt.submitted_at || remoteAppr.approved_at >= myReceipt.submitted_at)))
+      ) {
         myReceipt.status = 'approved';
       }
-      return jsonResponse(myReceipt ? myReceipt : { receipt: null });
+      safeSetLocalStorage('ethiolearn_my_receipt', JSON.stringify(myReceipt));
+    } else if (cloudState?.__synced) {
+      try { localStorage.removeItem('ethiolearn_my_receipt'); } catch (_) {}
     }
+
+    return jsonResponse(myReceipt ? myReceipt : { receipt: null });
+  }
 
   if (path === '/api/notifications') {
     return jsonResponse([

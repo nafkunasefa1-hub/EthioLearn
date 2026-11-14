@@ -70,22 +70,23 @@ export const QuestionFeedbackModal: React.FC<QuestionFeedbackModalProps> = ({
       const data = await res.json();
       if (res.ok && data.success) {
         setSubmitSuccess(true);
-        // Synchronize question feedback to cloud channel so Web Admin sees it in real time
-        broadcastQuestionFeedback({
-          id: data.feedback?.id || `qfb-${Date.now()}`,
-          question_id: question.id,
-          question_number: question.question_number,
-          exam_id: resolvedExamId,
-          exam_title: resolvedExamTitle,
-          user_id: user?.id,
-          user_name: user?.full_name || 'Student',
-          user_phone: user?.phone_number || '',
-          feedback_type: feedbackType,
-          suggested_answer: feedbackType === 'wrong_answer' ? suggestedAnswer : undefined,
-          comment: comment.trim(),
-          status: 'pending',
-          created_at: new Date().toISOString()
-        }).catch(() => {});
+        if (!data?.cloud_synced) {
+          await broadcastQuestionFeedback({
+            id: data.feedback?.id || `qfb-${Date.now()}`,
+            question_id: question.id,
+            question_number: question.question_number,
+            exam_id: resolvedExamId,
+            exam_title: resolvedExamTitle,
+            user_id: user?.id,
+            user_name: user?.full_name || 'Student',
+            user_phone: user?.phone_number || '',
+            feedback_type: feedbackType,
+            suggested_answer: feedbackType === 'wrong_answer' ? suggestedAnswer : undefined,
+            comment: comment.trim(),
+            status: 'pending',
+            created_at: new Date().toISOString()
+          }).catch(() => {});
+        }
         setTimeout(() => {
           setSubmitSuccess(false);
           setComment('');
