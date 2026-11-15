@@ -30,7 +30,8 @@ const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: 
         [540, 0.46],
         [420, 0.36],
         [320, 0.28],
-        [240, 0.24]
+        [240, 0.24],
+        [180, 0.22]
       ];
       let chosenDataUrl = '';
       let chosenQuality = 0.46;
@@ -64,12 +65,21 @@ const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: 
       }
 
       if (finalCanvas && chosenDataUrl) {
+        let blobSettled = false;
+        const finishBlob = (b: Blob) => {
+          if (blobSettled) return;
+          blobSettled = true;
+          res({ blob: b, dataUrl: chosenDataUrl });
+        };
+        const blobTimer = setTimeout(() => finishBlob(file), 2000);
         try {
           finalCanvas.toBlob((blob) => {
-            res({ blob: blob || file, dataUrl: chosenDataUrl });
+            clearTimeout(blobTimer);
+            finishBlob(blob || file);
           }, 'image/jpeg', chosenQuality);
         } catch (_) {
-          res({ blob: file, dataUrl: chosenDataUrl });
+          clearTimeout(blobTimer);
+          finishBlob(file);
         }
       } else {
         res({ blob: file, dataUrl: '' });
@@ -77,33 +87,46 @@ const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: 
     });
   };
 
-  // Path 1: Native createImageBitmap (decodes 12MP Android gallery photos without building huge base64 strings in RAM)
+  // Path 1: Native createImageBitmap with 3500ms timeout guard
   try {
     if (typeof createImageBitmap === 'function') {
-      const bitmap = await createImageBitmap(file);
-      try {
-        const out = await encodeBitmapOrImage(bitmap, bitmap.width, bitmap.height);
-        if (out.dataUrl) return out;
-      } finally {
-        if (typeof bitmap.close === 'function') bitmap.close();
+      const bitmap = await Promise.race([
+        createImageBitmap(file),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3500))
+      ]);
+      if (bitmap) {
+        try {
+          const out = await encodeBitmapOrImage(bitmap, bitmap.width, bitmap.height);
+          if (out.dataUrl) return out;
+        } finally {
+          if (typeof bitmap.close === 'function') bitmap.close();
+        }
       }
     }
   } catch (_) {}
 
-  // Path 2: ObjectURL into Image element (memory-safe on older Android WebViews)
+  // Path 2: ObjectURL into Image element with 3500ms timeout guard
   try {
     if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
       const objUrl = URL.createObjectURL(file);
       const viaObj = await new Promise<{ blob: Blob; dataUrl: string }>((res) => {
+        let settled = false;
+        const done = (val: { blob: Blob; dataUrl: string }) => {
+          if (settled) return;
+          settled = true;
+          try { URL.revokeObjectURL(objUrl); } catch (_) {}
+          res(val);
+        };
+        const timer = setTimeout(() => done({ blob: file, dataUrl: '' }), 3500);
         const img = new Image();
         img.onload = async () => {
+          clearTimeout(timer);
           const out = await encodeBitmapOrImage(img, img.width, img.height);
-          URL.revokeObjectURL(objUrl);
-          res(out);
+          done(out);
         };
         img.onerror = () => {
-          URL.revokeObjectURL(objUrl);
-          res({ blob: file, dataUrl: '' });
+          clearTimeout(timer);
+          done({ blob: file, dataUrl: '' });
         };
         img.src = objUrl;
       });
@@ -111,30 +134,47 @@ const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: 
     }
   } catch (_) {}
 
-  // Path 3: FileReader DataURL fallback
+  // Path 3: FileReader DataURL fallback with 3500ms timeout guard
   return new Promise((resolve) => {
+    let settled = false;
+    const done = (val: { blob: Blob; dataUrl: string }) => {
+      if (settled) return;
+      settled = true;
+      resolve(val);
+    };
+    const timer = setTimeout(() => done({ blob: file, dataUrl: '' }), 3500);
+
     const isLikelyImage =
       (file.type && file.type.startsWith('image/')) ||
       !file.type ||
       /\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(file.name || '');
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const rawDataUrl = String(e.target?.result || '');
-      if (!isLikelyImage || !rawDataUrl) {
-        resolve({ blob: file, dataUrl: rawDataUrl });
-        return;
-      }
-      const img = new Image();
-      img.onload = async () => {
-        const out = await encodeBitmapOrImage(img, img.width, img.height);
-        resolve(out.dataUrl ? out : { blob: file, dataUrl: rawDataUrl });
+    try {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        clearTimeout(timer);
+        const rawDataUrl = String(e.target?.result || '');
+        if (!isLikelyImage || !rawDataUrl) {
+          done({ blob: file, dataUrl: rawDataUrl });
+          return;
+        }
+        const img = new Image();
+        img.onload = async () => {
+          const out = await encodeBitmapOrImage(img, img.width, img.height);
+          done(out.dataUrl ? out : { blob: file, dataUrl: rawDataUrl });
+        };
+        img.onerror = () => done({ blob: file, dataUrl: rawDataUrl });
+        img.src = rawDataUrl;
       };
-      img.onerror = () => resolve({ blob: file, dataUrl: rawDataUrl });
-      img.src = rawDataUrl;
-    };
-    reader.onerror = () => resolve({ blob: file, dataUrl: '' });
-    reader.readAsDataURL(file);
+      reader.onerror = () => {
+        clearTimeout(timer);
+        done({ blob: file, dataUrl: '' });
+      };
+      reader.readAsDataURL(file);
+    } catch (_) {
+      clearTimeout(timer);
+      done({ blob: file, dataUrl: '' });
+    }
   });
 };
 
@@ -351,7 +391,8 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
     try {
       const imgEl = previewImgRef.current;
       if (!imgEl || !imgEl.complete || !imgEl.naturalWidth || !imgEl.naturalHeight) return '';
-      const steps: Array<[number, number]> = [[680, 0.56], [520, 0.44], [380, 0.34], [260, 0.28]];
+      const steps: Array<[number, number]> = [[680, 0.56], [520, 0.44], [380, 0.34], [260, 0.28], [180, 0.22]];
+      let lastOut = '';
       for (const [maxDim, quality] of steps) {
         let w = imgEl.naturalWidth;
         let h = imgEl.naturalHeight;
@@ -366,8 +407,12 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
         if (!ctx) continue;
         ctx.drawImage(imgEl, 0, 0, w, h);
         const out = canvas.toDataURL('image/jpeg', quality);
-        if (out && out.length > 100 && out.length <= 120000) return out;
+        if (out && out.length > 100) {
+          lastOut = out;
+          if (out.length <= 120000) return out;
+        }
       }
+      return lastOut;
     } catch (_) {}
     return '';
   };
@@ -499,7 +544,7 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
       uploadBlob = compressed.blob;
     } catch (_) {}
 
-    if (!receiptDataUrl || receiptDataUrl.length > 750000) {
+    if (!receiptDataUrl || receiptDataUrl.length > 250000) {
       const domCaptured = capturePreviewElementDataUrl();
       if (domCaptured) {
         receiptDataUrl = domCaptured;
@@ -508,12 +553,15 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
 
     if (!receiptDataUrl) {
       try {
-        receiptDataUrl = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(String(reader.result || ''));
-          reader.onerror = () => resolve('');
-          reader.readAsDataURL(selectedFile);
-        });
+        receiptDataUrl = await Promise.race([
+          new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ''));
+            reader.onerror = () => resolve('');
+            reader.readAsDataURL(selectedFile);
+          }),
+          new Promise<string>((resolve) => setTimeout(() => resolve(''), 3000))
+        ]);
       } catch (_) {}
     }
 
@@ -571,31 +619,37 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
           submitted_at: new Date().toISOString()
         };
 
+        let syncedToCloud = Boolean(resData?.cloud_synced);
+
+        // Fallback broadcast if the initial call did not confirm cloud sync
+        if (!syncedToCloud) {
+          const cloudUrl = await broadcastPaymentReceipt(
+            { ...submittedReceipt, student_phone: submittedReceipt.student_phone || studentPhone },
+            uploadBlob
+          ).catch(() => null);
+          if (cloudUrl) {
+            syncedToCloud = true;
+            submittedReceipt.receipt_storage_path = cloudUrl;
+            try {
+              const myRcpt = localStorage.getItem('ethiolearn_my_receipt');
+              if (myRcpt) {
+                const parsed = JSON.parse(myRcpt);
+                parsed.receipt_storage_path = cloudUrl;
+                parsed.pending_cloud_sync = false;
+                localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(parsed));
+              }
+            } catch (_) {}
+          }
+        }
+
         setExistingReceipt(submittedReceipt);
         setSubmitSuccess(true);
         setApprovalFeedback({
           type: 'pending',
-          message: '✅ Screenshot sent! Your payment proof is waiting for Admin verification and approval.'
+          message: syncedToCloud
+            ? '✅ Screenshot sent to Admin! Waiting for verification and approval.'
+            : '⏳ Screenshot saved — please ensure internet is connected while retrying cloud upload.'
         });
-
-        // Fallback broadcast only if the backend response did not already synchronize to cloud
-        if (!resData?.cloud_synced) {
-          await broadcastPaymentReceipt(
-            { ...submittedReceipt, student_phone: submittedReceipt.student_phone || studentPhone },
-            uploadBlob
-          ).then(cloudUrl => {
-            if (cloudUrl) {
-              try {
-                const myRcpt = localStorage.getItem('ethiolearn_my_receipt');
-                if (myRcpt) {
-                  const parsed = JSON.parse(myRcpt);
-                  parsed.receipt_storage_path = cloudUrl;
-                  localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(parsed));
-                }
-              } catch (_) {}
-            }
-          }).catch(() => {});
-        }
 
         await refreshProfile();
       } else {

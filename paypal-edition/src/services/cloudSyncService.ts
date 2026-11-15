@@ -803,7 +803,8 @@ async function compressDataUrlIfNeeded(dataUrl: string): Promise<string> {
       [540, 0.46],
       [420, 0.36],
       [320, 0.28],
-      [240, 0.24]
+      [240, 0.24],
+      [180, 0.22]
     ];
     let lastOut = '';
     for (const [maxDim, quality] of steps) {
@@ -836,37 +837,53 @@ async function compressDataUrlIfNeeded(dataUrl: string): Promise<string> {
   // Path 1: Decode via fetch -> Blob -> createImageBitmap (avoids large data: URI Image OOM in Android WebView)
   try {
     if (typeof createImageBitmap === 'function' && typeof fetch === 'function') {
-      const resp = await fetch(dataUrl);
-      const blob = await resp.blob();
-      const bitmap = await createImageBitmap(blob);
-      try {
-        const compressed = compressBitmapOrImg(bitmap, bitmap.width, bitmap.height);
-        if (compressed && compressed.length < dataUrl.length) {
-          return compressed;
-        }
-      } finally {
-        if (typeof bitmap.close === 'function') bitmap.close();
-      }
+      const viaBitmap = await Promise.race([
+        (async () => {
+          const resp = await fetch(dataUrl);
+          const blob = await resp.blob();
+          const bitmap = await createImageBitmap(blob);
+          try {
+            const compressed = compressBitmapOrImg(bitmap, bitmap.width, bitmap.height);
+            return compressed && compressed.length < dataUrl.length ? compressed : '';
+          } finally {
+            if (typeof bitmap.close === 'function') bitmap.close();
+          }
+        })(),
+        new Promise<string>((resolve) => setTimeout(() => resolve(''), 3500))
+      ]);
+      if (viaBitmap) return viaBitmap;
     }
   } catch (_) {}
 
-  // Path 2: Standard HTMLImageElement fallback
+  // Path 2: Standard HTMLImageElement fallback with 3500ms timeout guard
   if (typeof Image === 'undefined') return dataUrl;
   return new Promise((resolve) => {
+    let settled = false;
+    const done = (val: string) => {
+      if (settled) return;
+      settled = true;
+      resolve(val);
+    };
+    const timer = setTimeout(() => done(dataUrl), 3500);
     try {
       const img = new Image();
       img.onload = () => {
+        clearTimeout(timer);
         try {
           const compressed = compressBitmapOrImg(img, img.width || 600, img.height || 800);
-          resolve(compressed || dataUrl);
+          done(compressed || dataUrl);
         } catch (_) {
-          resolve(dataUrl);
+          done(dataUrl);
         }
       };
-      img.onerror = () => resolve(dataUrl);
+      img.onerror = () => {
+        clearTimeout(timer);
+        done(dataUrl);
+      };
       img.src = dataUrl;
     } catch (_) {
-      resolve(dataUrl);
+      clearTimeout(timer);
+      done(dataUrl);
     }
   });
 }
@@ -1276,8 +1293,13 @@ export async function broadcastStudentRegistration(student: RemoteStudentRegistr
       return writeOk;
     })();
 
-    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
-    return Boolean(ntfyOk || fsOk);
+    const fsOk = await fsPromise;
+    if (fsOk) {
+      ntfyPromise.catch(() => {});
+      return true;
+    }
+    const ntfyOk = await ntfyPromise.catch(() => false);
+    return Boolean(ntfyOk);
   });
 }
 
@@ -1297,9 +1319,57 @@ export async function broadcastPaymentReceipt(
   }
   if (screenshot && !screenshot.startsWith('data:image/svg+xml')) {
     screenshot = await compressDataUrlIfNeeded(screenshot);
-    if (screenshot.length > 950000) {
+    if (screenshot.length > 900000) {
       screenshot = await compressDataUrlIfNeeded(screenshot);
     }
+  }
+  // Last-resort canvas encode directly from fileBlob so exact student screenshot is never lost
+  if ((!screenshot || screenshot.length > 900000 || screenshot.startsWith('data:image/svg+xml')) && fileBlob && typeof document !== 'undefined' && typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+    try {
+      const blobEncoded = await Promise.race([
+        new Promise<string>((resolve) => {
+          const objUrl = URL.createObjectURL(fileBlob);
+          const img = new Image();
+          img.onload = () => {
+            try {
+              const steps: Array<[number, number]> = [[520, 0.48], [380, 0.36], [260, 0.28], [180, 0.22]];
+              let out = '';
+              for (const [maxDim, q] of steps) {
+                let w = img.width || 600;
+                let h = img.height || 800;
+                if (w > maxDim || h > maxDim) {
+                  if (w > h) { h = Math.max(1, Math.round((h * maxDim) / w)); w = maxDim; }
+                  else { w = Math.max(1, Math.round((w * maxDim) / h)); h = maxDim; }
+                }
+                const c = document.createElement('canvas');
+                c.width = w;
+                c.height = h;
+                const ctx = c.getContext('2d');
+                if (ctx) {
+                  ctx.drawImage(img, 0, 0, w, h);
+                  const d = c.toDataURL('image/jpeg', q);
+                  if (d && d.length > 100) {
+                    out = d;
+                    if (d.length <= 120000) break;
+                  }
+                }
+              }
+              URL.revokeObjectURL(objUrl);
+              resolve(out);
+            } catch (_) {
+              URL.revokeObjectURL(objUrl);
+              resolve('');
+            }
+          };
+          img.onerror = () => { URL.revokeObjectURL(objUrl); resolve(''); };
+          img.src = objUrl;
+        }),
+        new Promise<string>((resolve) => setTimeout(() => resolve(''), 3500))
+      ]);
+      if (blobEncoded && blobEncoded.length <= 900000) {
+        screenshot = blobEncoded;
+      }
+    } catch (_) {}
   }
   if (!screenshot || screenshot.length > 950000) {
     screenshot = generateAuthenticSlipSvg(
@@ -1327,7 +1397,7 @@ export async function broadcastPaymentReceipt(
   const ok = await runWithRetry(async () => {
     const newDocId = safeDocId(cleanReceipt.id, 'pay');
 
-    // 1. Fast IPv4 write to ntfy state log (stores full screenshot inline or via CORS-enabled ntfy attachment)
+    // 1. Fast IPv4 write to ntfy state log (non-blocking once Firestore succeeds)
     const ntfyPromise = appendNtfyStateOp({
       op: 'payment_submission',
       payment: cleanReceipt,
@@ -1349,8 +1419,13 @@ export async function broadcastPaymentReceipt(
       return writeOk;
     })();
 
-    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
-    return Boolean(ntfyOk || fsOk);
+    const fsOk = await fsPromise;
+    if (fsOk) {
+      ntfyPromise.catch(() => {});
+      return true;
+    }
+    const ntfyOk = await ntfyPromise.catch(() => false);
+    return Boolean(ntfyOk);
   });
 
   return ok ? cleanReceipt.receipt_storage_path || 'synced' : null;

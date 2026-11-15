@@ -161,6 +161,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (data.profile.phone_number) {
               localStorage.setItem('ethiolearn_phone', data.profile.phone_number);
             }
+            if (data.profile.role !== 'admin' && data.profile.phone_number && navigator.onLine !== false) {
+              const syncKey = `ethiolearn_synced_me_${data.profile.id}`;
+              try {
+                if (!sessionStorage.getItem(syncKey)) {
+                  sessionStorage.setItem(syncKey, '1');
+                  broadcastStudentRegistration({
+                    id: data.profile.id,
+                    phone_number: data.profile.phone_number,
+                    full_name: data.profile.full_name,
+                    grade: data.profile.grade,
+                    grade_id: data.profile.grade_id,
+                    device_id: deviceId,
+                    is_premium: data.profile.is_premium,
+                    payment_tier: data.profile.payment_tier,
+                    unlocked_grades: data.profile.unlocked_grades,
+                    paid_amount: data.profile.paid_amount,
+                    created_at: data.profile.created_at
+                  }).catch(() => { try { sessionStorage.removeItem(syncKey); } catch (_) {} });
+                }
+              } catch (_) {}
+            }
           }
         }
       } catch (networkErr) {
@@ -511,6 +532,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('ethiolearn_phone_session', 'verified');
     localStorage.setItem('ethiolearn_user_profile', JSON.stringify(studentProfile));
     localStorage.setItem('ethiolearn_phone', studentProfile.phone_number);
+
+    // Ensure any signed-in student is visible in Firestore & Admin Console
+    if (navigator.onLine !== false) {
+      broadcastStudentRegistration({
+        id: studentProfile.id,
+        phone_number: studentProfile.phone_number,
+        full_name: studentProfile.full_name,
+        password: expectedPwd,
+        grade: studentProfile.grade,
+        grade_id: studentProfile.grade_id,
+        device_id: foundStudent.device_id || deviceId,
+        is_premium: studentProfile.is_premium,
+        payment_tier: studentProfile.payment_tier,
+        unlocked_grades: studentProfile.unlocked_grades,
+        paid_amount: studentProfile.paid_amount,
+        created_at: studentProfile.created_at
+      }).catch(() => {});
+    }
     return { success: true, isAdmin: false };
   };
 

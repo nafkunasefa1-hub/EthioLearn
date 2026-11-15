@@ -1154,11 +1154,26 @@ export function installUniversalOfflineInterceptor(): void {
     }
 
     // Skip live server probe on Hugging Face static host (*.hf.space) where no Express server runs;
-    // on localhost or full-stack servers, try the live Express backend first!
+    // Also always route auth/student/payment/admin-sync/device-transfer/feedback endpoints through our
+    // Firestore-synced interceptor on ALL web hosts (including localhost) so PC Admin and mobile APK
+    // always share the exact same live Firestore database!
     const isStaticHfSpace =
       typeof window !== 'undefined' && window.location.hostname.endsWith('.hf.space');
 
-    if (!isCapacitorAndroid() && !isStaticHfSpace && navigator.onLine !== false) {
+    const isCloudSyncedApiPath =
+      pathname.startsWith('/api/auth/') ||
+      pathname.startsWith('/api/payments') ||
+      pathname.startsWith('/api/admin/students') ||
+      pathname.startsWith('/api/admin/payments') ||
+      pathname.startsWith('/api/admin/device-transfers') ||
+      pathname.startsWith('/api/admin/feedback') ||
+      pathname.startsWith('/api/admin/questions/feedback') ||
+      pathname.startsWith('/api/admin/audit-logs') ||
+      pathname.startsWith('/api/admin/ai-advisor') ||
+      pathname === '/api/dashboard/admin' ||
+      pathname === '/api/feedback';
+
+    if (!isCapacitorAndroid() && !isStaticHfSpace && !isCloudSyncedApiPath && navigator.onLine !== false) {
       try {
         const liveRes = await nativeFetch(input, init);
         const contentType = (liveRes.headers.get('content-type') || '').toLowerCase();
@@ -1815,10 +1830,49 @@ async function handleOfflineApiRequest(
       localStorage.setItem('ethiolearn_token', 'student-token');
       localStorage.setItem('ethiolearn_phone_session', 'verified');
       localStorage.setItem('ethiolearn_phone', studentUser.phone);
+
+      const curAdminStudents = getAdminStudentsList();
+      const idx = curAdminStudents.findIndex((s: any) => s.id === studentUser.id || phonesMatch(s.phone_number, studentUser.phone));
+      const updatedAdminRec = {
+        ...(idx >= 0 ? curAdminStudents[idx] : {}),
+        id: studentUser.id,
+        phone_number: studentUser.phone,
+        email: studentProfile.email,
+        full_name: studentProfile.full_name,
+        grade: studentProfile.grade,
+        grade_id: studentProfile.grade_id,
+        role: 'student',
+        is_premium: studentProfile.is_premium,
+        payment_tier: studentProfile.payment_tier,
+        unlocked_grades: studentProfile.unlocked_grades,
+        paid_amount: studentProfile.paid_amount,
+        device_id: studentUser.device_id,
+        created_at: studentUser.created_at,
+        updated_at: new Date().toISOString()
+      };
+      if (idx >= 0) curAdminStudents[idx] = updatedAdminRec;
+      else curAdminStudents.unshift(updatedAdminRec);
+      safeSetLocalStorage('ethiolearn_admin_students', JSON.stringify(curAdminStudents));
     } catch (_) {}
+
+    const cloudSynced = await broadcastStudentRegistration({
+      id: studentUser.id,
+      phone_number: studentUser.phone,
+      full_name: studentProfile.full_name,
+      password: explicitPwd || 'Student@123',
+      grade: studentProfile.grade,
+      grade_id: studentProfile.grade_id,
+      device_id: studentUser.device_id,
+      is_premium: studentProfile.is_premium,
+      payment_tier: studentProfile.payment_tier,
+      unlocked_grades: studentProfile.unlocked_grades,
+      paid_amount: studentProfile.paid_amount,
+      created_at: studentUser.created_at
+    }).catch(() => false);
 
     return jsonResponse({
       success: true,
+      cloud_synced: Boolean(cloudSynced),
       user: studentUser,
       profile: studentProfile,
       token: 'student-token'
