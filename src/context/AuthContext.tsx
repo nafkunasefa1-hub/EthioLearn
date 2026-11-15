@@ -187,8 +187,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     window.addEventListener('auth-change', handleAuthChange);
     window.addEventListener('storage', handleAuthChange);
 
-    // Periodic cloud poll so student's app instantly unlocks when Admin modifies tier or approves payment
-    const interval = setInterval(async () => {
+    // Periodic + event-driven cloud poll so student's app instantly unlocks when Admin approves payment
+    let approvalPollInFlight = false;
+    const pollApprovalNow = async () => {
+      if (approvalPollInFlight) return;
       const curPhone = localStorage.getItem('ethiolearn_phone');
       const curUserId = localStorage.getItem('ethiolearn_user_id') || undefined;
       const cached = localStorage.getItem('ethiolearn_user_profile');
@@ -202,6 +204,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       if (!u || u.role === 'admin') return;
 
+      approvalPollInFlight = true;
       try {
         const appr = await fetchRemoteApprovalForPhone(curPhone, curUserId);
         if (!appr) return;
@@ -269,12 +272,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser({ ...u });
           window.dispatchEvent(new Event('auth-change'));
         }
-      } catch (_) {}
-    }, 3500);
+      } catch (_) {
+      } finally {
+        approvalPollInFlight = false;
+      }
+    };
+
+    const interval = setInterval(pollApprovalNow, 2000);
+    const onApprovalWakeup = () => { void pollApprovalNow(); };
+    window.addEventListener('cloud-approval-wakeup', onApprovalWakeup);
 
     return () => {
       window.removeEventListener('auth-change', handleAuthChange);
       window.removeEventListener('storage', handleAuthChange);
+      window.removeEventListener('cloud-approval-wakeup', onApprovalWakeup);
       clearInterval(interval);
     };
   }, []);

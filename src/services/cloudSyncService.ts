@@ -284,7 +284,7 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: nu
  */
 async function postToRealtimeBus(eventPayload: Record<string, any>): Promise<boolean> {
   const lightPayload: Record<string, any> = { ...eventPayload };
-  if (typeof lightPayload.receipt_storage_path === 'string' && lightPayload.receipt_storage_path.length > 48000) {
+  if (typeof lightPayload.receipt_storage_path === 'string' && lightPayload.receipt_storage_path.length > 95000) {
     lightPayload.receipt_storage_path = '';
     lightPayload.has_cloud_image = true;
   }
@@ -294,7 +294,7 @@ async function postToRealtimeBus(eventPayload: Record<string, any>): Promise<boo
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: bodyStr
-  }, 6000).then(r => Boolean(r && r.ok)).catch(() => false);
+  }, 4000).then(r => Boolean(r && r.ok)).catch(() => false);
 
   const ntfyBrief = JSON.stringify({
     event: lightPayload.event,
@@ -307,7 +307,7 @@ async function postToRealtimeBus(eventPayload: Record<string, any>): Promise<boo
   const p2 = fetchWithTimeout(NTFY_EVENTS_URL, {
     method: 'POST',
     body: ntfyBrief
-  }, 6000).then(r => Boolean(r && r.ok)).catch(() => false);
+  }, 3000).then(r => Boolean(r && r.ok)).catch(() => false);
 
   const [r1, r2] = await Promise.all([p1, p2]);
   return Boolean(r1 || r2);
@@ -329,7 +329,7 @@ async function appendNtfyStateOp(opPayload: Record<string, any>): Promise<boolea
       method: 'POST',
       body: JSON.stringify(record)
     },
-    10000
+    3000
   );
   return Boolean(res && res.ok);
 }
@@ -356,7 +356,7 @@ async function readNtfyStateLog(): Promise<NtfyLogStateResult> {
     state: normalizeCloudState({})
   };
 
-  const res = await fetchWithTimeout(`${NTFY_STATE_URL}/json?poll=1&since=all`, { cache: 'no-store' }, 7500);
+  const res = await fetchWithTimeout(`${NTFY_STATE_URL}/json?poll=1&since=all`, { cache: 'no-store' }, 2500);
   if (!res || !res.ok) return emptyResult;
 
   try {
@@ -793,40 +793,72 @@ async function compressDataUrlIfNeeded(dataUrl: string): Promise<string> {
   if (!dataUrl || !dataUrl.startsWith('data:image/') || dataUrl.startsWith('data:image/svg+xml')) {
     return dataUrl;
   }
-  if (dataUrl.length <= 140000 || typeof document === 'undefined' || typeof Image === 'undefined') {
+  if (dataUrl.length <= 140000 || typeof document === 'undefined') {
     return dataUrl;
   }
+
+  const compressBitmapOrImg = (source: any, origW: number, origH: number): string => {
+    const steps: Array<[number, number]> = [
+      [680, 0.56],
+      [540, 0.46],
+      [420, 0.36],
+      [320, 0.28],
+      [240, 0.24]
+    ];
+    let lastOut = '';
+    for (const [maxDim, quality] of steps) {
+      let width = origW || 600;
+      let height = origH || 800;
+      if (width > maxDim || height > maxDim) {
+        if (width > height) {
+          height = Math.max(1, Math.round((height * maxDim) / width));
+          width = maxDim;
+        } else {
+          width = Math.max(1, Math.round((width * maxDim) / height));
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) continue;
+      ctx.drawImage(source, 0, 0, width, height);
+      const out = canvas.toDataURL('image/jpeg', quality);
+      if (out && out.length > 100) {
+        lastOut = out;
+        if (out.length <= 120000) return out;
+      }
+    }
+    return lastOut;
+  };
+
+  // Path 1: Decode via fetch -> Blob -> createImageBitmap (avoids large data: URI Image OOM in Android WebView)
+  try {
+    if (typeof createImageBitmap === 'function' && typeof fetch === 'function') {
+      const resp = await fetch(dataUrl);
+      const blob = await resp.blob();
+      const bitmap = await createImageBitmap(blob);
+      try {
+        const compressed = compressBitmapOrImg(bitmap, bitmap.width, bitmap.height);
+        if (compressed && compressed.length < dataUrl.length) {
+          return compressed;
+        }
+      } finally {
+        if (typeof bitmap.close === 'function') bitmap.close();
+      }
+    }
+  } catch (_) {}
+
+  // Path 2: Standard HTMLImageElement fallback
+  if (typeof Image === 'undefined') return dataUrl;
   return new Promise((resolve) => {
     try {
       const img = new Image();
       img.onload = () => {
         try {
-          const maxDim = 620;
-          let width = img.width || 600;
-          let height = img.height || 800;
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            resolve(dataUrl);
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          let out = canvas.toDataURL('image/jpeg', 0.54);
-          if (out.length > 60000) {
-            out = canvas.toDataURL('image/jpeg', 0.42);
-          }
-          resolve(out || dataUrl);
+          const compressed = compressBitmapOrImg(img, img.width || 600, img.height || 800);
+          resolve(compressed || dataUrl);
         } catch (_) {
           resolve(dataUrl);
         }
@@ -1257,13 +1289,19 @@ export async function broadcastPaymentReceipt(
   fileBlob?: Blob | File | null
 ): Promise<string | null> {
   let screenshot = receipt.receipt_storage_path || '';
-  if (!screenshot && fileBlob) {
-    screenshot = await blobToDataUrl(fileBlob);
+  if ((!screenshot || screenshot.startsWith('data:image/svg+xml')) && fileBlob) {
+    const fromBlob = await blobToDataUrl(fileBlob);
+    if (fromBlob && fromBlob.startsWith('data:image/') && !fromBlob.startsWith('data:image/svg+xml')) {
+      screenshot = fromBlob;
+    }
   }
-  if (screenshot) {
+  if (screenshot && !screenshot.startsWith('data:image/svg+xml')) {
     screenshot = await compressDataUrlIfNeeded(screenshot);
+    if (screenshot.length > 950000) {
+      screenshot = await compressDataUrlIfNeeded(screenshot);
+    }
   }
-  if (!screenshot || screenshot.length > 820000) {
+  if (!screenshot || screenshot.length > 950000) {
     screenshot = generateAuthenticSlipSvg(
       receipt.student_phone,
       receipt.student_name,
@@ -1347,18 +1385,24 @@ export async function broadcastStudentApproval(approval: RemoteStudentApproval):
       approved_at: nowIso
     };
 
-    // 1. Fast IPv4 write to ntfy state log
+    // 1. Fire ntfy + SSE wakeups without letting a stalled ntfy.sh request delay Admin unlock by 3-10s
     const ntfyPromise = appendNtfyStateOp({
       op: 'student_approval',
       approval: initialApproval,
       ts: nowIso
     });
 
-    // 2. Firestore write (direct write first when phone/userId is known, plus collection sync)
+    // 2. Fast Firestore write: write deterministic approval + student docs immediately while resolving any extra docs
     const fsPromise = (async (): Promise<boolean> => {
+      const quickOps: Promise<boolean>[] = [];
+      if (approval.phone_number || approval.user_id) {
+        quickOps.push(putFsDoc(COL_APPROVALS, approvalDocId(approval.user_id, approval.phone_number), initialApproval));
+      }
+
       const [stRes, payRes] = await Promise.all([
         listFsCollection(COL_STUDENTS),
-        isPaid ? listFsCollection(COL_PAYMENTS) : Promise.resolve({ ok: true, docs: [] as any[] })
+        isPaid ? listFsCollection(COL_PAYMENTS) : Promise.resolve({ ok: true, docs: [] as any[] }),
+        ...quickOps
       ]);
 
       const matchedStudents = stRes.ok
@@ -1431,8 +1475,14 @@ export async function broadcastStudentApproval(approval: RemoteStudentApproval):
       return res.some(Boolean);
     })();
 
-    const [ntfyOk, fsOk] = await Promise.all([ntfyPromise, fsPromise]);
-    return Boolean(ntfyOk || fsOk);
+    // Return immediately once Firestore succeeds; only wait for ntfy if Firestore failed
+    const fsOk = await fsPromise;
+    if (fsOk) {
+      ntfyPromise.catch(() => false);
+      return true;
+    }
+    const ntfyOk = await ntfyPromise;
+    return Boolean(ntfyOk);
   });
 }
 
@@ -1663,6 +1713,48 @@ export async function fetchRemoteApprovalForPhone(phone: string, userId?: string
   if (cleanDigits.length < 9 && !userId) return null;
 
   try {
+    // Fast direct single-document Firestore lookup (~150ms, immune to ntfy timeouts or collection scans)
+    const candidateApprIds = Array.from(new Set([
+      approvalDocId(userId, phone),
+      ...(cleanDigits.length >= 9 ? [`appr_${cleanDigits}`] : []),
+      ...(userId ? [safeDocId(userId, 'appr')] : [])
+    ].filter(Boolean)));
+
+    const candidateStuIds = Array.from(new Set([
+      studentDocId(userId, phone),
+      ...(cleanDigits.length >= 9 ? [`stu_${cleanDigits}`] : []),
+      ...(userId ? [safeDocId(userId, 'stu')] : [])
+    ].filter(Boolean)));
+
+    const [apprDocs, stuDocs] = await Promise.all([
+      Promise.all(candidateApprIds.map((id) => getFsDoc(COL_APPROVALS, id))),
+      Promise.all(candidateStuIds.map((id) => getFsDoc(COL_STUDENTS, id)))
+    ]);
+
+    for (const r of apprDocs) {
+      if (r.ok && r.data && recordMatchesPhoneOrId(r.data, userId, phone)) {
+        return r.data as RemoteStudentApproval;
+      }
+    }
+
+    for (const r of stuDocs) {
+      if (r.ok && r.data && recordMatchesPhoneOrId(r.data, userId, phone)) {
+        const sFound = r.data;
+        const isPaid = Boolean(sFound.is_premium && sFound.payment_tier !== 'free');
+        const tier = (sFound.payment_tier || (isPaid ? 'single' : 'free')) as 'free' | 'single' | 'all';
+        if (isPaid) {
+          return {
+            phone_number: phone || sFound.phone_number,
+            user_id: userId || sFound.id,
+            tier,
+            unlocked_grades: sFound.unlocked_grades || (tier === 'all' ? ['all'] : [sFound.grade_id || 'grade-12-natural']),
+            is_premium: true,
+            approved_at: sFound.updated_at || new Date().toISOString()
+          };
+        }
+      }
+    }
+
     const res = await readCloudMasterStateStrict(true);
     if (res.ok) {
       const current = res.state;
@@ -1905,10 +1997,18 @@ function handleIncomingCloudEvent(payload: Record<string, any>) {
       const stored = localStorage.getItem('ethiolearn_admin_payments');
       const list = stored ? JSON.parse(stored) : [];
       const exIdx = list.findIndex((p: any) => p.id === payload.id || (p.status === 'pending' && phonesMatch(p.student_phone, payload.student_phone)));
+      const sanitizedPayload = { ...payload };
+      if (!sanitizedPayload.receipt_storage_path) {
+        delete sanitizedPayload.receipt_storage_path;
+      }
       if (exIdx >= 0) {
-        list[exIdx] = { ...list[exIdx], ...payload };
+        const merged = { ...list[exIdx], ...sanitizedPayload };
+        if (list[exIdx]?.receipt_storage_path && !list[exIdx].receipt_storage_path.startsWith('data:image/svg+xml') && (!sanitizedPayload.receipt_storage_path || String(sanitizedPayload.receipt_storage_path).startsWith('data:image/svg+xml'))) {
+          merged.receipt_storage_path = list[exIdx].receipt_storage_path;
+        }
+        list[exIdx] = merged;
       } else {
-        list.unshift(payload);
+        list.unshift(sanitizedPayload);
       }
       localStorage.setItem('ethiolearn_admin_payments', JSON.stringify(list));
       window.dispatchEvent(new CustomEvent('cloud-payment-received', { detail: payload }));

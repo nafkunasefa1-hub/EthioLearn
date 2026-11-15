@@ -21,65 +21,117 @@ import {
 import { PaymentSettings, ReceiptVerification } from '../types';
 import { broadcastPaymentReceipt, fetchRemoteApprovalForPhone } from '../services/cloudSyncService';
 
-// Fast client-side image compressor: downsizes heavy mobile camera photos (4MB-8MB) into compact readable JPEGs (~18-32KB)
+// Fast client-side image compressor: downsizes heavy mobile camera photos (4MB-15MB) into compact readable JPEGs (~22-85KB)
 const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: string }> => {
-  const renderScaled = (img: HTMLImageElement, maxDim: number, quality: number): Promise<{ blob: Blob; dataUrl: string }> => {
+  const encodeBitmapOrImage = (source: any, origW: number, origH: number): Promise<{ blob: Blob; dataUrl: string }> => {
     return new Promise((res) => {
-      let width = img.width;
-      let height = img.height;
-      if (width > maxDim || height > maxDim) {
-        if (width > height) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
+      const steps: Array<[number, number]> = [
+        [680, 0.56],
+        [540, 0.46],
+        [420, 0.36],
+        [320, 0.28],
+        [240, 0.24]
+      ];
+      let chosenDataUrl = '';
+      let chosenQuality = 0.46;
+      let finalCanvas: HTMLCanvasElement | null = null;
+
+      for (const [maxDim, quality] of steps) {
+        let width = origW || 600;
+        let height = origH || 800;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.max(1, Math.round((height * maxDim) / width));
+            width = maxDim;
+          } else {
+            width = Math.max(1, Math.round((width * maxDim) / height));
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) continue;
+        ctx.drawImage(source, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        if (dataUrl && dataUrl.length > 100) {
+          chosenDataUrl = dataUrl;
+          chosenQuality = quality;
+          finalCanvas = canvas;
+          if (dataUrl.length <= 120000) break;
         }
       }
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(img, 0, 0, width, height);
-        const dataUrl = canvas.toDataURL('image/jpeg', quality);
-        canvas.toBlob((blob) => {
-          res({ blob: blob || file, dataUrl });
-        }, 'image/jpeg', quality);
+
+      if (finalCanvas && chosenDataUrl) {
+        try {
+          finalCanvas.toBlob((blob) => {
+            res({ blob: blob || file, dataUrl: chosenDataUrl });
+          }, 'image/jpeg', chosenQuality);
+        } catch (_) {
+          res({ blob: file, dataUrl: chosenDataUrl });
+        }
       } else {
         res({ blob: file, dataUrl: '' });
       }
     });
   };
 
+  // Path 1: Native createImageBitmap (decodes 12MP Android gallery photos without building huge base64 strings in RAM)
+  try {
+    if (typeof createImageBitmap === 'function') {
+      const bitmap = await createImageBitmap(file);
+      try {
+        const out = await encodeBitmapOrImage(bitmap, bitmap.width, bitmap.height);
+        if (out.dataUrl) return out;
+      } finally {
+        if (typeof bitmap.close === 'function') bitmap.close();
+      }
+    }
+  } catch (_) {}
+
+  // Path 2: ObjectURL into Image element (memory-safe on older Android WebViews)
+  try {
+    if (typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function') {
+      const objUrl = URL.createObjectURL(file);
+      const viaObj = await new Promise<{ blob: Blob; dataUrl: string }>((res) => {
+        const img = new Image();
+        img.onload = async () => {
+          const out = await encodeBitmapOrImage(img, img.width, img.height);
+          URL.revokeObjectURL(objUrl);
+          res(out);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(objUrl);
+          res({ blob: file, dataUrl: '' });
+        };
+        img.src = objUrl;
+      });
+      if (viaObj.dataUrl) return viaObj;
+    }
+  } catch (_) {}
+
+  // Path 3: FileReader DataURL fallback
   return new Promise((resolve) => {
     const isLikelyImage =
       (file.type && file.type.startsWith('image/')) ||
       !file.type ||
       /\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(file.name || '');
 
-    if (!isLikelyImage) {
-      const reader = new FileReader();
-      reader.onload = () => resolve({ blob: file, dataUrl: String(reader.result || '') });
-      reader.onerror = () => resolve({ blob: file, dataUrl: '' });
-      reader.readAsDataURL(file);
-      return;
-    }
     const reader = new FileReader();
     reader.onload = (e) => {
+      const rawDataUrl = String(e.target?.result || '');
+      if (!isLikelyImage || !rawDataUrl) {
+        resolve({ blob: file, dataUrl: rawDataUrl });
+        return;
+      }
       const img = new Image();
       img.onload = async () => {
-        let out = await renderScaled(img, 600, 0.52);
-        if (out.dataUrl.length > 44000) {
-          out = await renderScaled(img, 460, 0.42);
-        }
-        if (out.dataUrl.length > 90000) {
-          out = await renderScaled(img, 380, 0.36);
-        }
-        resolve(out.dataUrl ? out : { blob: file, dataUrl: String(e.target?.result || '') });
+        const out = await encodeBitmapOrImage(img, img.width, img.height);
+        resolve(out.dataUrl ? out : { blob: file, dataUrl: rawDataUrl });
       };
-      img.onerror = () => resolve({ blob: file, dataUrl: String(e.target?.result || '') });
-      img.src = String(e.target?.result || '');
+      img.onerror = () => resolve({ blob: file, dataUrl: rawDataUrl });
+      img.src = rawDataUrl;
     };
     reader.onerror = () => resolve({ blob: file, dataUrl: '' });
     reader.readAsDataURL(file);
@@ -291,14 +343,47 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
     fetchPaymentData();
   }, [user?.id, (user as any)?.payment_tier, user?.is_premium]);
 
-  // When payment is pending, poll cloud approval every 3.5 seconds for instantaneous unlocking
+  // Pre-compressed dataUrl promise keyed to the selected File so mobile Android gallery permissions never expire before submit
+  const precompressedRef = React.useRef<{ file: File; promise: Promise<{ blob: Blob; dataUrl: string }> } | null>(null);
+  const previewImgRef = React.useRef<HTMLImageElement | null>(null);
+
+  const capturePreviewElementDataUrl = (): string => {
+    try {
+      const imgEl = previewImgRef.current;
+      if (!imgEl || !imgEl.complete || !imgEl.naturalWidth || !imgEl.naturalHeight) return '';
+      const steps: Array<[number, number]> = [[680, 0.56], [520, 0.44], [380, 0.34], [260, 0.28]];
+      for (const [maxDim, quality] of steps) {
+        let w = imgEl.naturalWidth;
+        let h = imgEl.naturalHeight;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) { h = Math.max(1, Math.round((h * maxDim) / w)); w = maxDim; }
+          else { w = Math.max(1, Math.round((w * maxDim) / h)); h = maxDim; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) continue;
+        ctx.drawImage(imgEl, 0, 0, w, h);
+        const out = canvas.toDataURL('image/jpeg', quality);
+        if (out && out.length > 100 && out.length <= 120000) return out;
+      }
+    } catch (_) {}
+    return '';
+  };
+
+  // When payment is pending, poll cloud approval every 1.5s + wake immediately on SSE events
   useEffect(() => {
     if (existingReceipt?.status === 'pending' || submitSuccess) {
-      const interval = setInterval(async () => {
-        const phone = user?.phone_number || (user as any)?.phone || localStorage.getItem('ethiolearn_phone');
-        const curUserId = user?.id || localStorage.getItem('ethiolearn_user_id') || undefined;
-        if (phone || curUserId) {
-          try {
+      let active = true;
+      let checking = false;
+      const runApprovalPoll = async () => {
+        if (!active || checking) return;
+        checking = true;
+        try {
+          const phone = user?.phone_number || (user as any)?.phone || localStorage.getItem('ethiolearn_phone');
+          const curUserId = user?.id || localStorage.getItem('ethiolearn_user_id') || undefined;
+          if (phone || curUserId) {
             const appr = await fetchRemoteApprovalForPhone(phone || '', curUserId);
             if (appr && appr.is_premium && appr.tier !== 'free') {
               const resolvedTier = appr.tier;
@@ -334,12 +419,23 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
               window.dispatchEvent(new Event('auth-change'));
               return;
             }
-          } catch (_) {}
+          }
+          await fetchPaymentData();
+          await refreshProfile();
+        } catch (_) {
+        } finally {
+          checking = false;
         }
-        await fetchPaymentData();
-        await refreshProfile();
-      }, 3500);
-      return () => clearInterval(interval);
+      };
+
+      const interval = setInterval(runApprovalPoll, 1500);
+      const onWakeup = () => { void runApprovalPoll(); };
+      window.addEventListener('cloud-approval-wakeup', onWakeup);
+      return () => {
+        active = false;
+        clearInterval(interval);
+        window.removeEventListener('cloud-approval-wakeup', onWakeup);
+      };
     }
   }, [existingReceipt?.status, submitSuccess, user?.id, user?.phone_number]);
 
@@ -358,22 +454,26 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
     }
   }, [user, routeParams, isPaidSingleGrade]);
 
+  const startFileSelection = (file: File) => {
+    setSelectedFile(file);
+    setPreviewUrl(URL.createObjectURL(file));
+    setSubmitError(null);
+    precompressedRef.current = {
+      file,
+      promise: compressImageForSlip(file)
+    };
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setSubmitError(null);
+      startFileSelection(e.target.files[0]);
     }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
-      setSubmitError(null);
+      startFileSelection(e.dataTransfer.files[0]);
     }
   };
 
@@ -387,14 +487,26 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
     setIsSubmitting(true);
     setSubmitError(null);
 
-    // Compress screenshot on mobile for instant upload without network timeouts
+    // Use eager pre-compressed screenshot or compress now, with preview <img> canvas capture fallback
     let receiptDataUrl = '';
     let uploadBlob: Blob | File = selectedFile;
     try {
-      const compressed = await compressImageForSlip(selectedFile);
+      const pre = precompressedRef.current && precompressedRef.current.file === selectedFile
+        ? precompressedRef.current.promise
+        : compressImageForSlip(selectedFile);
+      const compressed = await pre;
       receiptDataUrl = compressed.dataUrl;
       uploadBlob = compressed.blob;
-    } catch (_) {
+    } catch (_) {}
+
+    if (!receiptDataUrl || receiptDataUrl.length > 750000) {
+      const domCaptured = capturePreviewElementDataUrl();
+      if (domCaptured) {
+        receiptDataUrl = domCaptured;
+      }
+    }
+
+    if (!receiptDataUrl) {
       try {
         receiptDataUrl = await new Promise<string>((resolve) => {
           const reader = new FileReader();
@@ -1016,6 +1128,7 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
                       {previewUrl ? (
                         <div className="space-y-2">
                           <img
+                            ref={previewImgRef}
                             src={previewUrl}
                             alt="Receipt preview"
                             className="max-h-36 mx-auto rounded-lg object-contain shadow-sm border border-slate-700"
