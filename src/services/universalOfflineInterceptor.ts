@@ -1221,15 +1221,11 @@ async function handleOfflineApiRequest(
   const meta = await ensureMetadata();
 
   const STALE_SAMPLE_PHONES = new Set([
-    '+251911223344', '+251922334455', '0911223344', '0922334455',
-    'usr-student-premium', 'usr-student-free', '+251911111111',
-    '+251964297591', '+251938935404', 'student-251911111111',
-    'student-251964297591', 'student-251938935404', 'usr-devpost-judge'
+    'usr-student-premium', 'usr-student-free', 'usr-devpost-judge'
   ]);
 
   const STALE_PAY_PHONES = new Set([
-    '+251911223344', '+251922334455', 'usr-student-premium', 'usr-student-free',
-    '+251911111111', '+251964297591', '+251938935404', 'rcpt-pending-1111',
+    'usr-student-premium', 'usr-student-free', 'rcpt-pending-1111',
     'rcpt-pending-devpost', 'rcpt-moibon-300', 'rcpt-student5404-200', 'rcpt-nafkun-200'
   ]);
 

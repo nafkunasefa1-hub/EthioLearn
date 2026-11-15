@@ -53,7 +53,12 @@ const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: 
   };
 
   return new Promise((resolve) => {
-    if (!file.type || !file.type.startsWith('image/')) {
+    const isLikelyImage =
+      (file.type && file.type.startsWith('image/')) ||
+      !file.type ||
+      /\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(file.name || '');
+
+    if (!isLikelyImage) {
       const reader = new FileReader();
       reader.onload = () => resolve({ blob: file, dataUrl: String(reader.result || '') });
       reader.onerror = () => resolve({ blob: file, dataUrl: '' });
@@ -67,6 +72,9 @@ const compressImageForSlip = async (file: File): Promise<{ blob: Blob; dataUrl: 
         let out = await renderScaled(img, 600, 0.52);
         if (out.dataUrl.length > 44000) {
           out = await renderScaled(img, 460, 0.42);
+        }
+        if (out.dataUrl.length > 90000) {
+          out = await renderScaled(img, 380, 0.36);
         }
         resolve(out.dataUrl ? out : { blob: file, dataUrl: String(e.target?.result || '') });
       };
@@ -293,6 +301,33 @@ export const PaymentPage: React.FC<PaymentPageProps> = ({ onNavigate, routeParam
           try {
             const appr = await fetchRemoteApprovalForPhone(phone || '', curUserId);
             if (appr && appr.is_premium && appr.tier !== 'free') {
+              const resolvedTier = appr.tier;
+              const resolvedGrades = resolvedTier === 'all'
+                ? ['all']
+                : (appr.unlocked_grades && appr.unlocked_grades.length > 0
+                    ? appr.unlocked_grades
+                    : [user?.grade_id || 'grade-12-natural']);
+              try {
+                const cached = localStorage.getItem('ethiolearn_user_profile');
+                if (cached) {
+                  const u = JSON.parse(cached);
+                  u.is_premium = true;
+                  u.payment_tier = resolvedTier;
+                  u.unlocked_grades = resolvedGrades;
+                  u.paid_amount = resolvedTier === 'all' ? 300 : 200;
+                  u.subscription_type = resolvedTier === 'all' ? 'all_grades' : 'grade_only';
+                  localStorage.setItem('ethiolearn_user_profile', JSON.stringify(u));
+                  localStorage.setItem('ethiolearn_user', JSON.stringify(u));
+                }
+                localStorage.setItem('ethiolearn_payment_approved', 'true');
+                localStorage.setItem('ethiolearn_payment_tier', resolvedTier);
+                const rStr = localStorage.getItem('ethiolearn_my_receipt');
+                if (rStr) {
+                  const parsed = JSON.parse(rStr);
+                  parsed.status = 'approved';
+                  localStorage.setItem('ethiolearn_my_receipt', JSON.stringify(parsed));
+                }
+              } catch (_) {}
               setExistingReceipt(prev => prev ? ({ ...prev, status: 'approved' }) : null);
               setSubmitSuccess(false);
               await refreshProfile();
